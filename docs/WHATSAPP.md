@@ -118,6 +118,22 @@ WhatsApp = **quick capture + quick answers**. Web = **anything with tables, char
 (e.g. `https://…/?t=<random token>`, token stored against their number, expires after 24 h). No passwords, no sign-up:
 the WhatsApp number is the account. Good moment for the demo video.
 
+**Short answer + "👉 See more" link.** Replies that have more behind them end with a deep link to that exact dashboard
+page, so WhatsApp gives the quick answer and the web gives the full power:
+
+| WhatsApp reply | Link opens |
+|---|---|
+| "5 people owe you ₦247,050 · 🔴 Oga Emeka ₦30,600, 18 days late" | `?t=…&tab=debtors`: full list, reminders, credit check |
+| "Today: sales ₦82,300 · expenses ₦9,500" | `?t=…&tab=today`: all entries, edit/delete |
+| "Next 7 days ≈ ₦620k · Saturday busiest" | `?t=…&tab=insights`: forecast table, best sellers |
+| "Found 5 entries in your photo" | `?t=…&tab=photo`: editable table for tricky pages |
+| "Record score 82/100" | `?t=…&tab=profile`: score breakdown + statement |
+
+Rules:
+- **Answer first, link second.** Many traders have small data plans or weak network, so the reply must be useful without opening the link.
+- **Only link when there's more to see.** A plain "✅ Saved" gets no link, or it starts to feel like spam.
+- **Links are private and expire:** random token tied to the trader's number, valid 24 h; opening it shows only their book.
+
 **Reminders go through the trader, not straight to the debtor.** WhatsApp only lets the bot message people who wrote to
 it in the last 24 h (otherwise Meta-approved templates are needed). So the bot writes the polite reminder and the trader
 forwards it. That keeps the trader in control (Responsible AI). Automatic reminders = "next step" in the pitch.
@@ -136,7 +152,8 @@ forwards it. That keeps the trader in control (Responsible AI). Automatic remind
    - send text/buttons
    - pending entries in a table keyed by button id
    - consent + per-trader language setting
-   - "dashboard" command → one-time link token (new `links` table: token, owner, expires_at)
+   - "dashboard" command and "👉 See more" links → link token (new `links` table: token, owner, expires_at);
+     `app.py` reads `?t=` and `?tab=` to open the right trader and tab
 3. **Run both** on Brev: `uvicorn whatsapp:app --port 8000` + `python app.py` (Gradio). Tunnel only port 8000 for Meta.
 4. **Tests:** fake webhook payloads (text/voice/photo/button) against the handler, plus the real 5-phone test.
 
