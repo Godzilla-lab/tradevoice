@@ -3,6 +3,8 @@
 
 Built for **Come Build with AI** (GOMYCODE × NVIDIA, 27 Sep 2026). Primary prize: **Kredete Financial Inclusion Award**.
 
+> ✅ **Prep checklist for the 4 of us: [`docs/PREP_PLAN.md`](docs/PREP_PLAN.md)**
+>
 > 👋 **New to the team? Read [`TEAM_GUIDE.md`](TEAM_GUIDE.md) first.** It covers who does what, the plan for the day and the rules we must follow.
 > **WhatsApp plan:** [`docs/WHATSAPP.md`](docs/WHATSAPP.md). Traders will use TradeVoice inside WhatsApp; the web app is the dashboard.
 > Other docs: [`docs/RULES_CHECKLIST.md`](docs/RULES_CHECKLIST.md) · [`docs/PITCH.md`](docs/PITCH.md) (video script + project card) ·
