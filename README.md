@@ -51,7 +51,8 @@ deterministic and explainable, so the AI can never invent a number in your books
 |---|---|
 | `app.py` | Gradio web app with all the tabs |
 | `llm.py` | Every NVIDIA API call, with automatic fallback to the next model if one is deprecated |
-| `check_models.py` | Tests which NVIDIA models work with your key. **Run this first** |
+| `check_models.py` | Lists the models your key can see and tests ours. **Run this first** |
+| `eval/lang_check.py` | Scoreboard: which model reads/understands Yoruba, Hausa, Igbo, Pidgin best |
 | `asr.py` | Speech-to-text: faster-whisper on the local GPU, or calls `asr_server/` |
 | `asr_server/server.py` | Optional standalone Whisper API (FastAPI) for a Brev GPU |
 | `vision.py` | Book photo → text lines (shrinks the image to fit NVIDIA's inline-image limit) |
@@ -107,8 +108,8 @@ stack as a **Brev Launchable** (one-click template) and show it in the video. Se
 | Variable | Default | Purpose |
 |---|---|---|
 | `NVIDIA_API_KEY` | – | build.nvidia.com key. Without it: offline rules, no photo reading |
-| `LLM_MODELS` | `nvidia/nemotron-3-super-120b-a12b,meta/llama-3.3-70b-instruct,meta/llama-3.1-70b-instruct` | Text models, tried in order |
-| `VISION_MODELS` | `nvidia/nemotron-nano-12b-v2-vl,meta/llama-3.2-90b-vision-instruct,meta/llama-3.2-11b-vision-instruct` | Photo models, tried in order |
+| `LLM_MODELS` | `nvidia/nemotron-3-super-120b-a12b,google/gemma-4-31b-it,qwen/qwen3.5-397b-a17b,meta/llama-3.3-70b-instruct` | Text models, tried in order |
+| `VISION_MODELS` | `google/gemma-4-31b-it,qwen/qwen3.5-397b-a17b,nvidia/nemotron-nano-12b-v2-vl,meta/llama-3.2-90b-vision-instruct` | Photo models, tried in order (multilingual first) |
 | `VISION_BASE_URL` / `VISION_API_KEY` | NVIDIA API / `NVIDIA_API_KEY` | Point at a self-hosted vLLM server instead |
 | `ASR_MODEL` | `large-v3-turbo` | Whisper model on GPU (`small` on CPU); try `large-v3` for max accuracy |
 | `ASR_URL` / `ASR_TOKEN` | – | Use a remote `asr_server` instead of local Whisper |

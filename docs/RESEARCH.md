@@ -59,3 +59,39 @@ records are a big reason why."*
 - One quick architecture frame showing **Brev GPU + Whisper + NVIDIA models** (for the AI + Brev criterion).
 - Upload early (uploads can take a long time) and test links in a private window. Keep a backup take.
 - https://info.devpost.com/blog/6-tips-for-making-a-hackathon-demo-video · https://info.devpost.com/blog/hackathon-judging-tips
+
+## Nigerian languages: which models to use (researched 24 Sep 2026)
+Source pages were mostly blocked for our research tool; numbers come from search summaries. **Run `python eval/lang_check.py`
+with your key: our own scoreboard beats any of this.**
+
+**Text benchmarks (IrokoBench, Hausa / Igbo / Yoruba average):** GPT-4o 75 / 68 / 72 · Aya-101 57 / 56 / 55 · Gemma 2 27B
+50 / 46 / 45 · Llama 3.1 70B 43 / 42 / 39. Gemma is the strongest *open* family for these languages; Llama is weakest.
+(https://arxiv.org/pdf/2406.03368, AfroBench: https://github.com/McGill-NLP/AfroBench)
+
+**Photos:**
+- **Llama 3.2 Vision: "English is the only language supported" for image+text** (Meta model card), so it's now last in our list.
+- **Gemma 4** (Apr 2026): 140+ languages in pre-training, multilingual OCR + handwriting listed. **Qwen 3.5**: 201 languages.
+- **No benchmark exists for handwritten Yoruba/Igbo/Hausa.** Our own photo test is the only real evidence we'll have.
+
+**New default order** (IDs from search results; `check_models.py` shows which your key can actually use):
+```
+LLM_MODELS=nvidia/nemotron-3-super-120b-a12b,google/gemma-4-31b-it,qwen/qwen3.5-397b-a17b,meta/llama-3.3-70b-instruct
+VISION_MODELS=google/gemma-4-31b-it,qwen/qwen3.5-397b-a17b,nvidia/nemotron-nano-12b-v2-vl,meta/llama-3.2-90b-vision-instruct
+```
+
+**Speech (important):**
+- **Whisper does NOT support Igbo at all**, and is poor at Yoruba (error rates can exceed 100% on FLEURS) and Hausa (~8 h of
+  training data). Whisper is fine for **English and Pidgin**, which is what we demo.
+- Better options for local-language voice notes:
+  - **Meta omniASR** (`facebook/omniASR-LLM-7B`, Apache-2.0, 1,600+ languages incl. Yoruba, Igbo, Hausa, ~15 GB GPU),
+    self-hostable on Brev. **Strong Brev story.** https://github.com/facebookresearch/omnilingual-asr
+  - **NCAIR1 Yoruba-ASR / Hausa-ASR / Igbo-ASR** (Whisper-small fine-tunes, N-ATLaS family); licence capped at 1,000
+    active users.
+  - **Spitch** (Nigerian speech API, outputs tone marks): hosted, pricing unknown. https://docs.spitch.app/
+
+**N-ATLaS** (`NCAIR1/N-ATLaS`, Llama-3-8B fine-tune for English/Hausa/Igbo/Yoruba): +4 to +11 points over its base model,
+but still well below the big API models. Licence: max 1,000 active users, "Powered by Awarri" naming. Good as a *demo
+extra* on Brev (e.g. replies in Yoruba), not as the main extraction model.
+
+**What to say in the pitch:** "English and Pidgin voice today; photos in Yoruba, Hausa and Igbo tested with [score];
+local-language speech next, using Meta omniASR / N-ATLaS models on our Brev GPU." Honest and it scores Responsible AI points.

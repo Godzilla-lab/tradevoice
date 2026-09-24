@@ -1,0 +1,16 @@
+{"id": "pcm1", "lang": "pidgin", "text": "I sell 3 bag of rice give Mama Tunde 45000, she go pay Friday", "type": "credit_sale", "amount": 45000, "customer": "Mama Tunde"}
+{"id": "pcm2", "lang": "pidgin", "text": "Iya Bisi don pay 12000 wey she owe me", "type": "payment_received", "amount": 12000, "customer": "Iya Bisi"}
+{"id": "pcm3", "lang": "pidgin", "text": "I pay 3500 for motor go market", "type": "expense", "amount": 3500, "customer": null}
+{"id": "pcm4", "lang": "pidgin", "text": "I sell 2 carton indomie 18500, dem pay cash", "type": "sale", "amount": 18500, "customer": null}
+{"id": "yo1", "lang": "yoruba", "text": "Mo ta àpò ìrẹsì 3 fún Mama Tunde ní 45000, gbèsè ni, yóò san lọ́jọ́ Ẹtì", "type": "credit_sale", "amount": 45000, "customer": "Mama Tunde"}
+{"id": "yo2", "lang": "yoruba", "text": "Iya Bisi ti san 12000 tí ó jẹ mí", "type": "payment_received", "amount": 12000, "customer": "Iya Bisi"}
+{"id": "yo3", "lang": "yoruba", "text": "Mo san 3500 owó ọkọ̀ lọ sí ọjà", "type": "expense", "amount": 3500, "customer": null}
+{"id": "yo4", "lang": "yoruba", "text": "Mo ta káàtọ̀nù indomie 2 ní 18500", "type": "sale", "amount": 18500, "customer": null}
+{"id": "ha1", "lang": "hausa", "text": "Na sayar da buhun shinkafa 3 ga Mama Tunde 45000, bashi ne, za ta biya ranar Juma'a", "type": "credit_sale", "amount": 45000, "customer": "Mama Tunde"}
+{"id": "ha2", "lang": "hausa", "text": "Iya Bisi ta biya 12000 na bashin ta", "type": "payment_received", "amount": 12000, "customer": "Iya Bisi"}
+{"id": "ha3", "lang": "hausa", "text": "Na biya 3500 kudin mota zuwa kasuwa", "type": "expense", "amount": 3500, "customer": null}
+{"id": "ha4", "lang": "hausa", "text": "Na sayar da katan indomie 2 a 18500", "type": "sale", "amount": 18500, "customer": null}
+{"id": "ig1", "lang": "igbo", "text": "Ere m akpa osikapa 3 nye Mama Tunde 45000, ọ ji m ụgwọ, ọ ga-akwụ na Fraịdee", "type": "credit_sale", "amount": 45000, "customer": "Mama Tunde"}
+{"id": "ig2", "lang": "igbo", "text": "Iya Bisi akwụọla 12000 nke ọ ji m", "type": "payment_received", "amount": 12000, "customer": "Iya Bisi"}
+{"id": "ig3", "lang": "igbo", "text": "Akwụrụ m 3500 maka ụgbọ ala gaa ahịa", "type": "expense", "amount": 3500, "customer": null}
+{"id": "ig4", "lang": "igbo", "text": "Ere m katọn indomie 2 na 18500", "type": "sale", "amount": 18500, "customer": null}

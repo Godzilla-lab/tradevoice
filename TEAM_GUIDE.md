@@ -39,6 +39,11 @@ Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
 - [ ] Testing: write **3 fake notebook pages** by hand (like a real trader: shorthand, "bal", "cr", crossed-out
       lines) and photograph them. Keep them for the photo test and the video.
 - [ ] Voice: have a Yoruba speaker check the Yoruba reminder in `insights.py` (`TEMPLATES`). Fix the wording if needed.
+- [ ] Voice: have **Yoruba, Hausa and Igbo speakers** check `eval/cases_lang.jsonl` (test phrases) and the local-language
+      keywords at the top of `extract.py`. They were written by a non-native speaker.
+- [ ] Testing: write handwritten pages in Yoruba / Hausa / Igbo / Pidgin → `eval/photos/` (see the README there), then run
+      `python eval/lang_check.py`. It prints a scoreboard of **which model reads and understands each language best**.
+      Put the winners first in `LLM_MODELS` / `VISION_MODELS` in `.env`. Paste the table into `docs/SUBMISSION.md`.
 - [ ] Product: rehearse the demo flow (Section 6) until it takes under 60 seconds.
 - [ ] Lead: pick the **team name**. Fill in `docs/SUBMISSION.md` team section.
 

@@ -14,14 +14,22 @@ import llm
 MAX_B64_BYTES = int(os.getenv("VISION_MAX_B64_BYTES", "175000"))
 
 PROMPT = """This is a photo of a Nigerian market trader's handwritten record book page or a receipt.
-Copy out every money record, ONE record per line, in plain English, keeping the exact numbers and names as written.
-Say clearly if it is a sale, a sale on credit (someone owes / "credit" / "owe" / "bal"), money paid back, or an expense.
-Write amounts as digits (e.g. 45000 or 45k exactly as written). If a word or number is unreadable write [?].
-Examples of good lines:
-Sold 3 bags rice to Mama Tunde 45000 on credit, pay Friday
-Iya Bisi paid back 12000
-Expense: transport 3500
+It may be written in English, Nigerian Pidgin, Yoruba, Hausa or Igbo, or a mix.
+For every money record, output ONE line in this format:
+<the line copied EXACTLY as written, keeping every letter, tone mark and number> => <short English meaning>
+If the line is already in English, just copy it without "=>".
+In the English meaning say clearly if it is a sale, a sale on credit (someone owes / "credit" / "bal" / gbèsè / bashi / ụgwọ),
+money paid back, or an expense, and keep amounts as digits and names exactly as written.
+If a word or number is unreadable write [?].
+Examples:
+Sold 3 bags rice to Mama Tunde 45000 cr, pay Friday
+Iya Bisi ti san 12000 => Iya Bisi paid back 12000
+Na biya 3500 kudin mota => Expense: transport 3500
 Output ONLY the lines, nothing else. If there are no money records, output NONE."""
+
+# Used by eval/lang_check.py to measure how exactly a model copies text (letters + tone marks).
+COPY_PROMPT = ("Copy the text in this image EXACTLY, character for character, keeping every tone mark and "
+               "diacritic (e.g. ẹ ọ ṣ à é ị ụ ṅ). Output only the text.")
 
 
 def encode_image(path):

@@ -9,6 +9,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 
 TYPES = ("sale", "credit_sale", "payment_received", "expense")
 import llm
@@ -45,15 +46,42 @@ _HONORIFIC = (r"mama|papa|iya|baba|alhaji|alhaja|madam|oga|aunty|auntie|uncle|mr
 _NOT_NAMES = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
               "today", "tomorrow", "next", "week", "month", "i", "naira", "the", "me", "am", "am"}
 _WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+# Weekday names in Yoruba / Hausa / Igbo, written WITHOUT tone marks (text is de-accented before matching).
+# ⚠️ Have native speakers check these lists.
+_LOCAL_WEEKDAYS = [
+    ("aje", "litinin", "monde"), ("isegun", "talata", "tiuzdee"), ("ojoru", "laraba", "wenezdee"),
+    ("ojobo", "alhamis", "tozdee"), ("eti", "juma'a", "fraidee"), ("abameta", "asabar", "satodee"),
+    ("aiku", "lahadi", "sondee"),
+]
 
+# English / Pidgin keywords, then Yoruba (yo), Hausa (ha), Igbo (ig) WITHOUT tone marks. ⚠️ native-speaker check.
 _PAYMENT_KW = ("don pay", "has paid", "have paid", "paid me", "pay me back", "come pay", "don settle",
                "settled", "don clear", "paid back", "payed back", "repaid", "cleared", "paid her debt", "paid his debt", "paid the balance",
-               "pay the balance", "balance me")
-_CREDIT_KW = ("owe", "go pay", "will pay", "on credit", "na credit", "credit", "later", "balance remain",
-              "never pay", "no pay", "pay by", "pay on", "pay next")
+               "pay the balance", "balance me",
+               "ti san",                                   # yo: has paid
+               "biya bashi", "biyan bashi", "na bashin",   # ha: paid the debt
+               "akwuola", "kwuola", "kwuru ugwo")          # ig: has paid / paid the debt
+_CREDIT_KW = ("owe", "owes", "owing", "go pay", "will pay", "on credit", "na credit", "credit", "later", "balance remain",
+              "never pay", "no pay", "pay by", "pay on", "pay next",
+              "gbese", "je mi", "yoo san", "o ma san",      # yo: debt, owes me, will pay
+              "bashi", "za ta biya", "za ya biya",          # ha: debt, will pay
+              "ugwo", "ji m", "ga-akwu", "ga akwu")         # ig: debt, owes me, will pay
 _EXPENSE_RE = re.compile(r"\b(i|we)\s+(buy|bought|pay for|paid for|spend|spent|restock|restocked)\b"
-                         r"|\b(transport|rent|levy|fuel|diesel|salary|shop rent|market levy|restock)\b",
+                         r"|\b(i|we)\s+(pay|paid)\s+(n|₦)?\d"
+                         r"|\b(transport|motor fare|rent|levy|fuel|diesel|salary|shop rent|market levy|restock)\b"
+                         r"|\bmo san\b|\bowo oko\b"                # yo: I paid, transport money
+                         r"|\bna biya\b|\bkudin mota\b"            # ha: I paid, transport money
+                         r"|\bakwuru m\b|\bugbo ala\b",            # ig: I paid, vehicle
                          re.IGNORECASE)
+
+
+_SELL_RE = re.compile(r"\b(sell|sold|ta|sayar|ere m|ree)\b")  # en, yo, ha, ig
+
+
+def fold(text):
+    """Lowercase and strip tone marks/diacritics: 'Gbèsè' -> 'gbese', 'ụgwọ' -> 'ugwo'."""
+    t = unicodedata.normalize("NFD", (text or "").lower())
+    return "".join(c for c in t if unicodedata.category(c) != "Mn").replace("’", "'")
 
 
 def parse_amount(text):
@@ -84,8 +112,8 @@ def parse_amount(text):
 
 
 def parse_due(text, today):
-    t = (text or "").lower()
-    if re.search(r"\b(tomorrow|tomoro|tmrw|tomorow)\b", t):
+    t = fold(text)
+    if re.search(r"\b(tomorrow|tomoro|tmrw|tomorow|gobe|echi)\b", t):
         return (today + dt.timedelta(days=1)).isoformat()
     if "next week" in t:
         return (today + dt.timedelta(days=7)).isoformat()
@@ -93,7 +121,7 @@ def parse_due(text, today):
         nxt = (today.replace(day=28) + dt.timedelta(days=4))
         return (nxt - dt.timedelta(days=nxt.day)).isoformat()
     for i, day in enumerate(_WEEKDAYS):
-        if re.search(rf"\b{day}\b", t):
+        if any(re.search(rf"(?<![\w']){re.escape(n)}(?![\w'])", t) for n in (day, *_LOCAL_WEEKDAYS[i])):
             delta = (i - today.weekday()) % 7 or 7
             return (today + dt.timedelta(days=delta)).isoformat()
     return None
@@ -104,23 +132,24 @@ def parse_customer(text):
     m = re.search(rf"\b((?i:{_HONORIFIC})\s+[A-Z][\w']+)", text)
     if m:
         return m.group(1).strip()
-    for m in re.finditer(r"\b(?i:give|to|for|from|by)\s+([A-Z][\w']+(?:\s[A-Z][\w']+)?)", text):
+    for m in re.finditer(r"\b(?i:give|to|for|from|by|fun|fún|ga|nye)\s+([A-Z][\w']+(?:\s[A-Z][\w']+)?)", text):
         name = m.group(1)
         if name.split()[0].lower() not in _NOT_NAMES:
             return name
-    m = re.match(r"\s*([A-Z][\w']+)\s+(?i:don pay|has paid|paid|come pay|owe)", text)
+    m = re.match(r"\s*([A-Z][\w']+)\s+(?i:don pay|has paid|paid|come pay|owe|ti san|ta biya|ya biya|akwụọla|akwuola)",
+                 text)
     if m and m.group(1).lower() not in _NOT_NAMES:
         return m.group(1)
     return None
 
 
 def parse_type(text):
-    t = (text or "").lower()
+    t = fold(text)
     if any(k in t for k in _PAYMENT_KW):
         return "payment_received"
-    if _EXPENSE_RE.search(t) and not re.search(r"\b(sell|sold)\b", t):
+    if _EXPENSE_RE.search(t) and not _SELL_RE.search(t):
         return "expense"
-    if any(k in t for k in _CREDIT_KW):
+    if any(re.search(rf"(?<![\w-]){re.escape(k)}(?!\w)", t) for k in _CREDIT_KW):
         return "credit_sale"
     return "sale"
 
@@ -236,7 +265,9 @@ def extract_many(text, today=None):
     today = today or dt.date.today()
     start = time.perf_counter()
     lines = _split_lines(text)
-    rules = [dict(rule_extract(l, today), line=l) for l in lines]
+    # a photo line may be "<original> => <English meaning>": rules read both halves (keywords are multilingual,
+    # the English half helps most), the trader sees the original
+    rules = [dict(rule_extract(l.replace("=>", " ; "), today), line=l) for l in lines]
     meta = {"engine": "rules", "error": None}
     out = rules
     if lines and os.getenv("NVIDIA_API_KEY"):

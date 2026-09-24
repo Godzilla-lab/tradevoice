@@ -36,6 +36,14 @@ def try_model(model, content):
         return f"❌ {model:<45} {type(e).__name__}: {str(e)[:90]}"
 
 
+try:
+    live = {m.id for m in client.models.list().data}
+    print(f"Your key sees {len(live)} models. Ours:")
+    for m in dict.fromkeys(llm.LLM_MODELS + llm.VISION_MODELS):
+        print(f"  {'listed ' if m in live else 'MISSING'}  {m}")
+except Exception as e:  # noqa: BLE001
+    print(f"Could not list models ({type(e).__name__}); testing directly.")
+
 print("Text models (LLM_MODELS):")
 for m in llm.LLM_MODELS:
     print(" ", try_model(m, 'Reply with only this JSON: {"ok": true}'))

@@ -2,17 +2,19 @@
 
 Models on build.nvidia.com get deprecated (Llama 3.3 70B was scheduled for 25 Aug 2026), so we try a list in order
 and remember the first one that works. Override with LLM_MODELS / VISION_MODELS (comma-separated).
+Vision order favours multilingual models (Gemma 4, Qwen 3.5) for Yoruba/Igbo/Hausa pages; Llama 3.2 Vision is last
+because Meta supports English only for image+text. See docs/RESEARCH.md → "Nigerian languages".
 """
 import os
 import re
 
 NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
 LLM_MODELS = [m.strip() for m in os.getenv(
-    "LLM_MODELS", os.getenv("LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b,meta/llama-3.3-70b-instruct,"
-                                         "meta/llama-3.1-70b-instruct")).split(",") if m.strip()]
+    "LLM_MODELS", os.getenv("LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b,google/gemma-4-31b-it,"
+                                         "qwen/qwen3.5-397b-a17b,meta/llama-3.3-70b-instruct")).split(",") if m.strip()]
 VISION_MODELS = [m.strip() for m in os.getenv(
-    "VISION_MODELS", os.getenv("VISION_MODEL", "nvidia/nemotron-nano-12b-v2-vl,meta/llama-3.2-90b-vision-instruct,"
-                                               "meta/llama-3.2-11b-vision-instruct")).split(",") if m.strip()]
+    "VISION_MODELS", os.getenv("VISION_MODEL", "google/gemma-4-31b-it,qwen/qwen3.5-397b-a17b,"
+                                               "nvidia/nemotron-nano-12b-v2-vl,meta/llama-3.2-90b-vision-instruct")).split(",") if m.strip()]
 VISION_BASE_URL = os.getenv("VISION_BASE_URL", NVIDIA_BASE_URL)
 
 _working = {}  # kind -> model that last worked
@@ -41,10 +43,11 @@ def clean(text):
     return text.strip()
 
 
-def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60):
-    """Return (text, model_used). Tries each configured model until one answers."""
-    models = VISION_MODELS if kind == "vision" else LLM_MODELS
-    if _working.get(kind) in models:  # try the last good model first
+def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, models=None):
+    """Return (text, model_used). Tries each configured model (or `models`) until one answers."""
+    pinned = models is not None
+    models = models or (VISION_MODELS if kind == "vision" else LLM_MODELS)
+    if not pinned and _working.get(kind) in models:  # try the last good model first
         models = [_working[kind]] + [m for m in models if m != _working[kind]]
     client = _client(kind, timeout)
     last = None
@@ -52,7 +55,8 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60):
         try:
             resp = client.chat.completions.create(model=model, messages=messages, temperature=temperature,
                                                   max_tokens=max_tokens)
-            _working[kind] = model
+            if not pinned:
+                _working[kind] = model
             return clean(resp.choices[0].message.content), model
         except Exception as e:  # noqa: BLE001
             last = e
