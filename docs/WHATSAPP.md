@@ -97,9 +97,37 @@ First message ever → short welcome + consent: "Reply YES to let TradeVoice kee
 ```
 Keep it **task-specific** (see policy): anything off-topic → "I only help with your shop records."
 
+## 4b. What goes where (WhatsApp vs web dashboard)
+One shared record book: anything saved on WhatsApp shows on the dashboard instantly, and the other way round.
+WhatsApp = **quick capture + quick answers**. Web = **anything with tables, charts or editing**.
+
+| Task | WhatsApp | Web dashboard |
+|---|---|---|
+| Record a sale by voice note | ✅ **main way** | ✅ |
+| Snap notebook page / receipt | ✅ **main way** | ✅ |
+| Confirm or fix an entry | ✅ buttons | ✅ full edit form |
+| "Who owe me?" / "How market today?" | ✅ short answer | ✅ full table |
+| Credit warning before giving credit | ✅ | ✅ |
+| Debt reminder message | ✅ bot writes it, **trader forwards it** | ✅ |
+| Charts, forecast, best sellers | ❌ one-line summary only | ✅ **main place** |
+| Edit/delete old entries, full history | ❌ | ✅ **main place** |
+| Lender statement | ✅ sent as a document | ✅ download |
+| Delete all my data | ✅ with confirmation | ✅ |
+
+**The bridge: a dashboard link.** Trader types **"dashboard"** → bot replies with a private link to *their* dashboard
+(e.g. `https://…/?t=<random token>`, token stored against their number, expires after 24 h). No passwords, no sign-up:
+the WhatsApp number is the account. Good moment for the demo video.
+
+**Reminders go through the trader, not straight to the debtor.** WhatsApp only lets the bot message people who wrote to
+it in the last 24 h (otherwise Meta-approved templates are needed). So the bot writes the polite reminder and the trader
+forwards it. That keeps the trader in control (Responsible AI). Automatic reminders = "next step" in the pitch.
+
+**Don't copy the whole web app into chat.** Keep replies short; send the dashboard link when they need more.
+
 ## 5. Code changes needed (on the day)
 1. **`ledger.py`**: add an `owner` column (the trader's WhatsApp number) so each trader has their own book. The web
-   app shows one owner (set `SHOP_PHONE` in `.env`), so web and WhatsApp display the same records.
+   app opens the owner from the dashboard link token (`?t=…`), falling back to `SHOP_PHONE` in `.env` for the demo,
+   so web and WhatsApp display the same records.
 2. **`whatsapp.py`** (new, FastAPI):
    - `GET /webhook` verify
    - `POST /webhook` signature check → dedupe → background task
@@ -108,6 +136,7 @@ Keep it **task-specific** (see policy): anything off-topic → "I only help with
    - send text/buttons
    - pending entries in a table keyed by button id
    - consent + per-trader language setting
+   - "dashboard" command → one-time link token (new `links` table: token, owner, expires_at)
 3. **Run both** on Brev: `uvicorn whatsapp:app --port 8000` + `python app.py` (Gradio). Tunnel only port 8000 for Meta.
 4. **Tests:** fake webhook payloads (text/voice/photo/button) against the handler, plus the real 5-phone test.
 
