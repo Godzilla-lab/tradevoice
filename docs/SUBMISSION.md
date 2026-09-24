@@ -13,7 +13,8 @@
 ## AI / tools disclosure
 | Component | What we used | Where it runs | Why |
 |---|---|---|---|
-| Speech-to-text | Whisper large-v3-turbo via faster-whisper (open source, MIT) | **NVIDIA Brev GPU** (______ GPU) | Traders' voice + financial data stay on our own server; handles Nigerian English/Pidgin; fast on GPU |
+| Speech-to-text (English/Pidgin) | Whisper large-v3-turbo via faster-whisper (open source, MIT) | **NVIDIA Brev GPU** (______ GPU) | Traders' voice + financial data stay on our own server; handles Nigerian English/Pidgin; fast on GPU |
+| Speech-to-text (Yoruba/Hausa/Igbo) | Meta Omnilingual ASR `omniASR_LLM_3B_v2` (Apache-2.0) | **NVIDIA Brev GPU** (same instance) | Whisper has no Igbo and is weak at Yoruba/Hausa; omniASR covers all three |
 | Understanding entries + Ask-my-book | ______ (model shown in app, e.g. `nvidia/nemotron-3-super-120b-a12b`), with automatic fallback models | NVIDIA API (build.nvidia.com) | Turns Pidgin/English into structured JSON; fallback keeps working if a model is retired |
 | Reading book photos | ______ (e.g. `nvidia/nemotron-nano-12b-v2-vl`, built for documents) | NVIDIA API (or Brev) | Reads handwriting into lines the trader can check |
 | Offline fallback + amount check | Our own rule-based parser | Brev | Works when AI is down; catches wrong amounts |
@@ -23,7 +24,8 @@
 | Generated assets | ______ (e.g. none / thumbnail) | – | – |
 
 ## How we used our NVIDIA Brev credits
-We ran our speech-recognition server (Whisper large-v3-turbo, float16 on CUDA) and the TradeVoice app on a Brev
+We ran two speech models on the GPU: Whisper large-v3-turbo (English/Pidgin, float16 on CUDA) and Meta's omniASR 3B
+(Yoruba, Hausa, Igbo), together with and the TradeVoice app on a Brev
 ______ GPU instance for ______ hours (≈ $______ of credits). Self-hosting speech on Brev means traders' voice notes are
 never sent to a third-party speech API and are deleted right after transcription. On the GPU a voice note takes
 ≈ ______ s vs ≈ ______ s on a laptop CPU. We stopped the instance when idle to use credits efficiently.
@@ -45,11 +47,13 @@ Screenshots: ______
 | Speech-to-text latency on Brev GPU (median) | __ s |
 | LLM understanding latency (median) | __ s |
 | Noisy-market voice notes, amount correct | __ / 5 |
+| Yoruba / Hausa / Igbo voice notes (omniASR), amount correct | __ / __ · __ / __ · __ / __ |
+| Same notes through Whisper (for comparison) | __ / __ · __ / __ · __ / __ |
 
 **Failure modes and fallbacks:** NVIDIA API down or slow → offline rules (tested) · LLM amount disagrees with the words
 → flagged and confidence lowered · unreadable handwriting → marked [?] and not saved until fixed · no amount → cannot
 save · credit to a late customer → warning · every entry needs the trader's confirmation.
-**Known limits:** Yoruba/Hausa/Igbo speech is weak in Whisper; heavy noise lowers accuracy; the forecast is a simple
+**Known limits:** Yoruba/Hausa/Igbo voice uses omniASR (not yet tested on many real traders; notes cut at 39 s); heavy noise lowers accuracy; the forecast is a simple
 weekday average; the score is not validated against real loan outcomes.
 
 ## Responsible AI + data

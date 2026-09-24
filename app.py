@@ -43,7 +43,7 @@ def risk_line(rec):
 
 # ---------------------------------------------------------------- voice / text record tab
 
-def process(consent, audio_path, typed_text):
+def process(consent, audio_path, typed_text, voice_lang="English / Pidgin"):
     blank = [gr.update()] * 8
     if not consent:
         return ["⚠️ Please tick the consent box first."] + blank
@@ -52,9 +52,11 @@ def process(consent, audio_path, typed_text):
         try:
             from asr import transcribe
 
-            res = transcribe(audio_path)
+            res = transcribe(audio_path, voice_lang)
             text = res["text"]
             asr_info = f"🎙️ Speech → text: {res['engine']}, {res['latency_ms']} ms, language `{res['language']}`  \n"
+            if res.get("note"):
+                asr_info += f"⚠️ {res['note']}  \n"
         except Exception as e:
             return [f"⚠️ Could not transcribe ({type(e).__name__}: {e}). Type the entry instead."] + blank
         finally:
@@ -324,7 +326,10 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
 
     with gr.Tab("🎙️ Speak"):
         with gr.Row():
-            audio = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Voice note")
+            with gr.Column():
+                voice_lang = gr.Radio(["English / Pidgin", "Yoruba", "Hausa", "Igbo"], value="English / Pidgin",
+                                      label="Voice note language")
+                audio = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Voice note")
             typed = gr.Textbox(label="…or type it", lines=3,
                                placeholder="I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday")
         go = gr.Button("Process", variant="primary")
@@ -342,7 +347,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
                 f_unit = gr.Textbox(label="Unit")
         confirm = gr.Button("✅ Confirm & save")
         saved = gr.Markdown()
-        go.click(process, [consent, audio, typed],
+        go.click(process, [consent, audio, typed, voice_lang],
                  [status, transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due])
         confirm.click(save, [transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due, status], saved)
 

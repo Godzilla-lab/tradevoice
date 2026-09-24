@@ -1,28 +1,25 @@
-"""Standalone Whisper speech-to-text API for a Brev GPU instance.
+"""Standalone speech-to-text API for a Brev GPU instance (Whisper + omniASR, same logic as ../asr.py).
 
-Run:  uvicorn server:app --host 0.0.0.0 --port 8000
+Run:  cd asr_server && uvicorn server:app --host 0.0.0.0 --port 8000
 Only needed if the Gradio app runs somewhere other than the Brev box.
 """
 import os
+import sys
 import tempfile
-import time
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
-from faster_whisper import WhisperModel
 
-MODEL = os.getenv("ASR_MODEL", "large-v3-turbo")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+os.environ.pop("ASR_URL", None)  # this server IS the ASR backend: always run models locally
+import asr  # noqa: E402
+
 TOKEN = os.getenv("ASR_TOKEN", "")
-INITIAL_PROMPT = ("Market trader voice note in Nigerian English or Pidgin. Naira amounts like 45k, 2,500, 1.5m. "
-                  "Names like Mama Tunde, Iya Bisi, Alhaji Musa, Oga Emeka. Items: bag of rice, garri, beans, "
-                  "carton of indomie, crate of eggs, paint of beans, mudu. She go pay Friday. E don pay.")
-
 app = FastAPI(title="TradeVoice ASR")
-model = WhisperModel(MODEL, device="cuda", compute_type="float16")
 
 
 @app.get("/health")
 def health():
-    return {"ok": True, "model": MODEL}
+    return {"ok": True, "whisper": asr.LOCAL_MODEL, "omni": asr.OMNI_MODEL, "languages": list(asr.LANGUAGES)}
 
 
 @app.post("/transcribe")
@@ -35,9 +32,4 @@ async def transcribe(file: UploadFile = File(...), language: str = Form(""),
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
         tmp.write(await file.read())
         tmp.flush()
-        start = time.perf_counter()
-        segments, info = model.transcribe(tmp.name, language=language or None, vad_filter=True,
-                                          initial_prompt=INITIAL_PROMPT, beam_size=5)
-        text = " ".join(s.text.strip() for s in segments).strip()
-    return {"text": text, "language": info.language, "model": MODEL,
-            "gpu_ms": round((time.perf_counter() - start) * 1000)}
+        return asr.transcribe(tmp.name, language or None)

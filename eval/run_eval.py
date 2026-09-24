@@ -39,7 +39,9 @@ def main():
                 continue
             from asr import transcribe
 
-            r = transcribe(files[0])
+            # cases_lang.jsonl carries "lang": route Yoruba/Hausa/Igbo audio to omniASR
+            r = transcribe(files[0], {"yoruba": "Yoruba", "hausa": "Hausa", "igbo": "Igbo"}.get(c.get("lang"),
+                                                                                             "English / Pidgin"))
             asr_lat.append(r["latency_ms"])
             text = r["text"]
         rec, meta = extract(text)

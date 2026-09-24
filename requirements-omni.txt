@@ -1,0 +1,5 @@
+# Yoruba / Hausa / Igbo voice notes (Meta Omnilingual ASR, Apache-2.0). Install on the Brev GPU box only:
+#   sudo apt-get install -y ffmpeg libsndfile1
+#   pip install -r requirements-omni.txt
+# Downloads ~17 GiB of weights on first use (omniASR_LLM_3B_v2). Start it early.
+omnilingual-asr

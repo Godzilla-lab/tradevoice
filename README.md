@@ -16,7 +16,7 @@ don't know their real profit, and without records they can't get a loan from a m
 ## What TradeVoice does
 | Feature | What the trader does | What happens |
 |---|---|---|
-| 🎙️ **Speak** | Sends a voice note: *"I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday"* | Whisper (on our **NVIDIA Brev GPU**) → text → LLM → entry: *credit sale, ₦45,000, Mama Tunde, due Fri* → trader confirms |
+| 🎙️ **Speak** | Sends a voice note: *"I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday"* (or in Yoruba, Hausa, Igbo) | Whisper for English/Pidgin, **Meta omniASR for Yoruba/Hausa/Igbo**, both on our **NVIDIA Brev GPU** → text → LLM → entry: *credit sale, ₦45,000, Mama Tunde, due Fri* → trader confirms |
 | 📸 **Snap your book** | Takes a photo of a notebook page or receipt | Vision AI reads every line → editable table → trader ticks and saves all |
 | 🏷️ **Credit check** | Records a credit sale | Warning if that customer is already late: *"⛔ Oga Emeka already owes ₦30,600 and is 18 days late"* |
 | 📒 **Who owes me** | Opens the tab | Everyone who owes, how much, how late. Payments clear the oldest debt first |
@@ -28,7 +28,7 @@ don't know their real profit, and without records they can't get a loan from a m
 
 ## How it works
 ```
- Voice note ─► Whisper large-v3-turbo (faster-whisper, self-hosted on NVIDIA Brev GPU) ┐
+ Voice note ─► Whisper (English/Pidgin) or Meta omniASR (Yoruba/Hausa/Igbo), on NVIDIA Brev GPU ┐
                                                                                  ├─► text lines
  Book photo ─► Nemotron Nano VL vision model (build.nvidia.com, or self-hosted on Brev) ┘
                                          │
@@ -53,8 +53,9 @@ deterministic and explainable, so the AI can never invent a number in your books
 | `llm.py` | Every NVIDIA API call, with automatic fallback to the next model if one is deprecated |
 | `check_models.py` | Lists the models your key can see and tests ours. **Run this first** |
 | `eval/lang_check.py` | Scoreboard: which model reads/understands Yoruba, Hausa, Igbo, Pidgin best |
-| `asr.py` | Speech-to-text: faster-whisper on the local GPU, or calls `asr_server/` |
-| `asr_server/server.py` | Optional standalone Whisper API (FastAPI) for a Brev GPU |
+| `asr.py` | Speech-to-text: Whisper for English/Pidgin, Meta omniASR for Yoruba/Hausa/Igbo (Whisper has no Igbo); or calls `asr_server/` |
+| `requirements-omni.txt` | Extra install for Yoruba/Hausa/Igbo voice (Brev GPU only) |
+| `asr_server/server.py` | Optional standalone speech API (FastAPI) for a Brev GPU, same engines as `asr.py` |
 | `vision.py` | Book photo → text lines (shrinks the image to fit NVIDIA's inline-image limit) |
 | `extract.py` | Text → entries. LLM first; rules as fallback and amount cross-check. `extract()` for one, `extract_many()` for many lines |
 | `ledger.py` | SQLite storage, daily summary, debtors (oldest debt paid first), customer credit check, record score |
@@ -93,12 +94,23 @@ python app.py
    ```
    Why the Gradio link: Brev's own tunnels sit behind a Cloudflare login, so judges' phones can't open them directly.
    For team-only testing you can also use `brev port-forward <instance> --port 7860:7860`.
-3. If faster-whisper complains about missing cuDNN/cuBLAS (fix from the faster-whisper README):
+3. **Yoruba / Hausa / Igbo voice (Meta omniASR).** Start this early: it downloads ~17 GiB the first time.
+   ```bash
+   sudo apt-get install -y ffmpeg libsndfile1
+   pip install -r requirements-omni.txt
+   python -c "import asr; print(asr.omni_languages_ok())"          # expect all True
+   python -c "import asr; print(asr.transcribe('eval/audio/yo1.m4a', 'Yoruba'))"   # downloads + warms up
+   ```
+   Default model `omniASR_LLM_3B_v2` (~10 GB GPU memory) fits next to Whisper on a 24 GB L4. On a 48 GB L40S you can
+   use `OMNI_MODEL=omniASR_LLM_7B_v2` (~17 GB, more accurate). Voice notes are cut at 39 s (model limit).
+   If the install clashes with other packages: make a second virtualenv, run `asr_server` there
+   (`cd asr_server && uvicorn server:app --port 8000`) and start the app with `ASR_URL=http://localhost:8000`.
+4. If faster-whisper complains about missing cuDNN/cuBLAS (fix from the faster-whisper README):
    ```bash
    pip install nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"
    export LD_LIBRARY_PATH=`python3 -c 'import os; import nvidia.cublas.lib; import nvidia.cudnn.lib; print(os.path.dirname(nvidia.cublas.lib.__file__) + ":" + os.path.dirname(nvidia.cudnn.lib.__file__))'`
    ```
-4. **Stop the instance whenever you're not using it.** Screenshot the Brev console (GPU type, runtime, cost) for the submission.
+5. **Stop the instance whenever you're not using it.** Screenshot the Brev console (GPU type, runtime, cost) for the submission.
 
 Optional stretch (more Brev usage): self-host an open vision model on the same GPU with vLLM and set
 `VISION_BASE_URL=http://localhost:8001/v1`, `VISION_MODELS=<model>`, `VISION_API_KEY=none`. Bonus: package the whole
@@ -112,7 +124,8 @@ stack as a **Brev Launchable** (one-click template) and show it in the video. Se
 | `VISION_MODELS` | `google/gemma-4-31b-it,qwen/qwen3.5-397b-a17b,nvidia/nemotron-nano-12b-v2-vl,meta/llama-3.2-90b-vision-instruct` | Photo models, tried in order (multilingual first) |
 | `VISION_BASE_URL` / `VISION_API_KEY` | NVIDIA API / `NVIDIA_API_KEY` | Point at a self-hosted vLLM server instead |
 | `ASR_MODEL` | `large-v3-turbo` | Whisper model on GPU (`small` on CPU); try `large-v3` for max accuracy |
-| `ASR_URL` / `ASR_TOKEN` | – | Use a remote `asr_server` instead of local Whisper |
+| `OMNI_MODEL` | `omniASR_LLM_3B_v2` | Meta omniASR model for Yoruba/Hausa/Igbo voice (`omniASR_LLM_7B_v2` on a 48 GB GPU) |
+| `ASR_URL` / `ASR_TOKEN` | – | Use a remote `asr_server` instead of local speech models |
 | `DB_PATH` | `tradevoice.db` | SQLite file |
 | `SHOP_NAME` | `Chioma Stores` | Default shop name on reminders and statement |
 | `GRADIO_SHARE` | – | `1` = public link |

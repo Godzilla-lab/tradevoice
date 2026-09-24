@@ -35,7 +35,9 @@ Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
 - [ ] Testing: **write 15 NEW test phrases** (without looking at `extract.py`) in `eval/cases_team.jsonl`, same format
       as `eval/cases.jsonl` but with ids `t01`, `t02`…. Run: `python eval/run_eval.py --cases eval/cases_team.jsonl`. Mix English, Pidgin, big and small amounts, "45k", "N12,500", names, dates.
 - [ ] Testing: **record all 35 phrases as voice notes** (WhatsApp voice notes are fine, export as .m4a/.ogg) named
-      by case id (`01.m4a`… and `t01.m4a`…) into `eval/audio/`. Run with `--audio eval/audio`. Use at least 3 different voices; record 5 with market noise.
+      by case id (`01.m4a`… and `t01.m4a`…) into `eval/audio/`. Also record the 16 phrases in `eval/cases_lang.jsonl`
+      (`pcm1.m4a`, `yo1.m4a`, `ha1.m4a`, `ig1.m4a`…) by **native speakers**: `run_eval.py --cases eval/cases_lang.jsonl
+      --audio eval/audio` then scores Whisper vs omniASR per language. Run with `--audio eval/audio`. Use at least 3 different voices; record 5 with market noise.
 - [ ] Testing: write **3 fake notebook pages** by hand (like a real trader: shorthand, "bal", "cr", crossed-out
       lines) and photograph them. Keep them for the photo test and the video.
 - [ ] Voice: have a Yoruba speaker check the Yoruba reminder in `insights.py` (`TEMPLATES`). Fix the wording if needed.
@@ -56,10 +58,10 @@ Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
 | 08:30 | Check in, join the event channels | All |
 | 09:45–10:00 | **Submit final roster form** (primary prize: *Kredete Financial Inclusion Award*) | Lead |
 | 10:15 | Get the Brev voucher → activate | Engineer |
-| 10:15–11:15 | Brev workshop. Create GPU instance, clone repo, install, run Whisper once, start `GRADIO_SHARE=1 python app.py` | Engineer |
+| 10:15–11:15 | Brev workshop. Create GPU instance, clone repo, install, **start the omniASR install + download first** (17 GiB, README step 3), run Whisper once, start `GRADIO_SHARE=1 python app.py` | Engineer |
 | 11:15–11:30 | Sprint 1: team checks the public link works on phones | All |
 | 11:30 | Mentor checkpoint: show the live link + ask about Brev usage expectations | Lead |
-| 11:45–13:00 | Sprint 2: real voice notes through Brev; fix errors; tune prompts; photo reading working | Engineer, Testing |
+| 11:45–13:00 | Sprint 2: real voice notes through Brev (English/Pidgin **and** Yoruba/Hausa/Igbo); fix errors; tune prompts; photo reading working | Engineer, Testing |
 | 13:00 | Lunch (**stop or keep Brev running? stop if idle > 30 min**) | Engineer |
 | 13:45 | Submission briefing: note exactly what they want | Lead |
 | 14:00–15:30 | Sprint 3: run `run_eval.py` on new phrases + audio; fill results table; polish UI; screenshot Brev | Testing, Product |
