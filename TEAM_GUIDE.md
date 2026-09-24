@@ -21,6 +21,7 @@ Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
 | ⚙️ **Brev + AI engineer** | ______ | Brev instance, Whisper on GPU, NVIDIA API keys, public demo link, Brev screenshots + cost |
 | 🧪 **Testing + data** | ______ | Voice-note recordings, new test phrases, `run_eval.py` results, failure-mode list |
 | 🎨 **Product + demo** | ______ | App polish, demo script, 90-second video, project card |
+| 📲 **WhatsApp** | ______ | Meta setup before Sunday; on the day builds `whatsapp.py` (docs/WHATSAPP.md §5) |
 | 🗣️ **Voice + responsible AI** | ______ | Yoruba/Pidgin wording check, privacy/consent/bias section, the talking in the video |
 
 (Fewer than 5 people? Merge roles: Lead + Product, Engineer + Testing.)
@@ -47,6 +48,8 @@ Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
       `python eval/lang_check.py`. It prints a scoreboard of **which model reads and understands each language best**.
       Put the winners first in `LLM_MODELS` / `VISION_MODELS` in `.env`. Paste the table into `docs/SUBMISSION.md`.
 - [ ] Product: rehearse the demo flow (Section 6) until it takes under 60 seconds.
+- [ ] **WhatsApp owner: do the Meta WhatsApp setup in `docs/WHATSAPP.md` §2 by Saturday** (test number, 5 allowlisted
+      phones, permanent token, webhook + tunnel test). Also set up the 360dialog sandbox as a 10-min backup.
 - [ ] Lead: pick the **team name**. Fill in `docs/SUBMISSION.md` team section.
 
 ⚠️ **Rule:** the judges score what we build *on the day*. Prep = setup, tests, data, rehearsal. Save real feature work

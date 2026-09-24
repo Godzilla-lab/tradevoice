@@ -59,7 +59,9 @@ weekday average; the score is not validated against real loan outcomes.
 ## Responsible AI + data
 - Consent checkbox before any voice note or photo is processed.
 - Audio and photos deleted immediately after reading; only confirmed text entries are stored; "erase all my data" button.
-- Speech runs on our own Brev GPU; no third-party speech API.
+- Speech and photo AI run on our own Brev GPU / NVIDIA API; no third-party speech API. On WhatsApp, messages travel over
+  Meta's WhatsApp Business Platform before reaching our server; media is deleted after reading.
+- WhatsApp: the trader opts in first, the bot is task-specific (bookkeeping only), and we never ask for card, bank account or ID numbers.
 - The AI reads and phrases; all money maths is deterministic code, so the AI can't invent numbers in the books.
 - Record score = published formula, no demographic data, labelled "indicator, not a credit decision; a person decides".
 - Reminders are never auto-sent: the trader reviews and presses send.
