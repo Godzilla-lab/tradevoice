@@ -50,8 +50,9 @@ https://fintech.global/2025/09/16/fintech-firm-kredete-raises-22m-series-a-for-g
 | **1 in 4** informal business owners keep no records; **38%** of record-keepers track "mentally" | Moniepoint: https://moniepoint.com/blog/nigeria-small-business-statistics |
 | **94.8%** of SMEs have bank accounts but only **20.2%** have bank loans (weak records) | World Bank Enterprise Survey via BusinessDay: https://businessday.ng/business-economy/article/smes-face-credit-squeeze-over-weak-records/ |
 
-Best single line: *"Nearly every Nigerian small business has a bank account, but only 1 in 5 has a loan, and weak
-records are a big reason why."*
+Best single line: *"Even among registered Nigerian SMEs, 95% have a bank account but only 1 in 5 has a loan, and weak
+records are a big reason why."* (The 94.8% / 20.2% figures come from a survey of SMEs, not from all 39M micro-businesses,
+most of which are informal. Don't say "nearly every small business".)
 
 ## Winning the 90-second video (Devpost guidance)
 - Hook in the first 5 seconds: the trader's problem, not a title slide.

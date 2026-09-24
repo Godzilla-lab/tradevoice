@@ -92,6 +92,7 @@ python app.py
    git clone https://github.com/Godzilla-lab/tradevoice.git && cd tradevoice
    pip install -r requirements.txt
    export NVIDIA_API_KEY=nvapi-...
+   # eval/audio/ is empty in git: upload one of the team's recorded voice notes first (e.g. with scp)
    python -c "import asr; print(asr.transcribe('eval/audio/01.m4a'))"   # downloads + warms up Whisper on the GPU
    GRADIO_SHARE=1 python app.py      # prints a public https://….gradio.live link for demo + submission
    ```
