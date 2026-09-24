@@ -1,0 +1,20 @@
+{"id": "01", "text": "I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday", "type": "credit_sale", "amount": 45000, "customer": "Mama Tunde"}
+{"id": "02", "text": "Sold two cartons of indomie for 18,500 cash", "type": "sale", "amount": 18500, "customer": null}
+{"id": "03", "text": "Mama Tunde don pay 20k out of her money", "type": "payment_received", "amount": 20000, "customer": "Mama Tunde"}
+{"id": "04", "text": "I pay 3500 for transport go Mile 12 today", "type": "expense", "amount": 3500, "customer": null}
+{"id": "05", "text": "Alhaji Musa take 5 crates of eggs, 27k, e never pay, he say next week", "type": "credit_sale", "amount": 27000, "customer": "Alhaji Musa"}
+{"id": "06", "text": "Customer buy 4 paint of beans, 6000 naira, she pay transfer", "type": "sale", "amount": 6000, "customer": null}
+{"id": "07", "text": "I buy 10 bags of garri from supplier, 1.2m", "type": "expense", "amount": 1200000, "customer": null}
+{"id": "08", "text": "Iya Bisi come pay the balance, 12,000", "type": "payment_received", "amount": 12000, "customer": "Iya Bisi"}
+{"id": "09", "text": "Market levy today na 500 naira", "type": "expense", "amount": 500, "customer": null}
+{"id": "10", "text": "Oga Emeka collect 2 cartons of milk on credit, 34k, he go pay tomorrow", "type": "credit_sale", "amount": 34000, "customer": "Oga Emeka"}
+{"id": "11", "text": "Sold one bag of beans 65 thousand", "type": "sale", "amount": 65000, "customer": null}
+{"id": "12", "text": "Chinedu owe me 8k for the palm oil he carry", "type": "credit_sale", "amount": 8000, "customer": "Chinedu"}
+{"id": "13", "text": "I spend 15k on shop rent top up", "type": "expense", "amount": 15000, "customer": null}
+{"id": "14", "text": "Aunty Ngozi don settle 30k", "type": "payment_received", "amount": 30000, "customer": "Aunty Ngozi"}
+{"id": "15", "text": "Today I sell 12 tubers of yam, total N14,400", "type": "sale", "amount": 14400, "customer": null}
+{"id": "16", "text": "Madam Funke carry 2 crates of tomatoes, 22k, she go pay month end", "type": "credit_sale", "amount": 22000, "customer": "Madam Funke"}
+{"id": "17", "text": "Fuel for generator 4,000", "type": "expense", "amount": 4000, "customer": null}
+{"id": "18", "text": "Sold 5 litres of groundnut oil 11k cash", "type": "sale", "amount": 11000, "customer": null}
+{"id": "19", "text": "Baba Kola has paid me 5000 for last week", "type": "payment_received", "amount": 5000, "customer": "Baba Kola"}
+{"id": "20", "text": "I sell 1 carton of sardine to Tobi, 9,800, he go pay Monday", "type": "credit_sale", "amount": 9800, "customer": "Tobi"}

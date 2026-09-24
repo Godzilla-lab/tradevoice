@@ -1,0 +1,7 @@
+gradio>=4.44
+openai>=1.40
+requests>=2.31
+pandas>=2.0
+pillow>=10.0
+# Speech-to-text (needed where the audio is transcribed, i.e. on the Brev GPU box)
+faster-whisper>=1.1.0
