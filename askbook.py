@@ -137,7 +137,9 @@ def parse_offline(question, vocab=None):
 def parse(question, vocab=None):
     """Question -> search dict. AI when available (better with mixed/other phrasing), else word lists."""
     offline = parse_offline(question, vocab)
-    if not os.getenv("NVIDIA_API_KEY"):
+    import llm
+
+    if not llm.available():
         return offline, "rules"
     try:
         import llm

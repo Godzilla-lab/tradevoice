@@ -188,6 +188,7 @@ def main():
         return compare(*args.compare)
     if args.rules_only:
         os.environ.pop("NVIDIA_API_KEY", None)
+        os.environ.pop("LOCAL_LLM_URL", None)
 
     cases = [json.loads(line) for line in open(args.cases, encoding="utf-8") if line.strip()]
     if args.lang:

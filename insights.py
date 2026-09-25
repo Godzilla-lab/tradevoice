@@ -181,11 +181,11 @@ def ask(question, today=None):
     if exact:
         return exact[0], exact[4]
     facts = book_facts(today)
-    if not os.getenv("NVIDIA_API_KEY"):
+    import llm
+
+    if not llm.available():
         return ask_offline(question, facts), "rules"
     try:
-        import llm
-
         answer, model = llm.chat([{"role": "system", "content": ASK_PROMPT + json.dumps(facts, default=str)},
                                   {"role": "user", "content": question}], max_tokens=400, temperature=0.2, timeout=30)
         return answer, f"llm:{model}"

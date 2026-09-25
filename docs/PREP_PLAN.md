@@ -78,8 +78,7 @@ One GPU instance for the day (L4 24 GB; an L40S 48 GB if credits allow the backu
 2. **Host the demo:** web app + WhatsApp webhook on the same instance; public link via Gradio share (Brev links need login).
 3. **Backup AI brain (recommended):** a small open model (~8B) served on the GPU (vLLM, OpenAI-compatible) as the LAST
    fallback after nemotron-3-ultra/super. Reason: the cloud models timed out 53/211 times on 25 Sep. Chain = cloud →
-   our GPU → offline rules, so the demo never stalls. ⚠️ Needs code first: `llm.py` only calls NVIDIA's cloud today;
-   add a `LOCAL_LLM_URL` option (~15 min). Not built yet.
+   our GPU → offline rules, so the demo never stalls. ✅ built 25 Sep: `LOCAL_LLM_URL` (README → "Backup AI brain"); tested with fake servers, not yet on Brev.
 4. **Run the evals on Brev:** hard test set + real voice notes → timing numbers for the submission.
 5. **Proof for judges (required):** Brev console screenshots (GPU, hours, cost); stretch: a **Brev Launchable**
    (one-click template to rerun our demo).

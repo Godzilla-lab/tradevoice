@@ -24,10 +24,10 @@ SKIP_WORDS = ("embed", "rerank", "reward", "guard", "safety", "retriever", "pars
 VISION_HINTS = ("vision", "-vl", "vlm", "gemma-3", "gemma-4", "llama-4", "multimodal", "mistral-small", "pixtral",
                 "kimi-k2.5", "qwen3.5", "qwen3.6", "phi-4-multimodal", "nemotron-nano-12b", "cosmos")
 
-if not os.getenv("NVIDIA_API_KEY"):
+if not (os.getenv("NVIDIA_API_KEY") or os.getenv("LOCAL_LLM_URL")):
     raise SystemExit("Set NVIDIA_API_KEY first (from build.nvidia.com), e.g.  set -a; source .env; set +a")
 
-client = OpenAI(base_url=llm.NVIDIA_BASE_URL, api_key=os.environ["NVIDIA_API_KEY"], timeout=60, max_retries=0)
+client = OpenAI(base_url=llm.NVIDIA_BASE_URL, api_key=os.getenv("NVIDIA_API_KEY", "none"), timeout=60, max_retries=0)
 
 img = Image.new("RGB", (600, 200), "white")
 ImageDraw.Draw(img).text((20, 80), "Mama Tunde rice 45000 credit", fill="black")
@@ -39,11 +39,13 @@ IMAGE_Q = [{"type": "text", "text": "Copy the text in this image."}, {"type": "i
 
 
 def try_model(model, content, max_tokens=200):
-    """Return (ok, line)."""
+    """Return (ok, line). model "local" = our own GPU model (LOCAL_LLM_URL)."""
     start = time.perf_counter()
     try:
-        r = client.chat.completions.create(model=model, messages=[{"role": "user", "content": content}],
-                                           max_tokens=max_tokens, temperature=0)
+        c = llm._client("llm", 60, 0, model) if model == "local" else client
+        r = c.chat.completions.create(model=llm.LOCAL_LLM_MODEL if model == "local" else model,
+                                      messages=[{"role": "user", "content": content}],
+                                      max_tokens=max_tokens, temperature=0)
         out = llm.clean(r.choices[0].message.content or "").replace("\n", " ")[:60]
         return True, f"✅ {model:<48} {time.perf_counter() - start:5.1f}s  {out!r}"
     except Exception as e:  # noqa: BLE001
@@ -62,7 +64,7 @@ def list_live():
 
 
 def check_configured():
-    live = set(list_live())
+    live = set(list_live()) if os.getenv("NVIDIA_API_KEY") else set()
     if live:
         print(f"Your key sees {len(live)} models. Ours:")
         for m in dict.fromkeys(llm.LLM_MODELS + llm.VISION_MODELS):
@@ -70,6 +72,9 @@ def check_configured():
     print("Text models (LLM_MODELS):")
     for m in llm.LLM_MODELS:
         print(" ", try_model(m, TEXT_Q)[1])
+    if os.getenv("LOCAL_LLM_URL"):
+        print(f"Backup model on our GPU (LOCAL_LLM_URL, {llm.LOCAL_LLM_MODEL}):")
+        print(" ", try_model("local", TEXT_Q)[1])
     print("Vision models (VISION_MODELS):")
     for m in llm.VISION_MODELS:
         print(" ", try_model(m, IMAGE_Q)[1])

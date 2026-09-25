@@ -121,6 +121,19 @@ python app.py
    ```
 5. **Stop the instance whenever you're not using it.** Screenshot the Brev console (GPU type, runtime, cost) for the submission.
 
+**Backup AI brain on the Brev GPU (recommended: the cloud models timed out 53/211 times on 25 Sep).**
+A small open model on our own GPU is tried LAST, after the cloud models, before the offline rules; a model that
+times out is skipped for 2 minutes. In a second terminal on the Brev box:
+```bash
+pip install vllm
+# ~6 GB with 4-bit AWQ, so it fits next to Whisper + omniASR on a 24 GB L4 (check `nvidia-smi` first)
+vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ --port 8001 --gpu-memory-utilization 0.30 --max-model-len 4096
+```
+Then in `.env`: `LOCAL_LLM_URL=http://localhost:8001/v1` (and `LOCAL_LLM_MODEL=` if you serve another model).
+Check: `python check_models.py` shows "Backup model on our GPU ✅". Test it alone: `LLM_MODELS=local python eval/run_eval.py`.
+⚠️ Model choice/memory numbers not tested on Brev yet: if it doesn't fit, lower `--gpu-memory-utilization` or skip it.
+An NVIDIA NIM container (needs an NGC key) works too: any OpenAI-compatible server does.
+
 Optional stretch (more Brev usage): self-host an open vision model on the same GPU with vLLM and set
 `VISION_BASE_URL=http://localhost:8001/v1`, `VISION_MODELS=<model>`, `VISION_API_KEY=none`. Bonus: package the whole
 stack as a **Brev Launchable** (one-click template) and show it in the video. See `docs/RESEARCH.md`.

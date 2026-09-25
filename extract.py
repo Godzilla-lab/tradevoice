@@ -482,7 +482,7 @@ def extract(text, today=None, vocab=None):
     rules = rule_extract(text, today)
     meta = {"engine": "rules", "error": None}
     rec = rules
-    if os.getenv("NVIDIA_API_KEY"):
+    if llm.available():
         try:
             raw, model = llm_extract(text, today, vocab)
             rec = _normalise(raw, text, today)
@@ -528,7 +528,7 @@ def extract_many(text, today=None):
     rules = [dict(rule_extract(l.replace("=>", " ; "), today), line=l) for l in lines]
     meta = {"engine": "rules", "error": None}
     out = rules
-    if lines and os.getenv("NVIDIA_API_KEY"):
+    if lines and llm.available():
         try:
             prompt = MANY_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
             numbered = "\n".join(f"{i}. {l}" for i, l in enumerate(lines, 1))

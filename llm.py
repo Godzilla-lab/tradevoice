@@ -17,13 +17,29 @@ VISION_MODELS = [m.strip() for m in os.getenv(
     "VISION_MODELS", os.getenv("VISION_MODEL", "google/gemma-4-31b-it,qwen/qwen3.5-397b-a17b,"
                                                "nvidia/nemotron-nano-12b-v2-vl,meta/llama-3.2-90b-vision-instruct")).split(",") if m.strip()]
 VISION_BASE_URL = os.getenv("VISION_BASE_URL", NVIDIA_BASE_URL)
+# Backup brain on OUR Brev GPU: any OpenAI-compatible server (vLLM, NVIDIA NIM). Tried LAST, after the cloud models,
+# with time kept aside for it. Put "local" in LLM_MODELS to choose its place yourself (LLM_MODELS=local = local only).
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct-AWQ")
+LOCAL_RESERVE = float(os.getenv("LOCAL_LLM_RESERVE", "10"))      # seconds of the deadline kept for the local model
+COOLDOWN = float(os.getenv("LLM_COOLDOWN", "120"))               # skip a model this long after it times out / 5xx
 
 _working = {}  # kind -> model that last worked
+_resting = {}  # model -> time until which we skip it (timed out / overloaded recently)
 
 
-def _client(kind, timeout, retries=0):
+def available(kind="llm"):
+    """Is any AI configured? (cloud key, or for text also our own GPU model)"""
+    return bool(os.getenv("NVIDIA_API_KEY") or (kind == "llm" and os.getenv("LOCAL_LLM_URL"))
+                or (kind == "vision" and os.getenv("VISION_API_KEY")))
+
+
+def _client(kind, timeout, retries=0, model=None):
     from openai import OpenAI
 
+    if model == "local":
+        return OpenAI(base_url=os.environ["LOCAL_LLM_URL"],  # e.g. http://localhost:8001/v1
+                      api_key=os.getenv("LOCAL_LLM_KEY", "local"), timeout=timeout,
+                      max_retries=retries)
     if kind == "vision":
         return OpenAI(base_url=VISION_BASE_URL, api_key=os.getenv("VISION_API_KEY") or os.environ["NVIDIA_API_KEY"],
                       timeout=timeout, max_retries=retries)
@@ -52,26 +68,41 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
     `deadline` (seconds, default LLM_DEADLINE=30) caps the TOTAL wait across all models, so a live demo never
     hangs: when it runs out the caller falls back to the offline rules."""
     pinned = models is not None
-    models = models or (VISION_MODELS if kind == "vision" else LLM_MODELS)
-    if not pinned and _working.get(kind) in models:  # try the last good model first
-        models = [_working[kind]] + [m for m in models if m != _working[kind]]
+    models = list(models or (VISION_MODELS if kind == "vision" else LLM_MODELS))
+    if kind == "llm" and os.getenv("LOCAL_LLM_URL") and not pinned and "local" not in models:
+        models.append("local")                    # our own GPU model: the last AI before the offline rules
+    if not os.getenv("NVIDIA_API_KEY"):
+        models = [m for m in models if m == "local"]
+    if not pinned:
+        now = time.time()
+        fresh = [m for m in models if _resting.get(m, 0) <= now]
+        models = fresh or models                  # skip models that just timed out (unless all did)
+        if _working.get(kind) in models:          # try the last good model first
+            models = [_working[kind]] + [m for m in models if m != _working[kind]]
     deadline = float(deadline or os.getenv("LLM_DEADLINE", "30"))
     start = time.perf_counter()
     last = None
-    for model in models:
+    for i, model in enumerate(models):
         remaining = deadline - (time.perf_counter() - start)
-        if remaining < 3:
+        # keep time for the local model if it is still to come
+        budget = remaining - (LOCAL_RESERVE if "local" in models[i + 1:] else 0)
+        if budget < 3:
+            if model != "local" and "local" in models[i + 1:] and remaining >= 3:
+                continue                          # skip ahead: the local model gets the reserved time
             last = last or TimeoutError(f"gave up after {deadline:.0f} s")
             break
-        client = _client(kind, min(timeout, remaining), retries)
+        client = _client(kind, min(timeout, budget), retries, model)
         try:
-            resp = client.chat.completions.create(model=model, messages=messages, temperature=temperature,
-                                                  max_tokens=max_tokens)
+            resp = client.chat.completions.create(model=LOCAL_LLM_MODEL if model == "local" else model,
+                                                  messages=messages, temperature=temperature, max_tokens=max_tokens)
             if not pinned:
                 _working[kind] = model
-            return clean(resp.choices[0].message.content), model
+                _resting.pop(model, None)
+            return clean(resp.choices[0].message.content), (f"local:{LOCAL_LLM_MODEL}" if model == "local" else model)
         except Exception as e:  # noqa: BLE001
             last = e
             if not _model_gone(e):
                 raise  # network / auth / rate-limit after retries: let the caller fall back to rules
+            if not pinned:
+                _resting[model] = time.time() + COOLDOWN
     raise RuntimeError(f"No configured {kind} model is available (last error: {last})")
