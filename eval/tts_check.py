@@ -42,4 +42,13 @@ if __name__ == "__main__":
             script.append(line)
     with open(os.path.join(OUT, "script.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(script) + "\n")
-    print(f"\nSamples in {OUT}. Play them to native speakers and write 1-5 scores in scores.txt.")
+    scores = os.path.join(OUT, "scores.txt")
+    if not os.path.exists(scores):  # a form to fill in, one line per sample; never overwrite real scores
+        with open(scores, "w", encoding="utf-8") as f:
+            f.write("# Play each sample to a NATIVE speaker (not the person who wrote it). Score 1-5:\n"
+                    "#   clear = could you understand every word?   natural = does it sound like a real person?\n"
+                    "#   amount = did you hear the right naira amount? (y/n)   fix = better wording, anything rude\n"
+                    "# sample | listener (first name) | clear | natural | amount | fix\n")
+            for line in script:
+                f.write(f"{line.split(chr(9))[0]} |  |  |  |  | \n")
+    print(f"\nSamples in {OUT}. Play them to native speakers and fill in {scores}.")

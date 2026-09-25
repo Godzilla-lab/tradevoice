@@ -92,18 +92,19 @@ TEMPLATES = {
         "due": ", e go pay for {day}", "balance": " Total wey {customer} owe you now na {balance}.",
     },
     "Yoruba": {
-        "sale": "O ta ọjà {amount}.",
+        "sale": "O ta ọjà ní {amount}.",
         "credit_sale": "{customer} jẹ ọ́ ní {amount}{due}.",
         "payment_received": "{customer} ti san {amount}.",
         "expense": "O ná {amount}.",
         "due": ", yóò san ní {day}", "balance": " Gbogbo gbèsè {customer} báyìí jẹ́ {balance}.",
     },
     "Hausa": {
-        "sale": "Ka sayar da kaya na {amount}.",
-        "credit_sale": "{customer} ya ci bashin {amount}{due}.",
-        "payment_received": "{customer} ya biya {amount}.",
-        "expense": "Ka kashe {amount}.",
-        "due": ", zai biya ranar {day}", "balance": " Jimlar bashin {customer} yanzu {balance}.",
+        # "An ..." (impersonal) avoids guessing the trader's gender; {ya}/{za} follow the customer's (ya/ta, zai/za ta)
+        "sale": "An sayar da kaya na {amount}.",
+        "credit_sale": "{customer} {ya} ci bashin {amount}{due}.",
+        "payment_received": "{customer} {ya} biya {amount}.",
+        "expense": "An kashe {amount}.",
+        "due": ", {za} biya ranar {day}", "balance": " Jimlar bashin {customer} yanzu {balance}.",
     },
     "Igbo": {
         "sale": "I rere ahịa {amount}.",
@@ -125,6 +126,14 @@ PREFIX = {
 }
 
 
+_FEMALE = ("mama", "iya", "aunty", "auntie", "madam", "hajiya", "hajia", "alhaja", "mrs", "sister", "iyawo", "mallama")
+
+
+def _female(name):
+    """Guess from the title (Mama Tunde, Hajiya Amina). Only Hausa needs it; unknown -> male form (ya/zai)."""
+    return bool(name) and name.split()[0].lower().rstrip(".") in _FEMALE
+
+
 def confirmation_text(rec, language="Pidgin", balance=None, saved=True):
     """Short spoken confirmation for one entry. saved=False reads it back for checking before saving.
     `balance` = the customer's total debt after this entry (only spoken once saved)."""
@@ -138,7 +147,8 @@ def confirmation_text(rec, language="Pidgin", balance=None, saved=True):
         amount=naira_words(rec.get("amount") or 0), customer=customer,
         item=f"{item} " if item and language in ("English", "Pidgin") else "",
         item_for=f" on {item}" if item and language in ("English", "Pidgin") else "",
-        due=t["due"].format(day=day) if day else "")
+        due=t["due"].format(day=day, za="za ta" if _female(rec.get("customer")) else "zai") if day else "",
+        ya="ta" if _female(rec.get("customer")) else "ya")
     if not saved:
         return pre["heard"] + text + pre["ask"]
     text = pre["saved"] + text
