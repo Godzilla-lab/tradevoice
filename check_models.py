@@ -97,10 +97,14 @@ def search(words):
     print("Vision:", ", ".join(vision_ok) or "none")
     if text_ok or vision_ok:
         # prefer families known to be stronger for Nigerian languages (see docs/RESEARCH.md)
-        rank = ("gemma", "qwen", "nemotron", "llama", "mistral", "deepseek", "gpt-oss")
+        rank = ("gemma-4", "gemma-3", "qwen", "nemotron-3-ultra", "nemotron", "llama", "mistral", "deepseek",
+                "gpt-oss")
+        # experimental / reasoning-first models go last: slower and chattier before the JSON
+        penalty = ("diffusion", "reasoning", "omni", "kimi", "glm")
 
         def order(ms):
-            return sorted(ms, key=lambda m: next((i for i, f in enumerate(rank) if f in m), len(rank)))
+            return sorted(ms, key=lambda m: (any(p in m for p in penalty),
+                                             next((i for i, f in enumerate(rank) if f in m), len(rank))))
 
         print("\nPaste these two lines into your .env (then run  set -a; source .env; set +a):")
         print("LLM_MODELS=" + ",".join(order(text_ok)[:4]))

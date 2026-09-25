@@ -181,10 +181,25 @@ def rule_extract(text, today=None):
 # ---------------------------------------------------------------- LLM
 
 def _parse_json(content):
-    m = re.search(r"\{.*\}", llm.clean(content), re.DOTALL)
-    if not m:
+    """Return the LAST valid JSON object in the reply. Some models think out loud first (and may quote
+    JSON while doing so), so the final object is the answer."""
+    text = llm.clean(content).replace("```json", "").replace("```", "")
+    dec, found, i = json.JSONDecoder(), None, 0
+    while i < len(text):
+        if text[i] == "{":
+            try:
+                obj, length = dec.raw_decode(text[i:])
+            except ValueError:
+                i += 1
+                continue
+            if isinstance(obj, dict):
+                found = obj
+            i += length  # skip the whole object so nested {...} inside it are not picked instead
+        else:
+            i += 1
+    if found is None:
         raise ValueError("LLM returned no JSON")
-    return json.loads(m.group(0))
+    return found
 
 
 def llm_extract(text, today=None):
