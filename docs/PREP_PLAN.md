@@ -58,6 +58,19 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] **Native-speaker scores** (5 min per language): play `eval/tts_samples/` to a Yoruba, Hausa, Igbo, Pidgin speaker
   (another team or a volunteer) → `scores.txt`. Any language < 3 → no voice for it in the demo video.
 
+## Before Sunday (must, ~20 min)
+- [ ] `.env` model order: `LLM_MODELS=nvidia/nemotron-3-ultra-550b-a55b,nvidia/nemotron-3-super-120b-a12b,google/gemma-4-31b-it`
+  and `VISION_MODELS=meta/llama-3.2-11b-vision-instruct,google/gemma-4-31b-it` (gemma times out; see `docs/RESULTS.md`)
+- [ ] WhatsApp: 5 phones registered on the Meta test number (team + 1 spare for a judge)
+- [ ] Organisers: is pre-event code allowed if disclosed? Who owns the project?
+
+## Sunday checks (in the build sprints)
+- [ ] `python eval/test_guards.py` · `python eval/test_askbook.py` · `run_eval.py --cases eval/cases_team.jsonl` (team phrases)
+- [ ] Real handwritten notebook page through Snap your book → `eval/photos/hand1_mixed.jpg` + `.txt`
+- [ ] Try in the app: "I collect 5 carton indomie from Oga Emeka on credit, 60k, I go pay am Monday" · Who I owe ·
+  Ask my book by voice (English + one local language) · 📒 My year so far
+- [ ] `python check_models.py` on Brev (is gemma back?)
+
 ## Sunday timeline
 8:30 check-in · 9:45 roster · 10:15 Brev voucher · 11:15–13:00 build · 11:30 mentor · 13:00 lunch + voice audition (stop idle GPU) ·
 14:00–15:30 build + phone tests · 15:30 checkpoint · 15:45–16:45 video · 16:45–17:15 submission · **17:15 SUBMIT**
