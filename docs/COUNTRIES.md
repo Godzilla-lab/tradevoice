@@ -1,5 +1,8 @@
 # 🌍 Country packs: money, tax and culture (researched 25 Sep 2026)
 
+> 🅿️ **Parked (25 Sep): not for Sunday.** We focus on Nigeria (English, Pidgin, Yoruba, Hausa, Igbo). This is roadmap
+> material for the pitch only. The code stays (default `COUNTRY=NG`, changes nothing).
+
 For the other 7 event countries. ⚠️ Researched by Claude from web search summaries (official tax offices, Deloitte,
 Bowmans, KRA, ZATCA, SAMA, CBK, BCEAO…); **not checked by local experts**. Tax rules change with every finance law.
 **Rule (same as Nigeria): no tax figures in the app until a local expert checks them.** What is already in the app:

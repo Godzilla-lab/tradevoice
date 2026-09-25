@@ -1,5 +1,8 @@
 # 🌍 Languages beyond Nigeria (researched 25 Sep 2026)
 
+> 🅿️ **Parked (25 Sep): not for Sunday.** We focus on Nigeria (English, Pidgin, Yoruba, Hausa, Igbo). This is roadmap
+> material for the pitch only. The code stays (default `COUNTRY=NG`, changes nothing).
+
 The event runs in **8 countries**: Tunisia, Algeria, Morocco, Senegal, Côte d'Ivoire, Nigeria, Kenya, Saudi Arabia.
 Juries rank **per country**, so our demo stays Nigerian first. But "same engine, more languages" is a strong
 growth story (Kredete works in 30+ African countries).
