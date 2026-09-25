@@ -65,7 +65,8 @@ deterministic and explainable, so the AI can never invent a number in your books
 | `ledger.py` | SQLite storage, daily summary, debtors (oldest debt paid first), customer credit check, record score |
 | `insights.py` | Forecast, best sellers, WhatsApp reminders, Ask-my-book, lender statement |
 | `seed_demo.py` | 3 weeks of **synthetic, flagged** demo history for the presentation |
-| `eval/run_eval.py` + `eval/cases.jsonl` | Accuracy and speed test, which gives us the numbers for the submission |
+| `eval/run_eval.py` + `eval/cases*.jsonl` | Accuracy and speed test with 95% ranges, per language and per trap (`docs/TESTING.md`) |
+| `eval/make_hard_cases.py` | Generates 211 trap phrases in 5 languages (`eval/cases_hard.jsonl`) |
 
 ## Quick start (laptop, no GPU, no key: everything except photos works offline)
 ```bash
@@ -74,7 +75,7 @@ python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\
 pip install -r requirements.txt
 python seed_demo.py --wipe      # demo history (optional)
 python app.py                   # open http://localhost:7860
-python eval/run_eval.py         # accuracy report
+python eval/run_eval.py         # accuracy report (hard traps: --cases eval/cases_hard.jsonl, see docs/TESTING.md)
 ```
 Tick the consent box, then try typing `I sell 2 crates of eggs give Oga Emeka, 10,800, he go pay Monday`.
 

@@ -37,7 +37,23 @@ Super's errors: Hausa payment → "expense"; "2 cartons … 18500" → ₦37,000
 | gemma-4-31b-it (letters / tone marks / amounts) | 99% / 99% / 4/4 | 100% / 100% / 4/4 | 100% / 100% / 4/4 | 100% / 98% / 4/4 |
 | llama-3.2-11b-vision | 99% / 99% / 4/4 | 98% / 94% / 4/4 | 99% / 99% / 4/4 | 99% / 95% / 4/4 |
 
+### Hard trap set, offline rules only (baseline), `run_eval.py --cases eval/cases_hard.jsonl --rules-only`
+211 phrases, 5 languages, 13 trap types (see `docs/TESTING.md`). **All fields 114/208 = 55% (95%: 48–61%)**;
+wrong amount written 36/208; invented amounts 0/14.
+Rules score 0% on unit price, part payment, amounts in words, local number words; 21% on negation.
+**Bug found:** "she has not paid me" contains "paid me" → rules say *payment* → our "has paid" guard can flip a correct
+AI answer to payment. Also: phone numbers read as the amount (Pidgin/Yoruba/Hausa/Igbo), "Hajiya" not known as a title.
+➡️ Next run: the same set **with the AI** (Mac, `--sleep 1.5`), to see how much the AI fixes and where the guards hurt.
+
+### Voice replies (Spitch), `eval/tts_check.py`, 25 Sep
+✅ All 25 samples generated (5 languages × 5 messages; voices ufoma, lucy, sade, amina, ngozi).
+Fixed before the listening test: Hausa used "ya/zai" (he) for women customers → now "ta/za ta"; trader now "An sayar"
+(no gender guess); Yoruba sale "ní" added.
+- [ ] Native-speaker listening scores (`eval/tts_samples/scores.txt`): Pidgin __ · Yoruba __ · Hausa __ · Igbo __
+- [ ] Check: English numbers inside Yoruba/Hausa/Igbo voices; English day names vs Ẹtì / Juma'a / Fraịdee
+
 ### Still to do
+- [ ] Hard trap set with the AI (and `--compare` against the rules run)
 - [ ] Handwritten notebook photos (eval/photos/)
 - [ ] Team-written phrases (eval/cases_team.jsonl) and native-speaker phrases
 - [ ] Voice notes through Whisper / omniASR on Brev (speed + accuracy)

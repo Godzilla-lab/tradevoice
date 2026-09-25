@@ -4,7 +4,7 @@ Idea **not final**: send opinions + alternatives by **Fri 9pm**; we pick ONE ide
 Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 
 ## Everyone (all 4)
-- [ ] Read: `TEAM_GUIDE.md` → `README.md` → `docs/WHATSAPP.md` → `docs/RULES_CHECKLIST.md` → `docs/RESEARCH.md` → `docs/PITCH.md`
+- [ ] Read: `TEAM_GUIDE.md` → `README.md` → `docs/TESTING.md` → `docs/WHATSAPP.md` → `docs/RULES_CHECKLIST.md` → `docs/RESEARCH.md` → `docs/PITCH.md`
 - [ ] Run the app (README → Quick start), try: *I sell 2 crates of eggs give Oga Emeka, 10,800, he go pay Monday*
 - [ ] NVIDIA API key from build.nvidia.com (**never share it**)
 - [ ] 5 voice notes in your language (fake names) → send to Person 4 with the text
@@ -19,14 +19,15 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] **Sunday:** roster 9:45 (primary prize: Kredete), timekeeping, record video 15:45–16:45, **submit 17:15**
 
 ## 🔊 Voice replies (Person 2 or 4)
-- [ ] Sign up at **spitch.app**, get the API key → `.env` `SPITCH_API_KEY=...` → `pip install spitch`
+- [x] Sign up at **spitch.app**, get the API key → `.env` `SPITCH_API_KEY=...` → `pip install spitch` ✅ 25 samples made
 - [ ] `python eval/tts_check.py` → play the samples to **native speakers** of Yoruba, Hausa, Igbo, Pidgin; score 1–5
 - [ ] Any language scoring < 3 → don't demo its voice; fix wording in `tts.py` TEMPLATES if they suggest better phrasing
 
 ## 2️⃣ AI + NVIDIA Brev: ______
 - [ ] Brev account; read Brev notes in `docs/RESEARCH.md`
-- [ ] `python check_models.py` → post results
-- [ ] `python eval/lang_check.py` → post language scoreboard
+- [x] `python check_models.py` → post results
+- [x] `python eval/lang_check.py` → post language scoreboard (`docs/RESULTS.md`)
+- [ ] `python eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5` → post summary (`docs/TESTING.md`)
 - [ ] One real notebook photo through the app → post screenshot
 - [ ] **Sunday:** voucher 10:15 → GPU (L4) → start omniASR download first → public app link → Brev screenshots → stop GPU when idle
 
