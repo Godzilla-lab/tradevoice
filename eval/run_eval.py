@@ -60,6 +60,8 @@ def check(case, rec):
         doubt = (rec.get("confidence") or 1) < 0.6 or bool(rec.get("note"))
         return {"flagged": doubt}
     ok = {f: norm(rec.get(f)) == norm(case[f]) for f in FIELDS}
+    if not ok["customer"] and case.get("customer_alts"):  # e.g. an Arabic name written in Latin letters
+        ok["customer"] = norm(rec.get("customer")) in {norm(a) for a in case["customer_alts"]}
     if case.get("due_weekday"):
         try:
             ok["due"] = dt.date.fromisoformat(str(rec.get("due_date"))).strftime("%A") == case["due_weekday"]

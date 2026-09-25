@@ -69,6 +69,7 @@ deterministic and explainable, so the AI can never invent a number in your books
 | `insights.py` | Forecast, best sellers, WhatsApp reminders, Ask-my-book, lender statement |
 | `seed_demo.py` | 3 weeks of **synthetic, flagged** demo history for the presentation |
 | `eval/run_eval.py` + `eval/cases*.jsonl` | Accuracy and speed test with 95% ranges, per language and per trap (`docs/TESTING.md`) |
+| `eval/cases_africa.jsonl` | French, Swahili, Arabic + Darija readiness test (see `docs/LANGUAGES.md`) |
 | `eval/make_hard_cases.py` | Generates 211 trap phrases in 5 languages (`eval/cases_hard.jsonl`) |
 
 ## Quick start (laptop, no GPU, no key: everything except photos works offline)

@@ -55,3 +55,8 @@ professional checks them. Here's what's next."*
 
 **Kredete line:** *"Kredete turns rent and payments into credit abroad; TradeVoice turns a market trader's daily voice
 notes into the record a lender can trust at home."*
+
+## Beyond Nigeria (see `docs/LANGUAGES.md`)
+French + Arabic + Swahili (+ English) cover all 8 event countries. Say it only after
+`eval/run_eval.py --cases eval/cases_africa.jsonl` passes with the AI: *"Built for Nigeria first; the same engine
+already understands French, Arabic and Swahili trader notes in our tests. Each new country = a language pack."*
