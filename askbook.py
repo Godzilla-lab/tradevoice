@@ -51,7 +51,7 @@ PERIOD_WORDS = {
 # what the trader asks about (folded words). "saya" (ha) = buy but "sayar" = sell: order matters.
 WHAT_WORDS = [
     # yo "èrè … mo jẹ" = profit I made (not "mo jẹ" = I owe): checked first
-    ("profit", [r"\bere (melo|elo)\b", r"\bje ere\b", r"\bjere\b"]),
+    ("profit", [r"\bere (melo+|elo+)\b", r"\bje ere\b", r"\bjere\b"]),
     ("i_owe", [r"\b(i|we) (still )?(dey )?owe\b", r"\bwho i owe\b", r"\bmo je\b", r"\bina da bashi"]),
     ("owed_to_me", [r"\bowe me\b", r"\bwho owe\b", r"\bdey owe me\b", r"\bje mi\b", r"\bgbese\b", r"\bbashi\b",
                     r"\bugwo\b", r"\bji m\b"]),
