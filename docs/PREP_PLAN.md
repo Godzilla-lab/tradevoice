@@ -62,7 +62,8 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] `.env` model order: `LLM_MODELS=nvidia/nemotron-3-ultra-550b-a55b,nvidia/nemotron-3-super-120b-a12b,google/gemma-4-31b-it`
   and `VISION_MODELS=meta/llama-3.2-11b-vision-instruct,google/gemma-4-31b-it` (gemma times out; see `docs/RESULTS.md`)
 - [ ] WhatsApp: 5 phones registered on the Meta test number (team + 1 spare for a judge)
-- [ ] Organisers: is pre-event code allowed if disclosed? Who owns the project?
+- [ ] Organisers: is pre-event code allowed if disclosed? Who owns the project? Is using NVIDIA's cloud models
+  (build.nvidia.com) alongside Brev OK, or must all AI run on Brev?
 
 ## Sunday checks (in the build sprints)
 - [ ] `python eval/test_guards.py` · `python eval/test_askbook.py` · `run_eval.py --cases eval/cases_team.jsonl` (team phrases)
@@ -70,6 +71,10 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] Try in the app: "I collect 5 carton indomie from Oga Emeka on credit, 60k, I go pay am Monday" · Who I owe ·
   Ask my book by voice (English + one local language) · 📒 My year so far
 - [ ] `python check_models.py` on Brev (is gemma back?)
+- [ ] **Brev as the main brain?** Start the Brev model (README → "Backup AI brain"), run
+  `LLM_MODELS=local python eval/run_eval.py --cases eval/cases_hard.jsonl`, then `--compare` with
+  `eval/results/cases_hard-ai-0925-0736.json` (cloud run). Same score → `LLM_MODELS=local,nvidia/nemotron-3-ultra-550b-a55b`
+  (everything on our GPU, cloud = backup). Clearly worse → keep cloud first, Brev backup, and say so in the submission.
 
 ## How we use the Brev credits (decided 25 Sep)
 One GPU instance for the day (L4 24 GB; an L40S 48 GB if credits allow the backup AI brain too):
