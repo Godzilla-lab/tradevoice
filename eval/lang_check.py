@@ -5,7 +5,8 @@ NVIDIA_API_KEY=nvapi-... python eval/lang_check.py --text-only
 NVIDIA_API_KEY=nvapi-... python eval/lang_check.py --models google/gemma-3-27b-it,meta/llama-4-maverick-17b-128e-instruct
 Real handwriting: put eval/photos/<name>.jpg + eval/photos/<name>.txt (what is really written) and it scores them too.
 
-TEXT test   : each model turns eval/cases_lang.jsonl phrases into entries -> % with type+amount+customer all right.
+TEXT test   : each model turns eval/cases_lang.jsonl phrases into entries -> correct/answered; "+Nna" = no answer
+              (network, timeout, rate limit), which says nothing about language skill: just re-run.
 IMAGE test  : each phrase is drawn as an image; each vision model copies it ->
               letters  = how close the copy is ignoring tone marks, tones = how close including tone marks,
               amount   = amount still read correctly from the copy.
@@ -17,6 +18,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from collections import defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -28,6 +30,21 @@ HERE = os.path.dirname(__file__)
 FONTS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/Library/Fonts/Arial Unicode.ttf",
          "/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "C:/Windows/Fonts/segoeui.ttf",
          "C:/Windows/Fonts/arial.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "DejaVuSans.ttf"]
+
+
+def ask(messages, model, kind="llm", max_tokens=900, timeout=90):
+    """One model, patiently: pause between calls (free-tier rate limit) and retry once on a network blip.
+    Returns text, or raises after the retry."""
+    for attempt in (1, 2):
+        time.sleep(1.5)
+        try:
+            out, _ = llm.chat(messages, kind=kind, models=[model], max_tokens=max_tokens, timeout=timeout,
+                              deadline=timeout * 2, retries=1)
+            return out
+        except Exception:  # noqa: BLE001
+            if attempt == 2:
+                raise
+            time.sleep(5)
 
 
 def norm(v):
@@ -83,39 +100,43 @@ def table(title, results, cols):
 def text_test(models, cases):
     results = defaultdict(dict)
     for m in models:
-        per = defaultdict(lambda: [0, 0])
+        per = defaultdict(lambda: [0, 0, 0])  # correct, answered, no answer (network/timeout/no JSON)
         for c in cases:
+            prompt = SYSTEM_PROMPT.replace("__TODAY__", "2026-09-27").replace("__WEEKDAY__", "Sunday")
             try:
-                prompt = SYSTEM_PROMPT.replace("__TODAY__", "2026-09-27").replace("__WEEKDAY__", "Sunday")
-                out, _ = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": c["text"]}],
-                                  models=[m], max_tokens=400, timeout=60)
+                out = ask([{"role": "system", "content": prompt}, {"role": "user", "content": c["text"]}], m)
                 rec = _normalise(_parse_json(out), c["text"], __import__("datetime").date(2026, 9, 27))
-                ok = all(norm(rec.get(f)) == norm(c[f]) for f in ("type", "amount", "customer"))
             except Exception as e:  # noqa: BLE001
-                print(f"  {m} {c['id']}: {type(e).__name__}: {str(e)[:80]}")
-                ok = False
+                print(f"  {m} {c['id']}: no answer ({type(e).__name__}: {str(e)[:60]})")
+                per[c["lang"]][2] += 1
+                continue
+            ok = all(norm(rec.get(f)) == norm(c[f]) for f in ("type", "amount", "customer"))
+            if not ok:
+                print(f"  {m} {c['id']}: wrong -> {rec.get('type')}, {rec.get('amount')}, {rec.get('customer')}")
             per[c["lang"]][0] += ok
             per[c["lang"]][1] += 1
         results[m] = {lang: v for lang, v in per.items()}
         print(f"  done {m}")
-    table("TEXT: entries fully correct (type + amount + customer)", results, [lambda r: f"{r[0]}/{r[1]}"])
+    table("TEXT: correct / answered  (+ no answer)", results,
+          [lambda r: f"{r[0]}/{r[1]}" + (f" +{r[2]}na" if r[2] else "")])
 
 
 def image_test(models, items):
-    """items: list of (lang, truth_text, image_path)."""
+    """items: list of (lang, truth_text, image_path). Images with no answer are counted apart, not scored as 0%."""
     results = defaultdict(dict)
     for m in models:
-        per = defaultdict(lambda: {"letters": [], "tones": [], "amount": [0, 0]})
+        per = defaultdict(lambda: {"letters": [], "tones": [], "amount": [0, 0], "na": 0})
         for lang, truth, path in items:
             b64 = encode_image(path)
             try:
-                out, _ = llm.chat([{"role": "user", "content": [
+                out = ask([{"role": "user", "content": [
                     {"type": "text", "text": COPY_PROMPT},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}],
-                    kind="vision", models=[m], max_tokens=600, timeout=90)
+                    m, kind="vision", max_tokens=600)
             except Exception as e:  # noqa: BLE001
-                print(f"  {m} {os.path.basename(path)}: {type(e).__name__}: {str(e)[:80]}")
-                out = ""
+                print(f"  {m} {os.path.basename(path)}: no answer ({type(e).__name__}: {str(e)[:60]})")
+                per[lang]["na"] += 1
+                continue
             p = per[lang]
             p["letters"].append(sim(fold(out), fold(truth)))
             p["tones"].append(sim(out.lower(), truth.lower()))
@@ -125,10 +146,11 @@ def image_test(models, items):
         print(f"  done {m}")
 
     def pct(key):
-        return lambda r: f"{100 * sum(r[key]) / max(len(r[key]), 1):.0f}%"
+        return lambda r: (f"{100 * sum(r[key]) / len(r[key]):.0f}%" if r[key] else "-")
 
-    table("IMAGE: letters% / tones% / amounts right", results,
-          [pct("letters"), pct("tones"), lambda r: f"{r['amount'][0]}/{r['amount'][1]}"])
+    table("IMAGE: letters% / tones% / amounts right  (+ no answer)", results,
+          [pct("letters"), pct("tones"),
+           lambda r: f"{r['amount'][0]}/{r['amount'][1]}" + (f" +{r['na']}na" if r["na"] else "")])
 
 
 def main():

@@ -7,6 +7,7 @@ because Meta supports English only for image+text. See docs/RESEARCH.md → "Nig
 """
 import os
 import re
+import time
 
 NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
 LLM_MODELS = [m.strip() for m in os.getenv(
@@ -20,21 +21,21 @@ VISION_BASE_URL = os.getenv("VISION_BASE_URL", NVIDIA_BASE_URL)
 _working = {}  # kind -> model that last worked
 
 
-def _client(kind, timeout):
+def _client(kind, timeout, retries=0):
     from openai import OpenAI
 
     if kind == "vision":
         return OpenAI(base_url=VISION_BASE_URL, api_key=os.getenv("VISION_API_KEY") or os.environ["NVIDIA_API_KEY"],
-                      timeout=timeout, max_retries=1)
-    # one quick retry per model; if it is still slow we move to the next model instead of making the trader wait
-    return OpenAI(base_url=NVIDIA_BASE_URL, api_key=os.environ["NVIDIA_API_KEY"], timeout=timeout, max_retries=1)
+                      timeout=timeout, max_retries=retries)
+    # no silent retries by default: if a model is slow or flaky we move to the next model instead of making the trader wait
+    return OpenAI(base_url=NVIDIA_BASE_URL, api_key=os.environ["NVIDIA_API_KEY"], timeout=timeout, max_retries=retries)
 
 
 def _model_gone(err):
     """Errors that mean 'try the next model': model removed/forbidden, or too slow/overloaded right now."""
     status = getattr(err, "status_code", None)
     text = str(err).lower()
-    if type(err).__name__ in ("APITimeoutError", "Timeout", "ReadTimeout"):
+    if type(err).__name__ in ("APITimeoutError", "Timeout", "ReadTimeout", "APIConnectionError"):
         return True
     return status in (400, 403, 404, 410, 422, 429, 500, 502, 503, 504) or any(
         s in text for s in ("not found", "deprecated", "does not exist", "unknown model", "not supported", "timed out"))
@@ -46,15 +47,23 @@ def clean(text):
     return text.strip()
 
 
-def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, models=None):
-    """Return (text, model_used). Tries each configured model (or `models`) until one answers."""
+def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, models=None, deadline=None, retries=0):
+    """Return (text, model_used). Tries each configured model (or `models`) until one answers.
+    `deadline` (seconds, default LLM_DEADLINE=30) caps the TOTAL wait across all models, so a live demo never
+    hangs: when it runs out the caller falls back to the offline rules."""
     pinned = models is not None
     models = models or (VISION_MODELS if kind == "vision" else LLM_MODELS)
     if not pinned and _working.get(kind) in models:  # try the last good model first
         models = [_working[kind]] + [m for m in models if m != _working[kind]]
-    client = _client(kind, timeout)
+    deadline = float(deadline or os.getenv("LLM_DEADLINE", "30"))
+    start = time.perf_counter()
     last = None
     for model in models:
+        remaining = deadline - (time.perf_counter() - start)
+        if remaining < 3:
+            last = last or TimeoutError(f"gave up after {deadline:.0f} s")
+            break
+        client = _client(kind, min(timeout, remaining), retries)
         try:
             resp = client.chat.completions.create(model=model, messages=messages, temperature=temperature,
                                                   max_tokens=max_tokens)
