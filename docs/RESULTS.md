@@ -82,6 +82,11 @@ Remaining: Hausa code-switch "za ta pay ranar …" → rules say sale (the AI sh
 ✅ All 25 samples generated (5 languages × 5 messages; voices ufoma, lucy, sade, amina, ngozi).
 ✅ Re-generated with the fixes (25 Sep). Fixed before the listening test: Hausa used "ya/zai" (he) for women customers → now "ta/za ta"; trader now "An sayar"
 (no gender guess); Yoruba sale "ní" added.
+- 25 Sep team feedback: voices OK but **sound artificial / not Nigerian enough; too formal**. Changes: friendlier words
+  (Pidgin "I don write am! … Now, she still dey owe you …", "E don clear!"), rotating openers so it doesn't repeat
+  like a machine, "cleared debt" message, speed control (`TTS_SPEED`), per-language voice choice (`TTS_VOICE_<LANG>`),
+  and `tts_check.py --audition` (every Spitch voice at 0.9 / 1.0 speed) to pick by ear.
+- [ ] Audition picks: Pidgin __ · English __ · Yoruba __ · Hausa __ · Igbo __ · speed __
 - [ ] Native-speaker listening scores (`eval/tts_samples/scores.txt`): Pidgin __ · Yoruba __ · Hausa __ · Igbo __
 - [ ] Check: English numbers inside Yoruba/Hausa/Igbo voices; English day names vs Ẹtì / Juma'a / Fraịdee
 

@@ -76,84 +76,104 @@ def _day(due):
         return None
 
 
+# Tone: a friendly market helper who respects the trader, not a bank. Short sentences; commas give the voice
+# natural pauses; a few openers are rotated so it doesn't sound like a machine repeating itself.
+# {she}/{her} (English/Pidgin) and {ya}/{za} (Hausa) follow the customer's title (Mama/Iya/Aunty -> she).
 TEMPLATES = {
     "English": {
-        "sale": "You sold {item}for {amount}.",
-        "credit_sale": "{customer} owes you {amount}{due}.",
-        "payment_received": "{customer} paid you {amount}.",
+        "sale": "You sold {item}for {amount}. Nice one!",
+        "credit_sale": "{customer} will pay you {amount}{due}.",
+        "payment_received": "{customer} has paid you {amount}. Good news!",
         "expense": "You spent {amount}{item_for}.",
-        "due": ", to pay on {day}", "balance": " {customer} now owes you {balance} in total.",
+        "due": ", on {day}", "balance": " All together, {she} is still owing you {balance}.",
+        "cleared": " {She} is not owing you anything again.",
     },
     "Pidgin": {
-        "sale": "You sell {item}for {amount}.",
-        "credit_sale": "{customer} owe you {amount}{due}.",
-        "payment_received": "{customer} don pay you {amount}.",
+        "sale": "You don sell {item}for {amount}. Market dey move!",
+        "credit_sale": "{customer} go pay you {amount}{due}.",
+        "payment_received": "{customer} don pay you {amount}. Correct!",
         "expense": "You spend {amount}{item_for}.",
-        "due": ", e go pay for {day}", "balance": " Total wey {customer} owe you now na {balance}.",
+        "due": ", for {day}", "balance": " Now, {she} still dey owe you {balance}.",
+        "cleared": " {She} no dey owe you again. E don clear!",
     },
     "Yoruba": {
-        "sale": "O ta ọjà ní {amount}.",
+        "sale": "O ta ọjà ní {amount}. Ọjà ń tà!",
         "credit_sale": "{customer} jẹ ọ́ ní {amount}{due}.",
-        "payment_received": "{customer} ti san {amount}.",
+        "payment_received": "{customer} ti san {amount}. Ó dáa!",
         "expense": "O ná {amount}.",
         "due": ", yóò san ní {day}", "balance": " Gbogbo gbèsè {customer} báyìí jẹ́ {balance}.",
+        "cleared": " {customer} kò jẹ ọ́ ní gbèsè mọ́.",
     },
     "Hausa": {
-        # "An ..." (impersonal) avoids guessing the trader's gender; {ya}/{za} follow the customer's (ya/ta, zai/za ta)
-        "sale": "An sayar da kaya na {amount}.",
+        # "An ..." (impersonal) avoids guessing the trader's gender
+        "sale": "An sayar da kaya na {amount}. Kasuwa na tafiya!",
         "credit_sale": "{customer} {ya} ci bashin {amount}{due}.",
-        "payment_received": "{customer} {ya} biya {amount}.",
+        "payment_received": "{customer} {ya} biya {amount}. Madalla!",
         "expense": "An kashe {amount}.",
-        "due": ", {za} biya ranar {day}", "balance": " Jimlar bashin {customer} yanzu {balance}.",
+        "due": ", {za} biya ranar {day}", "balance": " Yanzu, jimlar bashin {customer} {balance} ne.",
+        "cleared": " {customer} ba {ya} da sauran bashi.",
     },
     "Igbo": {
-        "sale": "I rere ahịa {amount}.",
+        "sale": "I rere ahịa {amount}. Ahịa na-aga!",
         "credit_sale": "{customer} ji gị ụgwọ {amount}{due}.",
-        "payment_received": "{customer} akwụọla {amount}.",
+        "payment_received": "{customer} akwụọla {amount}. Ọ dị mma!",
         "expense": "I mefuru {amount}.",
-        "due": ", ọ ga-akwụ na {day}", "balance": " Ụgwọ {customer} niile ugbu a bụ {balance}.",
+        "due": ", ọ ga-akwụ na {day}", "balance": " Ugbu a, ụgwọ {customer} niile bụ {balance}.",
+        "cleared": " {customer} anaghị ji gị ụgwọ ọzọ.",
     },
 }
 
 
-# "heard" = read back BEFORE saving so the trader can check it; "saved" = after saving.
+# "heard" = read back BEFORE saving so the trader can check it; "saved" = after saving. Openers are rotated.
 PREFIX = {
-    "English": {"heard": "I heard: ", "saved": "Recorded. ", "ask": " Press save if this is correct."},
-    "Pidgin": {"heard": "I hear say: ", "saved": "I don write am. ", "ask": " If e correct, press save."},
-    "Yoruba": {"heard": "Mo gbọ́ pé: ", "saved": "Mo ti kọ ọ́ sílẹ̀. ", "ask": " Tí ó bá tọ̀nà, tẹ save."},
-    "Hausa": {"heard": "Na ji cewa: ", "saved": "Na rubuta. ", "ask": " Idan daidai ne, danna save."},
-    "Igbo": {"heard": "Anụrụ m na: ", "saved": "Edeela m ya. ", "ask": " Ọ bụrụ na ọ dị mma, pịa save."},
+    "English": {"heard": ["Okay, I heard: ", "Alright, so: "], "saved": ["Done! ", "Okay, written down. ",
+                                                                        "Got it! "],
+                "ask": [" Is that correct? Press save."]},
+    "Pidgin": {"heard": ["Ehen, I hear say: ", "Okay o, na this one: "],
+               "saved": ["I don write am! ", "E don enter book! ", "Sharp sharp, I don write am. "],
+               "ask": [" Na so? If e correct, press save."]},
+    "Yoruba": {"heard": ["Ó dáa, mo gbọ́ pé: "], "saved": ["Mo ti kọ ọ́ sílẹ̀! ", "Ó ti wọ ìwé! "],
+               "ask": [" Ṣé bẹ́ẹ̀ ni? Tí ó bá tọ̀nà, tẹ save."]},
+    "Hausa": {"heard": ["To, na ji cewa: "], "saved": ["To, na rubuta! ", "Shikenan, na rubuta. "],
+              "ask": [" Haka ne? Idan daidai ne, danna save."]},
+    "Igbo": {"heard": ["Ọ dị mma, anụrụ m na: "], "saved": ["Edeela m ya! ", "O banyela n'akwụkwọ! "],
+             "ask": [" Ọ bụ otu a? Ọ bụrụ na ọ dị mma, pịa save."]},
 }
-
 
 _FEMALE = ("mama", "iya", "aunty", "auntie", "madam", "hajiya", "hajia", "alhaja", "mrs", "sister", "iyawo", "mallama")
 
 
 def _female(name):
-    """Guess from the title (Mama Tunde, Hajiya Amina). Only Hausa needs it; unknown -> male form (ya/zai)."""
+    """Guess from the title (Mama Tunde, Hajiya Amina); unknown -> 'he' forms (English/Pidgin/Hausa)."""
     return bool(name) and name.split()[0].lower().rstrip(".") in _FEMALE
 
 
-def confirmation_text(rec, language="Pidgin", balance=None, saved=True):
+def confirmation_text(rec, language="Pidgin", balance=None, saved=True, rng=None):
     """Short spoken confirmation for one entry. saved=False reads it back for checking before saving.
-    `balance` = the customer's total debt after this entry (only spoken once saved)."""
+    `balance` = the customer's total debt after this entry (only spoken once saved). rng: for repeatable tests."""
+    import random
+
+    pick = (rng or random).choice
     t = TEMPLATES.get(language, TEMPLATES["English"])
     pre = PREFIX.get(language, PREFIX["English"])
     day = _day(rec.get("due_date"))
-    customer = rec.get("customer") or {"Yoruba": "Oníbàárà", "Hausa": "Abokin ciniki", "Igbo": "Onye ahịa"}.get(
-        language, "The customer")
+    customer = rec.get("customer") or {"Yoruba": "Oníbàárà", "Hausa": "Abokin ciniki", "Igbo": "Onye ahịa",
+                                       "Pidgin": "Your customer"}.get(language, "Your customer")
+    female = _female(rec.get("customer"))
     item = rec.get("item")
-    text = t.get(rec.get("type"), t["sale"]).format(
-        amount=naira_words(rec.get("amount") or 0), customer=customer,
-        item=f"{item} " if item and language in ("English", "Pidgin") else "",
-        item_for=f" on {item}" if item and language in ("English", "Pidgin") else "",
-        due=t["due"].format(day=day, za="za ta" if _female(rec.get("customer")) else "zai") if day else "",
-        ya="ta" if _female(rec.get("customer")) else "ya")
+    slots = dict(amount=naira_words(rec.get("amount") or 0), customer=customer,
+                 item=f"{item} " if item and language in ("English", "Pidgin") else "",
+                 item_for=f" on {item}" if item and language in ("English", "Pidgin") else "",
+                 she="she" if female else "he", She="She" if female else "He", ya="ta" if female else "ya", za="za ta" if female else "zai")
+    text = t.get(rec.get("type"), t["sale"]).format(due=t["due"].format(day=day, **slots) if day else "", **slots)
     if not saved:
-        return pre["heard"] + text + pre["ask"]
-    text = pre["saved"] + text
-    if balance and rec.get("customer") and rec.get("type") in ("credit_sale", "payment_received"):
-        text += t["balance"].format(customer=customer, balance=naira_words(balance))
+        return pick(pre["heard"]) + text + pick(pre["ask"])
+    text = pick(pre["saved"]) + text
+    if rec.get("customer") and rec.get("type") in ("credit_sale", "payment_received") and balance is not None:
+        if balance > 0:
+            text += t["balance"].format(balance=naira_words(balance), **slots)
+        elif rec.get("type") == "payment_received":
+            text += t["cleared"].format(**slots)
     return text
 
 
@@ -192,12 +212,16 @@ def _tmp(suffix):
     return path
 
 
-def _spitch(text, language, fmt):
+def _spitch(text, language, fmt, voice_override=None, speed=None):
     from spitch import Spitch
 
     lang, voice = SPITCH_VOICES.get(language, SPITCH_VOICES["English"])
+    voice = voice_override or os.getenv(f"TTS_VOICE_{language.upper()}", voice)  # e.g. TTS_VOICE_YORUBA=funmi
     client = Spitch()  # reads SPITCH_API_KEY
     kwargs = {"text": text, "voice": voice, "format": fmt}
+    speed = speed or float(os.getenv("TTS_SPEED", "0") or 0)  # 1.0 = Spitch default; try 0.9-1.1
+    if speed:
+        kwargs["speed"] = speed
     if lang:
         kwargs["language"] = lang
     resp = client.speech.generate(**kwargs)
@@ -235,12 +259,13 @@ def _mms_speak(text, language):
     return path
 
 
-def speak(text, language="Pidgin", fmt="wav"):
+def speak(text, language="Pidgin", fmt="wav", voice=None, speed=None):
     """Return {path, engine} for an audio file of `text`, or None if no voice engine is set up.
     fmt: 'wav'/'mp3' for the web app, 'ogg_opus' for WhatsApp voice notes (Spitch; MMS gives wav -> convert)."""
     engine = backend()
     if not engine:
         return None
     if engine == "spitch":
-        return {"path": _spitch(text, language, fmt), "engine": f"spitch:{SPITCH_VOICES.get(language, ('', ''))[1]}"}
+        v = voice or os.getenv(f"TTS_VOICE_{language.upper()}") or SPITCH_VOICES.get(language, ("", ""))[1]
+        return {"path": _spitch(text, language, fmt, v, speed), "engine": f"spitch:{v}" + (f"@{speed}" if speed else "")}
     return {"path": _mms_speak(text, language), "engine": f"mms:{MMS_MODELS.get(language)}"}

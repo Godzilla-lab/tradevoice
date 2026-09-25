@@ -126,11 +126,13 @@ def save(text, type_label, item, qty, unit, amount, customer, due, engine_note, 
     balance = None
     if rec["customer"]:
         balance = next((d["balance"] for d in ledger.debtors()
-                        if ledger.customer_key(d["customer"]) == ledger.customer_key(rec["customer"])), None)
+                        if ledger.customer_key(d["customer"]) == ledger.customer_key(rec["customer"])), 0)
     msg = f"✅ Saved entry #{eid}: {type_label}, {naira(rec['amount'])}" + (
         f" — {rec['customer']}" if rec["customer"] else "")
     if balance:
         msg += f"  \n📒 {rec['customer']} now owes you {naira(balance)} in total."
+    elif rec["customer"] and rec["type"] == "payment_received":
+        msg += f"  \n🎉 {rec['customer']} has cleared their debt."
     return msg, spoken(rec, reply_lang, saved=True, balance=balance)
 
 
