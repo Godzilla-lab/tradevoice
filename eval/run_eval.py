@@ -186,7 +186,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", default=os.path.join(HERE, "cases.jsonl"))
     ap.add_argument("--audio", help="folder of recorded voice notes named by case id")
-    ap.add_argument("--asr", choices=["local", "spitch", "spitch-local"],
+    ap.add_argument("--asr", choices=["local", "spitch", "spitch-local", "intron", "intron-local"],
                     help="speech-to-text engine for --audio (default: ASR_ENGINE in .env, else local)")
     ap.add_argument("--lang", help="only these languages, comma-separated (english,pidgin,yoruba,hausa,igbo)")
     ap.add_argument("--category", help="only these categories, comma-separated")

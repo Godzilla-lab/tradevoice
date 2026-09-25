@@ -71,7 +71,8 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] Try in the app: "I collect 5 carton indomie from Oga Emeka on credit, 60k, I go pay am Monday" · Who I owe ·
   Ask my book by voice (English + one local language) · 📒 My year so far
 - [ ] `python check_models.py` on Brev (is gemma back?)
-- [ ] **Speech: Spitch vs our GPU (Whisper + omniASR)?** Same team voice notes (`eval/audio/<id>.m4a`), three runs:
+- [ ] **Speech: Intron vs Spitch vs our GPU (Whisper + omniASR)?** (also `--asr intron`, and `INTRON_EN_CODE=en` vs `pcm`:
+  one project saw the same audio read as 645 vs 64,500 naira depending on that code) Same team voice notes (`eval/audio/<id>.m4a`), three runs:
   `python eval/run_eval.py --cases eval/cases_lang.jsonl --audio eval/audio --asr local` · `--asr spitch` ·
   `--asr spitch-local`. Compare "heard vs really said" per language + ALL FIELDS (+ `--compare`). Pick per language.
   Trade-offs if Spitch wins: voice leaves our server (to a Nigerian company, say so in Responsible AI); Brev then

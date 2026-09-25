@@ -9,6 +9,8 @@ Spitch (Nigerian speech API, `pip install spitch`, SPITCH_API_KEY), chosen with 
   ASR_ENGINE=local        (default) Whisper / omniASR on our GPU; Spitch only as a fallback if they fail
   ASR_ENGINE=spitch       Spitch for every language; our GPU models as the fallback
   ASR_ENGINE=spitch-local Spitch for Yoruba/Hausa/Igbo, Whisper for English/Pidgin
+  ASR_ENGINE=intron / intron-local   same, with Intron Sahara (INTRON_API_KEY): code-switched yo/ig/ha/pcm-English
+Any cloud engine with a key is also used as a fallback if the others fail.
 Which is more accurate is NOT known yet: compare on the team's voice notes (eval/run_eval.py --audio --asr ...).
 """
 import os
@@ -33,6 +35,10 @@ LANGUAGES = {"English / Pidgin": ("whisper", "en"), "Yoruba": ("omni", "yor_Latn
              "Hausa": ("omni", "hau_Latn"), "Igbo": ("omni", "ibo_Latn")}
 
 SPITCH_LANG = {"English / Pidgin": "en", "Yoruba": "yo", "Hausa": "ha", "Igbo": "ig"}
+# Intron: choosing a code-switched pair IS the model choice (docs.voice.intron.io, via github.com/OkeyAmy/volt-intron).
+# ⚠️ "pcm" vs "en" changed a number 100x on the same audio in that project's test: compare both on our voice notes.
+INTRON_LANG = {"English / Pidgin": os.getenv("INTRON_EN_CODE", "pcm"), "Yoruba": "yo", "Hausa": "ha", "Igbo": "ig"}
+INTRON_URL = os.getenv("INTRON_URL", "https://infer.voice.intron.io/file/v1/upload/sync")
 
 _model = None
 _model_name = None
@@ -147,6 +153,30 @@ def _spitch_transcribe(path, language, vocab=None):
             os.remove(wav)
 
 
+def _intron_transcribe(path, language, vocab=None):
+    """Intron Sahara synchronous file API: multipart audio_file_name / audio_file_blob / use_language_asr_input,
+    Bearer key, files <= 120 s, transcript in data.audio_transcript."""
+    import requests
+
+    wav = to_wav16k(path, max_seconds=119) if shutil.which("ffmpeg") else None
+    try:
+        with open(wav or path, "rb") as f:
+            name = os.path.basename(wav or path)
+            r = requests.post(INTRON_URL, headers={"Authorization": f"Bearer {os.environ['INTRON_API_KEY']}"},
+                              data={"audio_file_name": name, "use_language_asr_input": INTRON_LANG.get(language, "pcm")},
+                              files={"audio_file_blob": (name, f, "audio/wav")}, timeout=60)
+        if r.status_code in (401, 403):
+            raise RuntimeError("Intron: key rejected (check INTRON_API_KEY)")
+        r.raise_for_status()
+        text = (r.json().get("data") or {}).get("audio_transcript")
+        if not isinstance(text, str):
+            raise RuntimeError(f"Intron: no transcript in the answer ({str(r.json())[:120]})")
+        return {"text": text.strip(), "language": INTRON_LANG.get(language, "pcm"), "engine": "intron:sahara"}
+    finally:
+        if wav:
+            os.remove(wav)
+
+
 def _local_transcribe(path, language, vocab):
     engine, code = LANGUAGES.get(language, ("whisper", language or None))
     if engine == "omni":
@@ -177,10 +207,12 @@ def transcribe(path, language=None, vocab=None):
         out["engine"] = f"remote:{out.get('engine', out.get('model', 'asr'))}"
     else:
         mode = os.getenv("ASR_ENGINE", "local").lower()
-        spitch_first = mode == "spitch" or (mode == "spitch-local" and engine == "omni")
-        order = [_spitch_transcribe, _local_transcribe] if spitch_first else [_local_transcribe, _spitch_transcribe]
-        if not os.getenv("SPITCH_API_KEY"):
-            order = [_local_transcribe]
+        clouds = {"spitch": (_spitch_transcribe, "SPITCH_API_KEY"), "intron": (_intron_transcribe, "INTRON_API_KEY")}
+        chosen = mode.replace("-local", "")
+        cloud_first = chosen in clouds and (not mode.endswith("-local") or engine == "omni")
+        ready = [name for name, (_, key) in clouds.items() if os.getenv(key)]  # cloud engines with a key
+        order = ([clouds[chosen][0]] if cloud_first and chosen in ready else []) + [_local_transcribe]
+        order += [clouds[name][0] for name in ready if clouds[name][0] not in order]  # the rest = fallbacks
         out, errors = None, []
         for fn in order:
             try:

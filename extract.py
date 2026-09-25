@@ -394,10 +394,8 @@ def llm_extract(text, today=None, vocab=None):
     today = today or dt.date.today()
     import country
 
-    p = country.pack()
     prompt = (SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
-              + f"\nThe trader is in {p['name']}; amounts are in {p['word'][1]} ({p['currency']}) unless said otherwise."
-              + _vocab_line(vocab))
+              + country.ai_hint() + _vocab_line(vocab))
     content, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
                               max_tokens=900, timeout=int(os.getenv("LLM_TIMEOUT", "20")))  # then next model
     return _parse_json(content), model
