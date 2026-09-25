@@ -68,7 +68,7 @@ What went wrong (37 mistakes):
 
 | Offline rules only | Before | After |
 |---|---|---|
-| `cases_hard` (211, the set we tuned on) | 55% | 99% (205/208)* |
+| `cases_hard` (211, the set we tuned on) | 55% | 99% (206/208)* |
 | `cases_fresh` (210, NEW draw, seed 7, not tuned on) | — | **99% (205/207, 95%: 97–100%)** |
 | `cases.jsonl` / `cases_lang.jsonl` | 20/20, 16/16 | 20/20, 16/16 |
 \* Tuned on this set, so it flatters us. `cases_fresh` uses the **same templates** with new names/amounts, so it
