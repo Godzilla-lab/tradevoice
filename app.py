@@ -4,11 +4,13 @@ python app.py            (GRADIO_SHARE=1 for a public link, e.g. when running on
 """
 import datetime as dt
 import os
+import re
 import tempfile
 
 import gradio as gr
 import pandas as pd
 
+import country
 import insights
 import ledger
 import tts
@@ -24,8 +26,8 @@ PHOTO_COLS = ["save", "type", "amount", "customer", "due_date", "item", "quantit
 SHOP_NAME = os.getenv("SHOP_NAME", "Chioma Stores")
 
 
-def naira(x):
-    return f"₦{x:,.0f}"
+def naira(x):  # name kept; the currency follows COUNTRY (country.py)
+    return country.money(x)
 
 
 def _forget(path):
@@ -207,7 +209,7 @@ def save_table(df):
         n = i + 1
         typ = str(row.get("type") or "").strip()
         try:
-            amount = float(str(row.get("amount")).replace(",", "").replace("₦", ""))
+            amount = float(re.sub(r"[^\d.]", "", str(row.get("amount"))))
         except ValueError:
             amount = 0
         due = str(row.get("due_date") or "").strip()
@@ -434,7 +436,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
             transcript = gr.Textbox(label="What we heard (edit if wrong)")
             with gr.Row():
                 f_type = gr.Dropdown(list(TYPE_LABELS.values()), label="Type", value=TYPE_LABELS["sale"])
-                f_amount = gr.Number(label="Amount (₦)")
+                f_amount = gr.Number(label=f"Amount ({country.pack()['currency']})")
                 f_customer = gr.Textbox(label="Customer")
                 f_due = gr.Textbox(label="Promised pay date (YYYY-MM-DD)")
             with gr.Row():

@@ -58,7 +58,8 @@ _UNITS = (r"bags?|cartons?|crates?|pieces?|pcs|tins?|packs?|packets?|paints?|der
 _QTY_RE = re.compile(rf"\b(\d+(?:\.\d+)?)\s*({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b)[a-z]+)?)",
                      re.IGNORECASE)
 _HONORIFIC = (r"mama|papa|iya|baba|alhaji|alhaja|madam|oga|aunty|auntie|uncle|mr\.?|mrs\.?|"
-              r"chief|brother|sister|bros|mallam|mallama|iyawo|hajiya|hajia|dr\.?|customer")
+              r"chief|brother|sister|bros|mallam|mallama|iyawo|hajiya|hajia|dr\.?|customer|"
+              r"tonton|tantie|tata|maman|madame|hajja|hajj|lalla|khalti|ammi|mzee|bibi|abu|umm|oum")  # other countries
 _NOT_NAMES = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
               "today", "tomorrow", "next", "week", "month", "i", "naira", "the", "me", "am", "am"}
 _FILLERS = {"ehn", "abeg", "sha", "um", "so", "okay", "o", "se", "to", "wai", "dai", "ngwa", "kwa", "ni", "fun",
@@ -391,7 +392,11 @@ def _vocab_line(vocab):
 def llm_extract(text, today=None, vocab=None):
     """Return (record dict, model used)."""
     today = today or dt.date.today()
+    import country
+
+    p = country.pack()
     prompt = (SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
+              + f"\nThe trader is in {p['name']}; amounts are in {p['word'][1]} ({p['currency']}) unless said otherwise."
               + _vocab_line(vocab))
     content, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
                               max_tokens=900, timeout=int(os.getenv("LLM_TIMEOUT", "20")))  # then next model

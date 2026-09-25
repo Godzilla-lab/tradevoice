@@ -21,7 +21,7 @@ Not now: Wolof (Senegal), Dioula (Côte d'Ivoire), Tamazight, Oromo, Amharic… 
 | **Understand** the note (AI) | ✅ | Prompt now says so; `eval/cases_africa.jsonl` (22 phrases: French, Swahili, standard Arabic, Moroccan + Tunisian Darija typed the WhatsApp way, e.g. "Bi3t … b 450 dirham") |
 | **Hear** (speech-to-text) | Whisper / omniASR / Spitch | Whisper handles French/Arabic/Swahili; dialect Darija is harder. Intron covers 57 African languages [check which]. Needs real recordings. |
 | **Speak** replies (voice) | Spitch | Spitch doesn't cover these; needs another voice engine (MMS-TTS has Swahili/Arabic [unverified]) |
-| **Money** | ₦ everywhere | The app shows ₦; each country needs its currency: FCFA (XOF), dirham, dinar, shilling, riyal |
+| **Money** | ₦ | ✅ `COUNTRY=KE/SN/CI/MA/DZ/TN/SA` in `.env` switches currency everywhere (screens, statement, voice replies, Ask my book, AI hint): KSh, FCFA, DH, DA, DT, SAR (`country.py`) |
 
 ## Test it (Mac, with the AI)
 ```
@@ -36,3 +36,8 @@ the day?) check them and write their own.
 *"Built for Nigeria first. The same engine already understands French, Arabic and Swahili notes in our tests. Each new
 country is a language pack: voice, words, currency. That's every country in this hackathon, and Kredete's 30+
 markets."* (Only say "understands" after the AI test above passes.)
+
+## Country packs (`country.py`)
+Currency + format, spoken currency name, default languages, savings-group and mobile-money names, and customer titles
+(Tantie/Tonton, Hajja, Lalla, Khalti, Mzee, Bibi…) per country. Tax/finance facts per country: `docs/COUNTRIES.md`
+(research in progress), shown in the app only after a local expert checks them, the same rule as Nigeria.

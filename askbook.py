@@ -253,7 +253,7 @@ def answer(q, res, spoken=False):
 
     lang = q["language"] if q["language"] in LANGS else "English"
     money = ((lambda x: ("minus " if x < 0 else "") + naira_words(abs(x))) if spoken
-             else (lambda x: f"-₦{abs(x):,.0f}" if x < 0 else f"₦{x:,.0f}"))
+             else (lambda x: __import__("country").money(x)))
     count = (lambda x: number_words(x)) if spoken else (lambda x: f"{x:g}")
     if q["what"] in ("owed_to_me", "i_owe"):
         if not res["people"]:

@@ -10,13 +10,14 @@ import statistics
 import urllib.parse
 from collections import defaultdict
 
+import country
 import ledger
 
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
-def naira(x):
-    return f"₦{x:,.0f}"
+def naira(x):  # name kept; the currency follows COUNTRY (country.py)
+    return country.money(x)
 
 
 def _rows(days=28, today=None):
@@ -134,7 +135,7 @@ def book_facts(today=None):
 
 
 ASK_PROMPT = """You are TradeVoice, a friendly bookkeeping helper for a Nigerian market trader.
-Answer the trader's question using ONLY the facts in the JSON below. Use naira with commas (₦45,000).
+Answer the trader's question using ONLY the facts in the JSON below. Write money like this: __MONEY_EXAMPLE__.
 Reply in the same style the trader used (English or Nigerian Pidgin), in 1-4 short sentences.
 If the facts do not contain the answer, say you don't have that record yet. Never invent numbers.
 Never give investment, tax or legal advice; for loans, remind them a lender makes the decision.
@@ -186,7 +187,7 @@ def ask(question, today=None):
     if not llm.available():
         return ask_offline(question, facts), "rules"
     try:
-        answer, model = llm.chat([{"role": "system", "content": ASK_PROMPT + json.dumps(facts, default=str)},
+        answer, model = llm.chat([{"role": "system", "content": ASK_PROMPT.replace("__MONEY_EXAMPLE__", country.money(45000)) + json.dumps(facts, default=str)},
                                   {"role": "user", "content": question}], max_tokens=400, temperature=0.2, timeout=30)
         return answer, f"llm:{model}"
     except Exception as e:
