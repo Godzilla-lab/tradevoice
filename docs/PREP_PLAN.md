@@ -18,6 +18,11 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] Team name + roster details; draft video script + project card (`docs/PITCH.md`)
 - [ ] **Sunday:** roster 9:45 (primary prize: Kredete), timekeeping, record video 15:45–16:45, **submit 17:15**
 
+## 🔊 Voice replies (Person 2 or 4)
+- [ ] Sign up at **spitch.app**, get the API key → `.env` `SPITCH_API_KEY=...` → `pip install spitch`
+- [ ] `python eval/tts_check.py` → play the samples to **native speakers** of Yoruba, Hausa, Igbo, Pidgin; score 1–5
+- [ ] Any language scoring < 3 → don't demo its voice; fix wording in `tts.py` TEMPLATES if they suggest better phrasing
+
 ## 2️⃣ AI + NVIDIA Brev: ______
 - [ ] Brev account; read Brev notes in `docs/RESEARCH.md`
 - [ ] `python check_models.py` → post results

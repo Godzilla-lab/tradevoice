@@ -95,6 +95,11 @@ Trader → "statement"   → lender statement as a document
 Trader → "delete my data" → confirm, then erase
 First message ever → short welcome + consent: "Reply YES to let TradeVoice keep your records"
 ```
+**Voice replies:** for traders who can't read, the bot also sends the confirmation as a **voice note**
+(`tts.speak(text, lang, fmt="ogg_opus")` with Spitch gives WhatsApp's voice-note format directly; upload it with
+`POST /{PHONE_NUMBER_ID}/media` then send `"type":"audio"`). The trader can answer with a voice note "yes"/"no"
+instead of tapping buttons.
+
 Keep it **task-specific** (see policy): anything off-topic → "I only help with your shop records."
 
 ## 4b. What goes where (WhatsApp vs web dashboard)

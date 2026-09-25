@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 eval/audio/*
 !eval/audio/.gitkeep
+eval/tts_samples/*
+!eval/tts_samples/scores.txt

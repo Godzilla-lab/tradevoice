@@ -1,0 +1,5 @@
+# Optional self-hosted voice (Meta MMS-TTS: Yoruba, Hausa, English; licence CC-BY-NC = demo only).
+# The main voice engine is Spitch (pip install spitch + SPITCH_API_KEY); this is the offline backup.
+torch
+transformers>=4.33
+numpy

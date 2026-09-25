@@ -96,3 +96,24 @@ extra* on Brev (e.g. replies in Yoruba), not as the main extraction model.
 
 **What to say in the pitch:** "English and Pidgin voice today; photos in Yoruba, Hausa and Igbo tested with [score];
 local-language speech next, using Meta omniASR / N-ATLaS models on our Brev GPU." Honest and it scores Responsible AI points.
+
+## Voice replies (text-to-speech) for traders who can't read, researched 25 Sep 2026
+Many traders speak Yoruba/Hausa/Igbo/Pidgin fluently but can't read, so TradeVoice reads confirmations back aloud
+(`tts.py`: "I hear say…" before saving, "I don write am…" after, with the customer's new total).
+
+| Option | Languages | Use | Licence / cost |
+|---|---|---|---|
+| **Spitch** (Nigerian), **primary** | English, **Pidgin** (by voice e.g. `ufoma`), Yoruba (`sade`), Hausa (`amina`), Igbo (`ngozi`) | Hosted API, `pip install spitch`; outputs wav/mp3/**ogg_opus** (WhatsApp voice notes); also STT, translation, Yoruba tone-marking | Commercial ToS; **$1 free credit** for new devs |
+| YarnGPT2 (Nigerian, open source) | Nigerian English, Yoruba, Igbo, Hausa | Self-host on Brev (small LM + WavTokenizer) or free API (80 req/day, async) | Apache/MIT (⚠️ UNVERIFIED) |
+| Meta MMS-TTS | Yoruba, Hausa, English (no Igbo found) | Offline on CPU/GPU (`requirements-tts.txt`, `TTS_BACKEND=mms`) | **CC-BY-NC: demo only** |
+| Intron Sahara v2.5 | Igbo, Hausa (+ more) | No self-serve signup found | n/a for Sunday |
+| Google / Azure / NVIDIA Magpie / ElevenLabs | No Yoruba/Igbo voices (Azure: Nigerian English only) | | |
+
+**Numbers:** no engine is proven to read digits in Yoruba/Hausa/Igbo, and `num2words` has no yo/ha/ig. So amounts
+are spoken as **English words** ("forty-five thousand naira"), which traders commonly use anyway. Our own
+`tts.number_words()` handles this (no extra library).
+⚠️ Spitch voice names and Pidgin handling came from their SDK source and GitHub projects (their docs were blocked for
+our research tool). Check them in the Spitch dashboard. Yoruba/Hausa/Igbo sentences in `tts.py` need a native-speaker
+check: run `python eval/tts_check.py` and do a listening test.
+Sources: pypi.org/project/spitch · github.com/spi-tch/spitch-python · github.com/saheedniyi02/yarngpt ·
+huggingface.co/facebook/mms-tts-yor · intron.io

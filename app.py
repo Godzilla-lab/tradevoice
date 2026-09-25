@@ -11,6 +11,7 @@ import pandas as pd
 
 import insights
 import ledger
+import tts
 from extract import TYPES, extract, extract_many
 
 TYPE_LABELS = {"sale": "Sale (paid now)", "credit_sale": "Sale on credit (owes me)",
@@ -43,8 +44,29 @@ def risk_line(rec):
 
 # ---------------------------------------------------------------- voice / text record tab
 
-def process(consent, audio_path, typed_text, voice_lang="English / Pidgin"):
-    blank = [gr.update()] * 8
+VOICE_TO_REPLY = {"English / Pidgin": "Pidgin", "Yoruba": "Yoruba", "Hausa": "Hausa", "Igbo": "Igbo"}
+
+
+def spoken(rec, reply_lang, saved, balance=None):
+    """Audio file reading the entry back (for traders who can't read), or None if voice is off or fails."""
+    if not reply_lang or reply_lang == "Off" or rec.get("amount") in (None, ""):
+        return None
+    try:
+        out = tts.speak(tts.confirmation_text(rec, reply_lang, balance=balance, saved=saved), reply_lang)
+        return out["path"] if out else None
+    except Exception as e:  # noqa: BLE001  - voice is a bonus; never break the flow
+        print(f"voice reply failed: {type(e).__name__}: {e}")
+        return None
+
+
+def voice_status():
+    engine = tts.backend()
+    return (f"🔊 Voice replies on ({engine})." if engine else
+            "🔇 Voice replies are off: add SPITCH_API_KEY to .env (or install requirements-tts.txt).")
+
+
+def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", reply_lang="Off"):
+    blank = [gr.update()] * 8 + [None]
     if not consent:
         return ["⚠️ Please tick the consent box first."] + blank
     text, asr_info = (typed_text or "").strip(), ""
@@ -80,7 +102,7 @@ def process(consent, audio_path, typed_text, voice_lang="English / Pidgin"):
               f"confidence {rec['confidence']:.0%}  \n" + risk_line(rec) + "".join(f"⚠️ {w}  \n" for w in warn)
               + "**Check the details below, then press Confirm & save.**")
     return [status, text, TYPE_LABELS[rec["type"]], rec["item"] or "", rec["quantity"], rec["unit"] or "",
-            rec["amount"], rec["customer"] or "", rec["due_date"] or ""]
+            rec["amount"], rec["customer"] or "", rec["due_date"] or "", spoken(rec, reply_lang, saved=False)]
 
 
 def _valid_due(due):
@@ -93,16 +115,23 @@ def _valid_due(due):
         return False
 
 
-def save(text, type_label, item, qty, unit, amount, customer, due, engine_note):
+def save(text, type_label, item, qty, unit, amount, customer, due, engine_note, reply_lang="Off"):
     if amount in (None, "") or float(amount) <= 0:
-        return "⚠️ Amount is required before saving."
+        return "⚠️ Amount is required before saving.", None
     if not _valid_due(due):
-        return "⚠️ Due date must look like 2026-10-02."
+        return "⚠️ Due date must look like 2026-10-02.", None
     rec = {"type": LABEL_TO_TYPE[type_label], "item": item or None, "quantity": qty, "unit": unit or None,
            "amount": float(amount), "customer": (customer or "").strip() or None, "due_date": due or None}
     eid = ledger.add_entry(rec, raw_text=text, engine="voice/text")
-    return f"✅ Saved entry #{eid}: {type_label}, {naira(rec['amount'])}" + (
+    balance = None
+    if rec["customer"]:
+        balance = next((d["balance"] for d in ledger.debtors()
+                        if ledger.customer_key(d["customer"]) == ledger.customer_key(rec["customer"])), None)
+    msg = f"✅ Saved entry #{eid}: {type_label}, {naira(rec['amount'])}" + (
         f" — {rec['customer']}" if rec["customer"] else "")
+    if balance:
+        msg += f"  \n📒 {rec['customer']} now owes you {naira(balance)} in total."
+    return msg, spoken(rec, reply_lang, saved=True, balance=balance)
 
 
 # ---------------------------------------------------------------- photo tab
@@ -332,8 +361,14 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
                 audio = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Voice note")
             typed = gr.Textbox(label="…or type it", lines=3,
                                placeholder="I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday")
+        with gr.Row():
+            reply_lang = gr.Radio(["Off"] + tts.REPLY_LANGS, value="Pidgin",
+                                  label="🔊 Read it back to me in (for traders who prefer listening)")
+            gr.Markdown(voice_status())
+        voice_lang.change(lambda v: VOICE_TO_REPLY.get(v, "Pidgin"), voice_lang, reply_lang)
         go = gr.Button("Process", variant="primary")
         status = gr.Markdown()
+        heard_audio = gr.Audio(label="🔊 What I heard", autoplay=True, interactive=False)
         with gr.Group():
             transcript = gr.Textbox(label="What we heard (edit if wrong)")
             with gr.Row():
@@ -347,9 +382,11 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
                 f_unit = gr.Textbox(label="Unit")
         confirm = gr.Button("✅ Confirm & save")
         saved = gr.Markdown()
-        go.click(process, [consent, audio, typed, voice_lang],
-                 [status, transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due])
-        confirm.click(save, [transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due, status], saved)
+        saved_audio = gr.Audio(label="🔊 Saved", autoplay=True, interactive=False)
+        go.click(process, [consent, audio, typed, voice_lang, reply_lang],
+                 [status, transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due, heard_audio])
+        confirm.click(save, [transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due, status,
+                             reply_lang], [saved, saved_audio])
 
     with gr.Tab("📸 Snap your book"):
         gr.Markdown("Take a photo of a page of your record book or a receipt. Flat page, good light, whole page in view.")

@@ -21,6 +21,7 @@ don't know their real profit, and without records they can't get a loan from a m
 |---|---|---|
 | 🎙️ **Speak** | Sends a voice note: *"I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday"* (or in Yoruba, Hausa, Igbo) | Whisper for English/Pidgin, **Meta omniASR for Yoruba/Hausa/Igbo**, both on our **NVIDIA Brev GPU** → text → LLM → entry: *credit sale, ₦45,000, Mama Tunde, due Fri* → trader confirms |
 | 📸 **Snap your book** | Takes a photo of a notebook page or receipt | Vision AI reads every line → editable table → trader ticks and saves all |
+| 🔊 **Voice replies** | Can't read? Just listen | The app reads the entry back aloud in Pidgin, English, Yoruba, Hausa or Igbo before and after saving (Spitch, Nigerian TTS) |
 | 🏷️ **Credit check** | Records a credit sale | Warning if that customer is already late: *"⛔ Oga Emeka already owes ₦30,600 and is 18 days late"* |
 | 📒 **Who owes me** | Opens the tab | Everyone who owes, how much, how late. Payments clear the oldest debt first |
 | 📲 **WhatsApp reminder** | Picks a debtor + Pidgin / English / Yoruba | Polite reminder opens in WhatsApp; the trader presses send themselves |
