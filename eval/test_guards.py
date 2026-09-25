@@ -44,6 +44,12 @@ CASES = [
      {"customer": "Oga Emeka"}),
     ("I paid back Oga Emeka 60,000 today", {"type": "expense", "amount": 60000, "customer": "Oga Emeka"},
      {"type": "payment_made"}),
+    ("Uncle Chidi carry 3 carton indomie 90k, he pay 50k, remain 40k",
+     {"type": "credit_sale", "amount": 90000, "customer": "Uncle Chidi", "confidence": 0.95}, {"confidence": 0.3}),
+    ("Iya Bisi ta biya 60000 na bashin ta", {"type": "sale", "amount": 60000, "customer": "Iya Bisi"},
+     {"type": "payment_received"}),
+    ("ẹ̀n mo ta kaatonu indomie 5 fun oga emeka ni 18500 ṣé ko tii san owo naa",
+     {"type": "credit_sale", "amount": 18500, "customer": "Emeka"}, {"customer": "Oga Emeka"}),
     # must NOT be changed: the AI was right
     ("Aunty Kemi paid 26k out of the 80k she owes, 54k remaining",
      {"type": "payment_received", "amount": 26000, "customer": "Aunty Kemi"}, {"amount": 26000}),

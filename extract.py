@@ -425,6 +425,10 @@ def _check_guard(rec, rules, text, today):
     flip = {"credit_purchase": ("credit_sale", "sale"), "payment_made": ("payment_received", "expense")}
     if rec.get("type") in flip.get(rules["type"], ()):
         _fix(rec, "type", rules["type"], "Corrected: YOU owe / YOU paid back (the words say 'I').")
+    # two things in one note (a sale AND a part payment): never trust one confident answer, ask the trader
+    if (rules.get("note") or "").startswith("Two things in one note"):
+        rec["note"] = ((rec.get("note") or "") + " " + rules["note"]).strip()
+        rec["confidence"] = min(rec.get("confidence") or 0.3, 0.3)
     # keep the full name as said ("Oga Emeka", not "Emeka"), or one person becomes two in the book
     ai_name, rule_name = rec.get("customer"), rules.get("customer")
     if ai_name and rule_name and fold(rule_name) != fold(ai_name) and fold(rule_name).endswith(" " + fold(ai_name)):

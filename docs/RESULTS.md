@@ -78,6 +78,16 @@ Remaining: Hausa code-switch "za ta pay ranar …" → rules say sale (the AI sh
 ➡️ Re-run with the AI on the Mac: `python3 eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5`, then
 `--compare` old vs new result file; and find out why the AI failed 38 times (the report now lists the reasons).
 
+### Hard trap set, 3rd AI run (25 Sep 08:39, Mac, code 65a95fb, gemma still first in the list)
+**All fields 205/208 = 99% (95%: 96–100%)**; 0 wrong amounts, 0 invented. **AI answered 157/208 → 154/157 = 98%
+(95%: 95–99%)**: this set is less tuned for the AI than for the rules, so it's the fairer number.
+**`--compare` first AI run (0634) vs this: only-first-right 2, only-this-right 35, p < 0.001 → the fixes are a
+real improvement, not luck.**
+AI still failed 53× (37 timeouts, 9 no JSON, 6 × 503, 1 × 429): gemma was still first. Model order fixed after.
+4 mistakes: 3 were already fixed in newer code (Oga Emeka name; Hausa "ta biya … na bashin" read as sale).
+New fix: "two things in one note" (sale + part payment): the AI said 95% sure; now the app always asks.
+`test_guards.py` 22/22.
+
 ### Model check + "I owe" with the AI (25 Sep, Mac)
 `check_models.py`: **gemma-4-31b-it times out even on a one-line test** (text and photos); nemotron-3-ultra 1.2 s,
 nemotron-3-super 2.9 s, llama-3.2-11b-vision 1.1 s. → new order (`.env`):
