@@ -38,6 +38,12 @@ CASES = [
      {"type": "credit_sale", "amount": 18500, "customer": None}, {"customer": "Hajiya Amina"}),
     ("Sold 4 cartons of indomie for N27,000 cash", {"type": "sale", "amount": 27000, "customer": None},
      {"customer": None}),
+    ("Mo jẹ Alhaji Musa ní 100000 fún àpò ìrẹsì",
+     {"type": "sale", "amount": 100000, "customer": "Alhaji Musa"}, {"type": "credit_purchase"}),
+    ("Oga Emeka owe me 30k, he go pay Friday", {"type": "credit_sale", "amount": 30000, "customer": "Emeka"},
+     {"customer": "Oga Emeka"}),
+    ("I paid back Oga Emeka 60,000 today", {"type": "expense", "amount": 60000, "customer": "Oga Emeka"},
+     {"type": "payment_made"}),
     # must NOT be changed: the AI was right
     ("Aunty Kemi paid 26k out of the 80k she owes, 54k remaining",
      {"type": "payment_received", "amount": 26000, "customer": "Aunty Kemi"}, {"amount": 26000}),

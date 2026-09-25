@@ -421,9 +421,14 @@ def _fix(rec, key, value, why):
 def _check_guard(rec, rules, text, today):
     """Deterministic checks the AI got wrong in our hard test set (docs/RESULTS.md, 25 Sep)."""
     t = fold(text)
-    mine = {"credit_sale": "credit_purchase", "payment_received": "payment_made"}
-    if rules["type"] in ("credit_purchase", "payment_made") and rec.get("type") in mine:
+    # the words say "I owe" / "I paid back": the AI sometimes files it as a sale or a customer's debt
+    flip = {"credit_purchase": ("credit_sale", "sale"), "payment_made": ("payment_received", "expense")}
+    if rec.get("type") in flip.get(rules["type"], ()):
         _fix(rec, "type", rules["type"], "Corrected: YOU owe / YOU paid back (the words say 'I').")
+    # keep the full name as said ("Oga Emeka", not "Emeka"), or one person becomes two in the book
+    ai_name, rule_name = rec.get("customer"), rules.get("customer")
+    if ai_name and rule_name and fold(rule_name) != fold(ai_name) and fold(rule_name).endswith(" " + fold(ai_name)):
+        rec["customer"] = rule_name
     if (_NEG_PAY_RE.search(t) and rec.get("type") in ("payment_received", "sale")
             and rules["type"] != "credit_purchase"):
         _fix(rec, "type", "credit_sale", "Type corrected to credit: the words say 'not paid yet'.")

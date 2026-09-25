@@ -78,6 +78,16 @@ Remaining: Hausa code-switch "za ta pay ranar …" → rules say sale (the AI sh
 ➡️ Re-run with the AI on the Mac: `python3 eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5`, then
 `--compare` old vs new result file; and find out why the AI failed 38 times (the report now lists the reasons).
 
+### Model check + "I owe" with the AI (25 Sep, Mac)
+`check_models.py`: **gemma-4-31b-it times out even on a one-line test** (text and photos); nemotron-3-ultra 1.2 s,
+nemotron-3-super 2.9 s, llama-3.2-11b-vision 1.1 s. → new order (`.env`):
+`LLM_MODELS=nvidia/nemotron-3-ultra-550b-a55b,nvidia/nemotron-3-super-120b-a12b,google/gemma-4-31b-it`,
+`VISION_MODELS=meta/llama-3.2-11b-vision-instruct,google/gemma-4-31b-it` (llama had slightly weaker tone marks:
+94–95% vs 98–100%). Re-check gemma on Sunday.
+`cases_owe` with AI (gemma still first): 11/13, 0 wrong amounts, 3 AI timeouts. Fixed after: Yoruba "Mo jẹ Alhaji…" (I owe)
+filed as sale → guard now flips sale/credit → "I owe"; "Oga Emeka" shortened to "Emeka" by the AI → the full name
+as said is kept (otherwise one customer becomes two). `test_guards.py` 19/19.
+
 ### Hard trap set WITH the AI, re-run after the fixes (25 Sep, Mac, `--sleep 1.5`)
 **All fields 208/208 = 100% (95%: 98–100%)**, wrong amounts 0, invented 0, asked on unclear notes 3/3,
 every language and every trap 100%. **AI answered 157/211 → 157/157 correct (95%: 98–100%).**
