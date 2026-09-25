@@ -1,0 +1,13 @@
+{"id": "ow1", "lang": "english", "category": "i_owe", "text": "Alhaji Musa gave me 10 bags of rice on credit, 450k, I will pay him Friday", "type": "credit_purchase", "amount": 450000, "customer": "Alhaji Musa", "due_weekday": "Friday"}
+{"id": "ow2", "lang": "pidgin", "category": "i_owe", "text": "I collect 5 carton indomie from Oga Emeka on credit, 60k, I go pay am Monday", "type": "credit_purchase", "amount": 60000, "customer": "Oga Emeka", "due_weekday": "Monday"}
+{"id": "ow3", "lang": "pidgin", "category": "i_owe", "text": "I still dey owe Hajiya Amina 25k for the oil", "type": "credit_purchase", "amount": 25000, "customer": "Hajiya Amina"}
+{"id": "ow4", "lang": "english", "category": "i_owe", "text": "Borrowed 50k from Mama Tunde, I will pay her next week", "type": "credit_purchase", "amount": 50000, "customer": "Mama Tunde"}
+{"id": "ow5", "lang": "pidgin", "category": "i_paid_back", "text": "I don pay Alhaji Musa 200k out of the rice money", "type": "payment_made", "amount": 200000, "customer": "Alhaji Musa"}
+{"id": "ow6", "lang": "english", "category": "i_paid_back", "text": "I paid back Oga Emeka 60,000 today", "type": "payment_made", "amount": 60000, "customer": "Oga Emeka"}
+{"id": "ow7", "lang": "pidgin", "category": "i_paid_back", "text": "I settle my supplier Uncle Chidi 35k", "type": "payment_made", "amount": 35000, "customer": "Uncle Chidi"}
+{"id": "ow8", "lang": "pidgin", "category": "i_owe", "text": "I never pay Alhaji Musa the 80k wey I owe", "type": "credit_purchase", "amount": 80000, "customer": "Alhaji Musa"}
+{"id": "ow9", "lang": "yoruba", "category": "i_owe", "check": "native", "text": "Mo jẹ Alhaji Musa ní 100000 fún àpò ìrẹsì", "type": "credit_purchase", "amount": 100000, "customer": "Alhaji Musa"}
+{"id": "ow10", "lang": "hausa", "category": "i_owe", "check": "native", "text": "Ina da bashin Alhaji Musa 100000 na buhun shinkafa", "type": "credit_purchase", "amount": 100000, "customer": "Alhaji Musa"}
+{"id": "ow11", "lang": "pidgin", "category": "contrast", "text": "Mama Tunde don pay me 12k wey she owe", "type": "payment_received", "amount": 12000, "customer": "Mama Tunde"}
+{"id": "ow12", "lang": "pidgin", "category": "contrast", "text": "Oga Emeka owe me 30k, he go pay Friday", "type": "credit_sale", "amount": 30000, "customer": "Oga Emeka", "due_weekday": "Friday"}
+{"id": "ow13", "lang": "pidgin", "category": "contrast", "text": "I pay 3500 for motor go market", "type": "expense", "amount": 3500, "customer": null}

@@ -11,18 +11,19 @@ import re
 import time
 import unicodedata
 
-TYPES = ("sale", "credit_sale", "payment_received", "expense")
+TYPES = ("sale", "credit_sale", "payment_received", "expense", "credit_purchase", "payment_made")
 import llm
 
 SYSTEM_PROMPT = """You turn a Nigerian market trader's voice note (English, Nigerian Pidgin, or mixed) into ONE bookkeeping record.
 Today is __TODAY__ (__WEEKDAY__).
 Return ONLY a JSON object with these keys:
-- "type": one of "sale" (customer paid now), "credit_sale" (customer took goods and will pay later / owes), "payment_received" (customer paying back an earlier debt), "expense" (the trader spent money: restock, transport, rent, levy, fuel, etc.)
+- "type": one of "sale" (customer paid now), "credit_sale" (customer took goods and will pay later / owes), "payment_received" (customer paying back an earlier debt), "expense" (the trader spent money: restock, transport, rent, levy, fuel, etc.), "credit_purchase" (the TRADER took goods or money on credit from a supplier/lender and OWES them: "I owe Alhaji 200k", "Alhaji give me 10 bags, I go pay Friday"), "payment_made" (the TRADER paid back money they owed: "I don pay Alhaji 50k", "I settle my supplier")
 - "item": short product or expense name, or null
 - "quantity": number or null
 - "unit": e.g. "bag", "carton", "crate", "paint", "mudu", or null
 - "amount": TOTAL amount in naira as a plain number (45k -> 45000, 1.5m -> 1500000, "twenty thousand" -> 20000), or null if not said
-- "customer": the person's name as said (e.g. "Mama Tunde", "Alhaji Musa"), or null
+- "customer": the other person's name as said (customer, or the supplier/lender for credit_purchase/payment_made), or null
+- "item": for money borrowed (not goods), use "loan"
 - "due_date": date the customer promised to pay, as YYYY-MM-DD, or null
 - "confidence": number 0-1, how sure you are
 - "note": short description of anything unclear, or null
@@ -90,6 +91,18 @@ _EXPENSE_RE = re.compile(r"\b(i|we)\s+(buy|bought|pay for|paid for|spend|spent|r
 
 
 _SELL_RE = re.compile(r"\b(sell|sold|ta|sayar|ere m|ree)\b")  # en, yo, ha, ig
+# The TRADER owes / pays back (first person). Checked before the customer-side words. ⚠️ yo/ha native check.
+_I_OWE_RE = re.compile(r"\b(?:i|we)\s+(?:(?:still|dey|don|am|are)\s+)*(?:owe|owing)\b|\bon credit from\b"
+                       r"|\b(?:give|gave|supply|supplied|lend|lent|borrow(?:ed)?)\s+me\b"
+                       r"|\bi (?:borrow|borrowed|collect|collected|take|took)\b.*\b(?:on credit|credit|from)\b"
+                       r"|\bi (?:go|will) pay (?:him|her|am|them)\b"
+                       r"|\b(?:i|we)\s+(?:has not|have not|haven'?t|did not|didn'?t|never|no|not)\s+(?:yet\s+)?"
+                       r"(?:pay|paid)\s+(?:him|her|am|them|my supplier|back|alhaji|oga|madam|mama|hajiya)\b"
+                       r"|\bmo je\b|\bina da bashin\b")
+_I_PAID_BACK_RE = re.compile(r"\b(?:i|we)\s+(?:don\s+|have\s+|just\s+)?(?:pay|paid|settle|settled|clear|cleared|"
+                             r"repay|repaid|return|returned)\s+(?:back\s+)?(?:my\s+)?(?:supplier|alhaji|oga|madam|"
+                             r"mama|hajiya|chief|mallam|aunty|uncle|iya|baba|him|her|am|them)\b"
+                             r"|\b(?:i|we)\s+(?:don\s+)?(?:pay|paid)\s+back\b|\bmo ti san gbese\b")
 _SOLD_RE = re.compile(r"\b(sell|sold|mo ta|sayar|ere m|gave|took|carry)\b")  # stricter: Hausa "ta biya" is not "sold"
 # "has not paid" = still owes. Checked BEFORE the "paid me" payment words. (text is folded: no tone marks)
 _NEG_PAY_RE = re.compile(r"\b(?:has not|have not|hasn'?t|haven'?t|did not|didn'?t|does not|doesn'?t|never|no|not)\s+"
@@ -296,6 +309,10 @@ def parse_customer(text):
 
 def parse_type(text):
     t = fold(text)
+    if _I_OWE_RE.search(t) and not _I_PAID_BACK_RE.search(t):
+        return "credit_purchase"
+    if _I_PAID_BACK_RE.search(t) and not re.search(r"\bfor (?:transport|rent|levy|motor|fuel)\b", t):
+        return "payment_made"
     if _NEG_PAY_RE.search(t):
         return "credit_sale"
     if part_payment_amount(text) is not None:
@@ -325,7 +342,7 @@ def rule_extract(text, today=None):
         k = _EXPENSE_RE.search(text or "")
         if k and k.group(3):
             rec["item"] = k.group(3).lower()
-    if rec["type"] == "credit_sale":
+    if rec["type"] in ("credit_sale", "credit_purchase"):
         rec["due_date"] = parse_due(text, today)
     t = fold(text)
     if _SOLD_RE.search(t) and _PART_RE.search(t) and re.search(r"\b(paid|pay)\b", t):
@@ -397,12 +414,16 @@ def _fix(rec, key, value, why):
 def _check_guard(rec, rules, text, today):
     """Deterministic checks the AI got wrong in our hard test set (docs/RESULTS.md, 25 Sep)."""
     t = fold(text)
-    if _NEG_PAY_RE.search(t) and rec.get("type") in ("payment_received", "sale"):
+    mine = {"credit_sale": "credit_purchase", "payment_received": "payment_made"}
+    if rules["type"] in ("credit_purchase", "payment_made") and rec.get("type") in mine:
+        _fix(rec, "type", rules["type"], "Corrected: YOU owe / YOU paid back (the words say 'I').")
+    if (_NEG_PAY_RE.search(t) and rec.get("type") in ("payment_received", "sale")
+            and rules["type"] != "credit_purchase"):
         _fix(rec, "type", "credit_sale", "Type corrected to credit: the words say 'not paid yet'.")
     if rec.get("type") == "sale" and part_payment_amount(text) is not None:
         _fix(rec, "type", "payment_received", "Type corrected to payment: part of a debt was paid.")
     # weekday arithmetic: rules are exact, the AI sometimes picks the wrong date
-    if rec.get("type") == "credit_sale":
+    if rec.get("type") in ("credit_sale", "credit_purchase"):
         due = parse_due(text, today)
         if due and rec.get("due_date") != due:
             rec["due_date"] = due

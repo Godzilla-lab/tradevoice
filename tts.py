@@ -87,6 +87,10 @@ TEMPLATES = {
         "expense": "You spent {amount}{item_for}.",
         "due": ", on {day}", "balance": " All together, {she} is still owing you {balance}.",
         "cleared": " {She} is not owing you anything again.",
+        "credit_purchase": "You will pay {customer} {amount}{due}.",
+        "payment_made": "You have paid {customer} {amount}. Well done!",
+        "i_owe": " All together, you still owe {customer} {balance}.",
+        "i_cleared": " You don't owe {customer} anything again. Your name is clean!",
     },
     "Pidgin": {
         "sale": "You don sell {item}for {amount}. Market dey move!",
@@ -95,6 +99,10 @@ TEMPLATES = {
         "expense": "You spend {amount}{item_for}.",
         "due": ", for {day}", "balance": " Now, {she} still dey owe you {balance}.",
         "cleared": " {She} no dey owe you again. E don clear!",
+        "credit_purchase": "You go pay {customer} {amount}{due}.",
+        "payment_made": "You don pay {customer} {amount}. Correct!",
+        "i_owe": " Now, you still dey owe {customer} {balance}.",
+        "i_cleared": " You no dey owe {customer} again. Your name clean!",
     },
     "Yoruba": {
         "sale": "O ta ọjà ní {amount}. Ọjà ń tà!",
@@ -103,6 +111,10 @@ TEMPLATES = {
         "expense": "O ná {amount}.",
         "due": ", yóò san ní {day}", "balance": " Gbogbo gbèsè {customer} báyìí jẹ́ {balance}.",
         "cleared": " {customer} kò jẹ ọ́ ní gbèsè mọ́.",
+        "credit_purchase": "O jẹ {customer} ní {amount}{due}.",
+        "payment_made": "O ti san {amount} fún {customer}. Ó dáa!",
+        "i_owe": " Gbogbo gbèsè tí o jẹ {customer} báyìí jẹ́ {balance}.",
+        "i_cleared": " O kò jẹ {customer} ní gbèsè mọ́.",
     },
     "Hausa": {
         # "An ..." (impersonal) avoids guessing the trader's gender
@@ -112,6 +124,10 @@ TEMPLATES = {
         "expense": "An kashe {amount}.",
         "due": ", {za} biya ranar {day}", "balance": " Yanzu, jimlar bashin {customer} {balance} ne.",
         "cleared": " {customer} ba {ya} da sauran bashi.",
+        "credit_purchase": "An karɓi kaya bashi daga {customer}, na {amount}{due}.",
+        "payment_made": "An biya {customer} {amount}. Madalla!",
+        "i_owe": " Yanzu, jimlar bashin {customer} {balance} ne.",
+        "i_cleared": " An gama biyan bashin {customer}.",
     },
     "Igbo": {
         "sale": "I rere ahịa {amount}. Ahịa na-aga!",
@@ -120,6 +136,10 @@ TEMPLATES = {
         "expense": "I mefuru {amount}.",
         "due": ", ọ ga-akwụ na {day}", "balance": " Ugbu a, ụgwọ {customer} niile bụ {balance}.",
         "cleared": " {customer} anaghị ji gị ụgwọ ọzọ.",
+        "credit_purchase": "I ji {customer} ụgwọ {amount}{due}.",
+        "payment_made": "I kwụọla {customer} {amount}. Ọ dị mma!",
+        "i_owe": " Ugbu a, ụgwọ niile i ji {customer} bụ {balance}.",
+        "i_cleared": " I jighị {customer} ụgwọ ọzọ.",
     },
 }
 
@@ -157,19 +177,31 @@ def confirmation_text(rec, language="Pidgin", balance=None, saved=True, rng=None
     t = TEMPLATES.get(language, TEMPLATES["English"])
     pre = PREFIX.get(language, PREFIX["English"])
     day = _day(rec.get("due_date"))
-    customer = rec.get("customer") or {"Yoruba": "Oníbàárà", "Hausa": "Abokin ciniki", "Igbo": "Onye ahịa",
-                                       "Pidgin": "Your customer"}.get(language, "Your customer")
+    customer = rec.get("customer") or (
+        {"Yoruba": "Oníbàárà", "Hausa": "Abokin ciniki", "Igbo": "Onye ahịa", "Pidgin": "Your customer"}.get(
+            language, "Your customer") if rec.get("type") not in ("credit_purchase", "payment_made") else
+        {"Yoruba": "olùtajà rẹ", "Hausa": "mai kawo maka kaya", "Igbo": "onye na-ere gị ngwá",
+         "Pidgin": "your supplier"}.get(language, "your supplier"))
     female = _female(rec.get("customer"))
     item = rec.get("item")
     slots = dict(amount=naira_words(rec.get("amount") or 0), customer=customer,
                  item=f"{item} " if item and language in ("English", "Pidgin") else "",
                  item_for=f" on {item}" if item and language in ("English", "Pidgin") else "",
                  she="she" if female else "he", She="She" if female else "He", ya="ta" if female else "ya", za="za ta" if female else "zai")
-    text = t.get(rec.get("type"), t["sale"]).format(due=t["due"].format(day=day, **slots) if day else "", **slots)
+    due = t["due"].format(day=day, **slots) if day else ""
+    if rec.get("type") == "credit_purchase":  # "due" phrases say "SHE will pay"; for the trader's own debt use "on <day>"
+        due = {"English": f", on {day}", "Pidgin": f", for {day}"}.get(language, f" ({day})") if day else ""
+    text = t.get(rec.get("type"), t["sale"]).format(due=due, **slots)
     if not saved:
         return pick(pre["heard"]) + text + pick(pre["ask"])
     text = pick(pre["saved"]) + text
-    if rec.get("customer") and rec.get("type") in ("credit_sale", "payment_received") and balance is not None:
+    if rec.get("customer") and rec.get("type") in ("credit_purchase", "payment_made") and balance is not None:
+        if balance > 0 and float(balance) == float(rec.get("amount") or 0):
+            pass  # first debt with this supplier: the total is the amount just said
+        else:
+            text += (t["i_owe"].format(balance=naira_words(balance), **slots) if balance > 0 else
+                     t["i_cleared"].format(**slots) if rec.get("type") == "payment_made" else "")
+    elif rec.get("customer") and rec.get("type") in ("credit_sale", "payment_received") and balance is not None:
         if balance > 0:
             text += t["balance"].format(balance=naira_words(balance), **slots)
         elif rec.get("type") == "payment_received":

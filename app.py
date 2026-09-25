@@ -15,7 +15,8 @@ import tts
 from extract import TYPES, extract, extract_many
 
 TYPE_LABELS = {"sale": "Sale (paid now)", "credit_sale": "Sale on credit (owes me)",
-               "payment_received": "Debt paid back", "expense": "Expense"}
+               "payment_received": "Debt paid back", "expense": "Expense",
+               "credit_purchase": "Bought on credit (I owe)", "payment_made": "I paid back what I owe"}
 LABEL_TO_TYPE = {v: k for k, v in TYPE_LABELS.items()}
 CONSENT = ("I agree that my voice note / photo is processed by AI to create my records. "
            "The audio or photo is deleted right after it is read.")
@@ -94,6 +95,8 @@ def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", repl
         warn.append("Low confidence — check every field before saving.")
     if rec["type"] == "credit_sale" and not rec["customer"]:
         warn.append("Credit sale without a customer name.")
+    if rec["type"] in ("credit_purchase", "payment_made") and not rec["customer"]:
+        warn.append("Who do you owe? Add the supplier's name.")
     if rec.get("note"):
         warn.append(rec["note"])
     if meta["error"]:
@@ -123,16 +126,20 @@ def save(text, type_label, item, qty, unit, amount, customer, due, engine_note, 
     rec = {"type": LABEL_TO_TYPE[type_label], "item": item or None, "quantity": qty, "unit": unit or None,
            "amount": float(amount), "customer": (customer or "").strip() or None, "due_date": due or None}
     eid = ledger.add_entry(rec, raw_text=text, engine="voice/text")
-    balance = None
+    balance, i_owe = None, rec["type"] in ("credit_purchase", "payment_made")
     if rec["customer"]:
-        balance = next((d["balance"] for d in ledger.debtors()
-                        if ledger.customer_key(d["customer"]) == ledger.customer_key(rec["customer"])), 0)
+        theirs, mine = ledger.balance_with(rec["customer"])
+        balance = mine if i_owe else theirs
     msg = f"✅ Saved entry #{eid}: {type_label}, {naira(rec['amount'])}" + (
         f" — {rec['customer']}" if rec["customer"] else "")
-    if balance:
+    if balance and i_owe:
+        msg += f"  \n🧾 You now owe {rec['customer']} {naira(balance)} in total."
+    elif balance and rec["type"] in ("credit_sale", "payment_received"):
         msg += f"  \n📒 {rec['customer']} now owes you {naira(balance)} in total."
     elif rec["customer"] and rec["type"] == "payment_received":
         msg += f"  \n🎉 {rec['customer']} has cleared their debt."
+    elif rec["customer"] and rec["type"] == "payment_made":
+        msg += f"  \n🎉 You have cleared what you owed {rec['customer']}."
     return msg, spoken(rec, reply_lang, saved=True, balance=balance)
 
 
@@ -231,7 +238,8 @@ def today_view():
           f"| | |\n|---|---|\n"
           f"| Sales | **{naira(s['sales'])}** (cash {naira(s['cash_sales'])}, credit {naira(s['credit_sales'])}) |\n"
           f"| Debts collected | {naira(s['payments_received'])} |\n"
-          f"| Expenses | {naira(s['expenses'])} |\n"
+          f"| Expenses (incl. goods bought on credit {naira(s['bought_on_credit'])}) | {naira(s['expenses'])} |\n"
+          f"| Paid back to suppliers | {naira(s['paid_suppliers'])} |\n"
           f"| **Sales − expenses** | **{naira(s['profit'])}** |\n"
           f"| Cash in hand change | {naira(s['cash_in_hand_change'])} |")
     rows = ledger.entries(limit=50)
@@ -257,6 +265,20 @@ def debtors_view():
                         "status": f"🔴 {d['days_late']} days late" if d["overdue"] else "🟢 on time",
                         "credit check": ledger.customer_risk(d["customer"])["level"]} for d in ds])
     return md, df, gr.update(choices=names, value=names[0])
+
+
+def creditors_view():
+    cs = ledger.creditors()
+    if not cs:
+        return "You don't owe any supplier right now. 🎉", pd.DataFrame()
+    total = sum(c["balance"] for c in cs)
+    late = [c for c in cs if c["overdue"]]
+    md = f"### 🧾 You owe {len(cs)} supplier(s) **{naira(total)}**" + (
+        f" — **{naira(sum(c['balance'] for c in late))} past the day you promised** 🔴" if late else "")
+    df = pd.DataFrame([{"supplier": c["customer"], "you still owe": naira(c["balance"]), "took": naira(c["owed"]),
+                        "paid back": naira(c["paid"]), "you promised by": c["due_date"] or "—",
+                        "status": f"🔴 {c['days_late']} days late" if c["overdue"] else "🟢 on time"} for c in cs])
+    return md, df
 
 
 def make_reminder(customer, language, shop):
@@ -413,7 +435,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         del_out = gr.Markdown()
         del_btn.click(do_delete, del_id, del_out).then(today_view, None, [t_md, t_df])
 
-    with gr.Tab("📒 Who owes me"):
+    with gr.Tab("📒 Who owes me / who I owe"):
         d_md, d_df = gr.Markdown(), gr.Dataframe(interactive=False)
         gr.Markdown("### 📲 Send a polite reminder")
         with gr.Row():
@@ -423,6 +445,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         r_msg = gr.Textbox(label="Message (edit before sending)", lines=3)
         r_link = gr.Markdown()
         r_btn.click(make_reminder, [r_who, r_lang, shop], [r_msg, r_link])
+        c_md, c_df = gr.Markdown(), gr.Dataframe(interactive=False)
 
     with gr.Tab("🔮 Insights"):
         i_md, i_df = gr.Markdown(), gr.Dataframe(interactive=False)
@@ -456,6 +479,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
     for trigger in (refresh.click, demo.load, confirm.click, save_all.click, wipe_btn.click):
         trigger(today_view, None, [t_md, t_df])
         trigger(debtors_view, None, [d_md, d_df, r_who])
+        trigger(creditors_view, None, [c_md, c_df])
         trigger(insights_view, None, [i_md, i_df])
         trigger(profile_view, None, p_md)
 

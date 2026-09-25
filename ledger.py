@@ -10,7 +10,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('sale','credit_sale','payment_received','expense')),
+    type TEXT NOT NULL CHECK (type IN ('sale','credit_sale','payment_received','expense',
+                                       'credit_purchase','payment_made')),
     item TEXT, quantity REAL, unit TEXT,
     amount REAL NOT NULL CHECK (amount >= 0),
     customer TEXT, due_date TEXT,
@@ -21,8 +22,35 @@ CREATE TABLE IF NOT EXISTS entries (
 def conn():
     c = sqlite3.connect(DB_PATH)
     c.row_factory = sqlite3.Row
+    old = c.execute("SELECT sql FROM sqlite_master WHERE name='entries'").fetchone()
+    if old and "credit_purchase" not in old[0]:  # books made before "I owe" existed: widen the type list
+        with c:
+            c.execute("ALTER TABLE entries RENAME TO entries_old")
+            c.execute(SCHEMA)
+            c.execute("INSERT INTO entries SELECT * FROM entries_old")
+            c.execute("DROP TABLE entries_old")
     c.execute(SCHEMA)
     return c
+
+
+# Money the TRADER owes: 'credit_purchase' = goods (or cash) taken on credit from a supplier/lender,
+# 'payment_made' = the trader paying that back. Goods on credit count as spending when taken (like a credit sale
+# counts as sales when made); borrowed CASH is not spending, so it gets its own kind.
+_LOAN_WORDS = ("loan", "borrow", "lend", "cash")
+
+
+def kind(r):
+    if r["type"] == "credit_purchase" and any(w in (r.get("item") or "").lower() for w in _LOAN_WORDS):
+        return "loan_taken"
+    return r["type"]
+
+
+def _totals(rows):
+    tot = defaultdict(float)
+    for r in rows:
+        tot[kind(dict(r))] += r["amount"]
+    tot["spent"] = tot["expense"] + tot["credit_purchase"]
+    return tot
 
 
 def add_entry(rec, raw_text="", engine="", created_at=None, demo=False):
@@ -63,16 +91,16 @@ def wipe():
 def day_summary(day=None):
     day = day or dt.date.today()
     rows = entries(day, limit=10_000)
-    tot = defaultdict(float)
-    for r in rows:
-        tot[r["type"]] += r["amount"]
+    tot = _totals(rows)
     sales = tot["sale"] + tot["credit_sale"]
     return {
         "date": day.isoformat(), "count": len(rows),
         "sales": sales, "cash_sales": tot["sale"], "credit_sales": tot["credit_sale"],
-        "payments_received": tot["payment_received"], "expenses": tot["expense"],
-        "profit": sales - tot["expense"],
-        "cash_in_hand_change": tot["sale"] + tot["payment_received"] - tot["expense"],
+        "payments_received": tot["payment_received"], "expenses": tot["spent"],
+        "bought_on_credit": tot["credit_purchase"], "paid_suppliers": tot["payment_made"],
+        "profit": sales - tot["spent"],
+        "cash_in_hand_change": (tot["sale"] + tot["payment_received"] + tot["loan_taken"] - tot["expense"]
+                                - tot["payment_made"]),
     }
 
 
@@ -80,17 +108,18 @@ def customer_key(name):
     return " ".join((name or "").lower().split())
 
 
-def customer_books():
-    """Per customer: credits and repayments. Payments clear the oldest credit first (FIFO),
-    and we remember when each credit was fully paid, to judge on-time behaviour."""
+def customer_books(credit="credit_sale", payback="payment_received"):
+    """Per person: credits and repayments. Payments clear the oldest credit first (FIFO),
+    and we remember when each credit was fully paid, to judge on-time behaviour.
+    Default = customers who owe the trader; credit='credit_purchase', payback='payment_made' = who the trader owes."""
     book = {}
     with conn() as c:
-        rows = c.execute("SELECT * FROM entries WHERE type IN ('credit_sale','payment_received') "
-                         "AND customer IS NOT NULL ORDER BY created_at, id").fetchall()
+        rows = c.execute("SELECT * FROM entries WHERE type IN (?,?) AND customer IS NOT NULL ORDER BY created_at, id",
+                         (credit, payback)).fetchall()
     for r in rows:
         d = book.setdefault(customer_key(r["customer"]),
                             {"customer": r["customer"], "owed": 0.0, "paid": 0.0, "open": [], "closed": []})
-        if r["type"] == "credit_sale":
+        if r["type"] == credit:
             d["owed"] += r["amount"]
             d["open"].append({"left": r["amount"], "amount": r["amount"], "item": r["item"],
                               "taken": r["created_at"][:10], "due": r["due_date"]})
@@ -110,11 +139,11 @@ def customer_books():
     return book
 
 
-def debtors(today=None):
+def debtors(today=None, _books=None):
     """Customers who still owe money. 'due_date' is the promise date of their oldest unpaid debt."""
     today = today or dt.date.today()
     out = []
-    for d in customer_books().values():
+    for d in (_books if _books is not None else customer_books()).values():
         if d["balance"] <= 0:
             continue
         due = [x["due"] for x in d["open"] if x["due"]]
@@ -124,6 +153,19 @@ def debtors(today=None):
                     "overdue": bool(due and min(due) < today.isoformat()),
                     "days_late": max((today - dt.date.fromisoformat(min(due))).days, 0) if due else 0})
     return sorted(out, key=lambda d: (not d["overdue"], -d["balance"]))
+
+
+def creditors(today=None):
+    """Suppliers/lenders the TRADER still owes, oldest promised date first."""
+    return debtors(today, customer_books("credit_purchase", "payment_made"))
+
+
+def balance_with(name, today=None):
+    """(what this person owes the trader, what the trader owes this person)."""
+    key = customer_key(name)
+    theirs = next((d["balance"] for d in debtors(today) if customer_key(d["customer"]) == key), 0)
+    mine = next((d["balance"] for d in creditors(today) if customer_key(d["customer"]) == key), 0)
+    return theirs, mine
 
 
 def customer_risk(name, today=None):
@@ -159,11 +201,9 @@ def credit_profile(today=None):
     dates = sorted({r["created_at"][:10] for r in rows})
     first = dt.date.fromisoformat(dates[0])
     span = max((today - first).days + 1, 1)
-    tot = defaultdict(float)
-    for r in rows:
-        tot[r["type"]] += r["amount"]
+    tot = _totals(rows)
     revenue = tot["sale"] + tot["credit_sale"]
-    profit = revenue - tot["expense"]
+    profit = revenue - tot["spent"]
     margin = profit / revenue if revenue else 0.0
     # only judge collection on credit that is already due (promised date passed, or 7 days if none given)
     due_credit = sum(r["amount"] for r in rows if r["type"] == "credit_sale" and
@@ -186,8 +226,9 @@ def credit_profile(today=None):
     band = "Strong" if score >= 75 else "Building" if score >= 50 else "Early"
     return {
         "score": score, "band": band, "parts": parts, "span_days": span, "days_recorded": len(dates),
-        "revenue": revenue, "expenses": tot["expense"], "profit": profit,
+        "revenue": revenue, "expenses": tot["spent"], "profit": profit,
         "avg_daily_sales": revenue / span, "outstanding": outstanding, "overdue": overdue,
+        "owed_to_suppliers": sum(d["balance"] for d in creditors(today)),
         "has_demo_data": any(r["demo"] for r in rows),
     }
 
@@ -225,22 +266,23 @@ def period_summary(start, end):
         rows = [dict(r) for r in c.execute(
             "SELECT * FROM entries WHERE substr(created_at,1,10) BETWEEN ? AND ? ORDER BY created_at",
             (start.isoformat(), end.isoformat()))]
-    tot, by_type, rent_levies = defaultdict(float), defaultdict(float), []
+    tot, by_type, rent_levies = _totals(rows), defaultdict(float), []
     for r in rows:
-        tot[r["type"]] += r["amount"]
-        if r["type"] == "expense":
-            kind = expense_type(r)
-            by_type[kind] += r["amount"]
-            if kind in ("Rent", "Levies & dues"):
-                rent_levies.append({"date": r["created_at"][:10], "kind": kind, "item": r["item"],
-                                    "amount": r["amount"]})
+        if kind(r) not in ("expense", "credit_purchase"):
+            continue
+        what = expense_type(r) if r["type"] == "expense" else "Restock (goods to sell)"
+        by_type[what] += r["amount"]
+        if what in ("Rent", "Levies & dues"):
+            rent_levies.append({"date": r["created_at"][:10], "kind": what, "item": r["item"],
+                                "amount": r["amount"]})
     sales = tot["sale"] + tot["credit_sale"]
     return {"start": start.isoformat(), "end": end.isoformat(), "entries": len(rows),
             "days_recorded": len({r["created_at"][:10] for r in rows}),
             "sales": sales, "cash_sales": tot["sale"], "credit_sales": tot["credit_sale"],
-            "payments_received": tot["payment_received"], "expenses": tot["expense"],
+            "payments_received": tot["payment_received"], "expenses": tot["spent"],
+            "bought_on_credit": tot["credit_purchase"], "paid_suppliers": tot["payment_made"],
             "expenses_by_type": dict(sorted(by_type.items(), key=lambda kv: -kv[1])),
-            "profit": sales - tot["expense"], "rent_levies": rent_levies,
+            "profit": sales - tot["spent"], "rent_levies": rent_levies,
             "has_demo_data": any(r["demo"] for r in rows)}
 
 

@@ -52,6 +52,13 @@ for back in range(21, 0, -1):
     add({"type": "expense", "item": random.choice(["transport", "market levy"]),
          "amount": random.choice([500, 1500, 3500])}, t + dt.timedelta(hours=2))
 
+# the trader's own debt to a wholesaler (shows "Who I owe"): 10 bags on credit, half paid back
+took = dt.datetime.combine(today - dt.timedelta(days=10), dt.time(7, 30))
+add({"type": "credit_purchase", "item": "rice", "unit": "bag", "quantity": 10, "amount": 120000,
+     "customer": "Alhaji Sani (rice wholesaler)", "due_date": (today + dt.timedelta(days=4)).isoformat()}, took)
+add({"type": "payment_made", "customer": "Alhaji Sani (rice wholesaler)", "amount": 60000},
+    took + dt.timedelta(days=6))
+
 p = ledger.credit_profile()
 print(f"Seeded. Score {p['score']}/100 ({p['band']}), outstanding ₦{p['outstanding']:,.0f}, "
-      f"overdue ₦{p['overdue']:,.0f}")
+      f"overdue ₦{p['overdue']:,.0f}, you owe suppliers ₦{p['owed_to_suppliers']:,.0f}")

@@ -5,6 +5,7 @@ import datetime as dt
 import html
 import json
 import os
+import re
 import statistics
 import urllib.parse
 from collections import defaultdict
@@ -111,7 +112,8 @@ def book_facts(today=None):
     today = today or dt.date.today()
     week = defaultdict(float)
     for r in _rows(7, today):
-        week[r["type"]] += r["amount"]
+        week[ledger.kind(r)] += r["amount"]
+    week["expense"] += week["credit_purchase"]  # goods taken on credit are spending too
     f = forecast(today)
     p = ledger.credit_profile(today)
     return {
@@ -121,6 +123,8 @@ def book_facts(today=None):
                         "sales_minus_expenses": week["sale"] + week["credit_sale"] - week["expense"]},
         "debtors": [{k: d[k] for k in ("customer", "balance", "due_date", "overdue", "days_late", "items")}
                     for d in ledger.debtors(today)],
+        "i_owe_suppliers": [{k: c[k] for k in ("customer", "balance", "due_date", "overdue", "days_late")}
+                            for c in ledger.creditors(today)],
         "top_items_14_days": top_items(14, today),
         "forecast_next_7_days": None if not f else {
             "expected_sales": round(f["week_sales"]), "expected_cash_after_expenses": round(f["expected_cash"]),
@@ -140,6 +144,12 @@ FACTS:
 
 def ask_offline(question, facts):
     q = question.lower()
+    if re.search(r"\b(i|we)\s+(still\s+|dey\s+)?(owe|owing)\b|who i owe|my supplier", q):
+        cs = [c for c in facts["i_owe_suppliers"] if c["customer"].lower() in q] or facts["i_owe_suppliers"]
+        if not cs:
+            return "You don't owe any supplier right now."
+        return " ".join(f"You owe {c['customer']} {naira(c['balance'])}" + (" (late)." if c["overdue"] else ".")
+                        for c in cs[:5])
     if any(w in q for w in ("owe", "debt", "credit", "gbese")):
         who = [d for d in facts["debtors"] if d["customer"].lower() in q]
         ds = who or facts["debtors"]
@@ -190,10 +200,11 @@ def statement_html(business="My Shop", owner="", today=None):
     weeks = defaultdict(lambda: defaultdict(float))
     for r in rows:
         d = dt.date.fromisoformat(r["created_at"][:10])
-        weeks[(d - dt.timedelta(days=d.weekday())).isoformat()][r["type"]] += r["amount"]
+        weeks[(d - dt.timedelta(days=d.weekday())).isoformat()][ledger.kind(r)] += r["amount"]
     wk_rows = "".join(
-        f"<tr><td>Week of {w}</td><td>{naira(t['sale'] + t['credit_sale'])}</td><td>{naira(t['expense'])}</td>"
-        f"<td>{naira(t['sale'] + t['credit_sale'] - t['expense'])}</td><td>{naira(t['payment_received'])}</td></tr>"
+        f"<tr><td>Week of {w}</td><td>{naira(t['sale'] + t['credit_sale'])}</td>"
+        f"<td>{naira(t['expense'] + t['credit_purchase'])}</td>"
+        f"<td>{naira(t['sale'] + t['credit_sale'] - t['expense'] - t['credit_purchase'])}</td><td>{naira(t['payment_received'])}</td></tr>"
         for w, t in sorted(weeks.items()))
     parts = "".join(f"<tr><td>{html.escape(k)}</td><td>{v[0]:.0f} / {v[1]}</td><td>{html.escape(v[2])}</td></tr>"
                     for k, v in p["parts"].items())
@@ -214,6 +225,7 @@ records from {p['span_days']} days ({p['days_recorded']} days with entries)</sma
 <th>Owed to business</th></tr><tr><td>{naira(p['revenue'])}</td><td>{naira(p['expenses'])}</td>
 <td>{naira(p['profit'])}</td><td>{naira(p['avg_daily_sales'])}</td><td>{naira(p['outstanding'])}
 ({naira(p['overdue'])} overdue)</td></tr></table>
+<p>Owed by the business to suppliers/lenders: <b>{naira(p['owed_to_suppliers'])}</b></p>
 <h3>Weekly summary</h3><table><tr><th>Week</th><th>Sales</th><th>Expenses</th><th>Sales − expenses</th>
 <th>Debts collected</th></tr>{wk_rows}</table>
 {_year_tables(today)}

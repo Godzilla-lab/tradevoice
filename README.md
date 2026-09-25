@@ -28,6 +28,7 @@ don't know their real profit, and without records they can't get a loan from a m
 | 🔮 **Insights** | Opens the tab | Next 7 days' sales forecast, expected cash, debts coming in, busiest day, best sellers, restock tip |
 | 💬 **Ask my book** | *"How much Mama Tunde owe me?"*, *"Wetin sell pass this week?"* | Answer in their own style, from their own numbers only |
 | 🏦 **Credit profile + statement** | Downloads a statement | A transparent 0–100 record score + weekly summary to show a lender, cooperative or ajo group |
+| 🧾 **Who I owe** | "Alhaji give me 10 bags on credit, I go pay Friday" / "I don pay Alhaji 50k" | The trader's OWN debts to suppliers/lenders, with promised dates and voice replies; goods on credit count as spending, borrowed cash doesn't |
 | 📒 **My year so far** | One button | Sales, money spent **by type** (restock, rent, levies, transport, power, staff), monthly totals, rent & levy payments to keep receipts for. Also in the statement. Facts from the book only, no tax advice (tax research in progress: `docs/FINANCE_RESEARCH.md`) |
 | 🔒 **My data** | — | Consent first, audio and photos deleted after reading, nothing saved without confirmation, delete-everything button |
 
