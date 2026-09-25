@@ -13,6 +13,7 @@ Scores come with a 95% range (Wilson interval): 16/16 correct only proves "somew
 """
 import argparse
 import datetime as dt
+import difflib
 import glob
 import json
 import math
@@ -23,7 +24,7 @@ import time
 from collections import Counter, defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from extract import TYPES, extract  # noqa: E402
+from extract import TYPES, extract, fold  # noqa: E402
 
 HERE = os.path.dirname(__file__)
 FIELDS = ("type", "amount", "customer")
@@ -115,6 +116,13 @@ def report(rows, engines, fallbacks):
     asr = [r["asr_ms"] for r in rows if r.get("asr_ms")]
     if asr:
         print(f"  speech-to-text latency: median {statistics.median(asr):.0f} ms, max {max(asr)} ms")
+        sims = defaultdict(list)
+        for r in rows:
+            if "heard_sim" in r["case"]:
+                sims[r["case"].get("lang", "-")].append(r["case"]["heard_sim"])
+        print("  heard vs really said (letters match, no tone marks; 100% = perfect): " + ", ".join(
+            f"{k} {statistics.mean(v):.0%}" for k, v in sorted(sims.items())) + "   engines: " + ", ".join(
+            sorted({r["case"].get("asr_engine", "?") for r in rows if "heard_sim" in r["case"]})))
 
     for key in ("lang", "category"):
         groups = defaultdict(list)
@@ -176,6 +184,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", default=os.path.join(HERE, "cases.jsonl"))
     ap.add_argument("--audio", help="folder of recorded voice notes named by case id")
+    ap.add_argument("--asr", choices=["local", "spitch", "spitch-local"],
+                    help="speech-to-text engine for --audio (default: ASR_ENGINE in .env, else local)")
     ap.add_argument("--lang", help="only these languages, comma-separated (english,pidgin,yoruba,hausa,igbo)")
     ap.add_argument("--category", help="only these categories, comma-separated")
     ap.add_argument("--limit", type=int, help="only the first N cases (quick check)")
@@ -186,6 +196,8 @@ def main():
     args = ap.parse_args()
     if args.compare:
         return compare(*args.compare)
+    if args.asr:
+        os.environ["ASR_ENGINE"] = args.asr
     if args.rules_only:
         os.environ.pop("NVIDIA_API_KEY", None)
         os.environ.pop("LOCAL_LLM_URL", None)
@@ -209,6 +221,8 @@ def main():
 
             r = transcribe(files[0], ASR_LANG.get(c.get("lang"), "English / Pidgin"))
             asr_ms, text = r["latency_ms"], r["text"]
+            c["heard_sim"] = round(difflib.SequenceMatcher(None, fold(text), fold(c["text"])).ratio(), 3)
+            c["asr_engine"] = r["engine"]
         if args.sleep and i:
             time.sleep(args.sleep)
         rec, meta = extract(text, today=TODAY)

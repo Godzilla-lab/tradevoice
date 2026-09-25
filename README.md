@@ -121,6 +121,11 @@ python app.py
    ```
 5. **Stop the instance whenever you're not using it.** Screenshot the Brev console (GPU type, runtime, cost) for the submission.
 
+**Speech-to-text engine:** `ASR_ENGINE=local` (default: Whisper/omniASR on the Brev GPU, Spitch as fallback),
+`spitch` (Spitch first) or `spitch-local` (Spitch for Yoruba/Hausa/Igbo only). Without a GPU (e.g. a laptop) the
+Spitch fallback means voice notes still work. Which is more accurate: to be measured on our own voice notes
+(`eval/run_eval.py --audio eval/audio --asr spitch`).
+
 **Backup AI brain on the Brev GPU (recommended: the cloud models timed out 53/211 times on 25 Sep).**
 A small open model on our own GPU is tried LAST, after the cloud models, before the offline rules; a model that
 times out is skipped for 2 minutes. In a second terminal on the Brev box:

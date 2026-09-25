@@ -5,6 +5,11 @@ Whisper has no Igbo and is poor at Yoruba/Hausa, so voice notes in those languag
 
 Mode 1 (recommended on Brev): ASR_URL unset -> models run in this process on the GPU.
 Mode 2: ASR_URL=http://<brev-host>:8000 -> calls asr_server/server.py running on the Brev GPU.
+Spitch (Nigerian speech API, `pip install spitch`, SPITCH_API_KEY), chosen with ASR_ENGINE:
+  ASR_ENGINE=local        (default) Whisper / omniASR on our GPU; Spitch only as a fallback if they fail
+  ASR_ENGINE=spitch       Spitch for every language; our GPU models as the fallback
+  ASR_ENGINE=spitch-local Spitch for Yoruba/Hausa/Igbo, Whisper for English/Pidgin
+Which is more accurate is NOT known yet: compare on the team's voice notes (eval/run_eval.py --audio --asr ...).
 """
 import os
 import shutil
@@ -26,6 +31,8 @@ INITIAL_PROMPT = ("Market trader voice note in Nigerian English or Pidgin. Naira
 # Language picked by the trader -> engine. English/Pidgin use Whisper; the rest use omniASR language codes.
 LANGUAGES = {"English / Pidgin": ("whisper", "en"), "Yoruba": ("omni", "yor_Latn"),
              "Hausa": ("omni", "hau_Latn"), "Igbo": ("omni", "ibo_Latn")}
+
+SPITCH_LANG = {"English / Pidgin": "en", "Yoruba": "yo", "Hausa": "ha", "Igbo": "ig"}
 
 _model = None
 _model_name = None
@@ -120,6 +127,37 @@ def _prompt(vocab):
     return f"{INITIAL_PROMPT} {extra}." if extra else INITIAL_PROMPT
 
 
+def _spitch_transcribe(path, language, vocab=None):
+    """Spitch speech-to-text (model mansa_v1). special_words = this trader's names/items (format: comma-separated,
+    ⚠️ unverified against Spitch's docs)."""
+    from spitch import Spitch
+
+    wav = to_wav16k(path) if shutil.which("ffmpeg") else None
+    try:
+        with open(wav or path, "rb") as f:
+            audio = f.read()
+        kwargs = {"content": audio, "language": SPITCH_LANG.get(language, "en"), "model": "mansa_v1"}
+        words = ", ".join((vocab or {}).get("names", [])[:20] + (vocab or {}).get("items", [])[:10])
+        if words:
+            kwargs["special_words"] = words
+        resp = Spitch().speech.transcribe(**kwargs)
+        return {"text": (resp.text or "").strip(), "language": kwargs["language"], "engine": "spitch:mansa_v1"}
+    finally:
+        if wav:
+            os.remove(wav)
+
+
+def _local_transcribe(path, language, vocab):
+    engine, code = LANGUAGES.get(language, ("whisper", language or None))
+    if engine == "omni":
+        return _omni_transcribe(path, code)
+    model = _local_model()
+    segments, info = model.transcribe(path, language=code, vad_filter=True,
+                                      initial_prompt=_prompt(vocab), beam_size=5)
+    return {"text": " ".join(s.text.strip() for s in segments).strip(), "language": info.language,
+            "engine": f"local:faster-whisper-{_model_name}"}
+
+
 def transcribe(path, language=None, vocab=None):
     """language: a key of LANGUAGES (e.g. "Yoruba"), a Whisper code like "en", or None for auto.
     vocab: {"names": [...], "items": [...]} from this trader's book (helps Whisper; omniASR takes no prompt).
@@ -137,14 +175,23 @@ def transcribe(path, language=None, vocab=None):
         r.raise_for_status()
         out = r.json()
         out["engine"] = f"remote:{out.get('engine', out.get('model', 'asr'))}"
-    elif engine == "omni":
-        out = _omni_transcribe(path, code)
     else:
-        model = _local_model()
-        segments, info = model.transcribe(path, language=code, vad_filter=True,
-                                          initial_prompt=_prompt(vocab), beam_size=5)
-        out = {"text": " ".join(s.text.strip() for s in segments).strip(), "language": info.language,
-               "engine": f"local:faster-whisper-{_model_name}"}
+        mode = os.getenv("ASR_ENGINE", "local").lower()
+        spitch_first = mode == "spitch" or (mode == "spitch-local" and engine == "omni")
+        order = [_spitch_transcribe, _local_transcribe] if spitch_first else [_local_transcribe, _spitch_transcribe]
+        if not os.getenv("SPITCH_API_KEY"):
+            order = [_local_transcribe]
+        out, errors = None, []
+        for fn in order:
+            try:
+                out = fn(path, language, vocab)
+                break
+            except Exception as e:  # noqa: BLE001 - try the other engine
+                errors.append(f"{fn.__name__.strip('_').split('_')[0]}: {type(e).__name__}: {str(e)[:80]}")
+        if out is None:
+            raise RuntimeError("Speech-to-text failed: " + " | ".join(errors))
+        if errors:
+            out["note"] = ((out.get("note") or "") + f" (first engine failed: {errors[0]})").strip()
     out["latency_ms"] = round((time.perf_counter() - start) * 1000)
     return out
 

@@ -71,6 +71,11 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] Try in the app: "I collect 5 carton indomie from Oga Emeka on credit, 60k, I go pay am Monday" · Who I owe ·
   Ask my book by voice (English + one local language) · 📒 My year so far
 - [ ] `python check_models.py` on Brev (is gemma back?)
+- [ ] **Speech: Spitch vs our GPU (Whisper + omniASR)?** Same team voice notes (`eval/audio/<id>.m4a`), three runs:
+  `python eval/run_eval.py --cases eval/cases_lang.jsonl --audio eval/audio --asr local` · `--asr spitch` ·
+  `--asr spitch-local`. Compare "heard vs really said" per language + ALL FIELDS (+ `--compare`). Pick per language.
+  Trade-offs if Spitch wins: voice leaves our server (to a Nigerian company, say so in Responsible AI); Brev then
+  does less speech work → Brev as the main brain (below) matters more for the Brev requirement.
 - [ ] **Brev as the main brain?** Start the Brev model (README → "Backup AI brain"), run
   `LLM_MODELS=local python eval/run_eval.py --cases eval/cases_hard.jsonl`, then `--compare` with
   `eval/results/cases_hard-ai-0925-0736.json` (cloud run). Same score → `LLM_MODELS=local,nvidia/nemotron-3-ultra-550b-a55b`
