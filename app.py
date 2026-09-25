@@ -9,6 +9,7 @@ import tempfile
 import gradio as gr
 import pandas as pd
 
+import settings  # noqa: F401  (loads .env before the other modules read it)
 import insights
 import ledger
 import tts
@@ -26,6 +27,24 @@ SHOP_NAME = os.getenv("SHOP_NAME", "Chioma Stores")
 
 def naira(x):
     return f"₦{x:,.0f}"
+
+
+GONE = ("⚠️ That recording/photo was already processed and deleted for your privacy. "
+        "Record or upload it again.")
+
+
+def _own_copy(path):
+    """Work on our own copy and delete the upload right away (privacy). None if the upload is already gone
+    (e.g. Process pressed twice on the same recording)."""
+    if not path or not os.path.exists(path):
+        return None
+    import shutil
+
+    fd, copy = tempfile.mkstemp(suffix=os.path.splitext(path)[1])
+    os.close(fd)
+    shutil.copyfile(path, copy)
+    _forget(path)
+    return copy
 
 
 def _forget(path):
@@ -62,8 +81,13 @@ def spoken(rec, reply_lang, saved, balance=None):
 
 def voice_status():
     engine = tts.backend()
-    return (f"🔊 Voice replies on ({engine})." if engine else
-            "🔇 Voice replies are off: add SPITCH_API_KEY to .env (or install requirements-tts.txt).")
+    mode = os.getenv("ASR_ENGINE") or ("intron" if os.getenv("INTRON_API_KEY") else "local")
+    backups = [n for n, k in (("intron", "INTRON_API_KEY"), ("spitch", "SPITCH_API_KEY")) if os.getenv(k) and n != mode]
+    hearing = f"👂 Hearing: **{mode}**" + (f" (backup: {', '.join(backups)})" if backups else "")
+    if mode.startswith("intron") and not os.getenv("INTRON_API_KEY"):
+        hearing += " ⚠️ INTRON_API_KEY is missing in .env"
+    return hearing + ("  \n" + (f"🔊 Voice replies on ({engine})." if engine else
+                                "🔇 Voice replies are off: add SPITCH_API_KEY to .env."))
 
 
 def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", reply_lang="Off"):
@@ -72,6 +96,9 @@ def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", repl
         return ["⚠️ Please tick the consent box first."] + blank
     text, asr_info = (typed_text or "").strip(), ""
     if audio_path:
+        audio_path = _own_copy(audio_path)
+        if not audio_path:
+            return [GONE] + blank
         try:
             from asr import transcribe
 
@@ -150,6 +177,9 @@ def read_photo(consent, image_path):
         return "⚠️ Please tick the consent box first.", gr.update()
     if not image_path:
         return "⚠️ Take or upload a photo of your book page or receipt.", gr.update()
+    image_path = _own_copy(image_path)
+    if not image_path:
+        return GONE, gr.update()
     try:
         from vision import read_notebook
 
@@ -355,6 +385,9 @@ def voice_ask(consent, audio_path, voice_lang, typed):
         return "⚠️ Please tick the consent box in the Speak tab first.", None
     question = (typed or "").strip()
     if audio_path:
+        audio_path = _own_copy(audio_path)
+        if not audio_path:
+            return GONE, None
         try:
             from asr import transcribe
 

@@ -12,6 +12,7 @@ import shutil
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import settings  # noqa: E402,F401  (loads .env)
 import tts  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "tts_samples")

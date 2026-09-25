@@ -22,6 +22,7 @@ import time
 from collections import defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import settings  # noqa: E402,F401  (loads .env)
 import llm  # noqa: E402
 from extract import SYSTEM_PROMPT, _normalise, _parse_json, fold, parse_amount  # noqa: E402
 from vision import COPY_PROMPT, encode_image  # noqa: E402

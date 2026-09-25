@@ -15,6 +15,7 @@ import time
 from openai import OpenAI
 from PIL import Image, ImageDraw
 
+import settings  # noqa: F401  (loads .env)
 import llm
 
 # Families worth trying for our job (chat + JSON; vision for photos). Skips embedding/reward/guard/etc. models.
