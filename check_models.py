@@ -24,7 +24,7 @@ SKIP_WORDS = ("embed", "rerank", "reward", "guard", "safety", "retriever", "pars
 VISION_HINTS = ("vision", "-vl", "vlm", "gemma-3", "gemma-4", "llama-4", "multimodal", "mistral-small", "pixtral",
                 "kimi-k2.5", "qwen3.5", "qwen3.6", "phi-4-multimodal", "nemotron-nano-12b", "cosmos")
 
-if not (os.getenv("NVIDIA_API_KEY") or os.getenv("LOCAL_LLM_URL")):
+if not (os.getenv("NVIDIA_API_KEY") or os.getenv("LOCAL_LLM_URL") or os.getenv("LOCAL_VISION_URL")):
     raise SystemExit("Set NVIDIA_API_KEY first (from build.nvidia.com), e.g.  set -a; source .env; set +a")
 
 client = OpenAI(base_url=llm.NVIDIA_BASE_URL, api_key=os.getenv("NVIDIA_API_KEY", "none"), timeout=60, max_retries=0)
@@ -38,12 +38,12 @@ TEXT_Q = 'Reply with only this JSON: {"ok": true}'
 IMAGE_Q = [{"type": "text", "text": "Copy the text in this image."}, {"type": "image_url", "image_url": {"url": IMAGE}}]
 
 
-def try_model(model, content, max_tokens=200):
-    """Return (ok, line). model "local" = our own GPU model (LOCAL_LLM_URL)."""
+def try_model(model, content, max_tokens=200, kind="llm"):
+    """Return (ok, line). model "local" = our own Brev GPU model (LOCAL_LLM_URL / LOCAL_VISION_URL)."""
     start = time.perf_counter()
     try:
-        c = llm._client("llm", 60, 0, model) if model == "local" else client
-        r = c.chat.completions.create(model=llm.LOCAL_LLM_MODEL if model == "local" else model,
+        c = llm._client(kind, 60, 0, model) if model == "local" else client
+        r = c.chat.completions.create(model=llm._local_name(kind) if model == "local" else model,
                                       messages=[{"role": "user", "content": content}],
                                       max_tokens=max_tokens, temperature=0)
         out = llm.clean(r.choices[0].message.content or "").replace("\n", " ")[:60]
@@ -73,11 +73,14 @@ def check_configured():
     for m in llm.LLM_MODELS:
         print(" ", try_model(m, TEXT_Q)[1])
     if os.getenv("LOCAL_LLM_URL"):
-        print(f"Backup model on our GPU (LOCAL_LLM_URL, {llm.LOCAL_LLM_MODEL}):")
+        print(f"AI brain on our Brev GPU (LOCAL_LLM_URL, {llm.LOCAL_LLM_MODEL}):")
         print(" ", try_model("local", TEXT_Q)[1])
     print("Vision models (VISION_MODELS):")
     for m in llm.VISION_MODELS:
         print(" ", try_model(m, IMAGE_Q)[1])
+    if os.getenv("LOCAL_VISION_URL"):
+        print(f"Photo reader on our Brev GPU (LOCAL_VISION_URL, {llm.LOCAL_VISION_MODEL}):")
+        print(" ", try_model("local", IMAGE_Q, kind="vision")[1])
     print("\nNothing works? Run:  python check_models.py --search")
 
 

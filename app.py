@@ -516,8 +516,8 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
 
     with gr.Tab("🔒 My data"):
         gr.Markdown("- Voice notes and photos are read and **deleted immediately**; only the text entries are stored.\n"
-                    "- Speech recognition runs on **our own GPU server (NVIDIA Brev)** — your voice is not sent "
-                    "to a third-party speech service.\n"
+                    "- Voice notes are turned into text by **Intron** (a Nigerian speech-AI company) and deleted; the "
+                    "AI that understands your notes and reads your photos runs on **our own GPU server (NVIDIA Brev)**.\n"
                     "- Nothing is saved until **you** confirm it. Reminders are only sent if **you** press send.\n"
                     "- Numbers (totals, forecast, score) are calculated by simple published rules; the AI only reads "
                     "your notes and phrases answers.\n- You can delete everything at any time.")

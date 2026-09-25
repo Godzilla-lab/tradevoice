@@ -206,7 +206,8 @@ def transcribe(path, language=None, vocab=None):
         out = r.json()
         out["engine"] = f"remote:{out.get('engine', out.get('model', 'asr'))}"
     else:
-        mode = os.getenv("ASR_ENGINE", "local").lower()
+        # default: Intron when its key is set (best for our 5 languages), else our own models
+        mode = (os.getenv("ASR_ENGINE") or ("intron" if os.getenv("INTRON_API_KEY") else "local")).lower()
         clouds = {"spitch": (_spitch_transcribe, "SPITCH_API_KEY"), "intron": (_intron_transcribe, "INTRON_API_KEY")}
         chosen = mode.replace("-local", "")
         cloud_first = chosen in clouds and (not mode.endswith("-local") or engine == "omni")

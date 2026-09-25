@@ -29,7 +29,7 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [x] `python eval/lang_check.py` → post language scoreboard (`docs/RESULTS.md`)
 - [ ] `python eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5` → post summary (`docs/TESTING.md`)
 - [ ] One real notebook photo through the app → post screenshot
-- [ ] **Sunday:** voucher 10:15 → GPU (L4) → start omniASR download first → public app link → Brev screenshots → stop GPU when idle
+- [ ] **Sunday:** voucher 10:15 → GPU → start the 2 vLLM servers (AI brain + photo reader) → `check_models.py` → public app link → Brev screenshots → stop GPU when idle
 
 ## 3️⃣ WhatsApp: ______
 - [ ] Meta developer app + **test number** + add 4 phones + 1 spare (`docs/WHATSAPP.md` §2)
@@ -71,12 +71,12 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] Try in the app: "I collect 5 carton indomie from Oga Emeka on credit, 60k, I go pay am Monday" · Who I owe ·
   Ask my book by voice (English + one local language) · 📒 My year so far
 - [ ] `python check_models.py` on Brev (is gemma back?)
-- [ ] **Speech: Intron vs Spitch vs our GPU (Whisper + omniASR)?** (also `--asr intron`, and `INTRON_EN_CODE=en` vs `pcm`:
-  one project saw the same audio read as 645 vs 64,500 naira depending on that code) Same team voice notes (`eval/audio/<id>.m4a`), three runs:
-  `python eval/run_eval.py --cases eval/cases_lang.jsonl --audio eval/audio --asr local` · `--asr spitch` ·
-  `--asr spitch-local`. Compare "heard vs really said" per language + ALL FIELDS (+ `--compare`). Pick per language.
-  Trade-offs if Spitch wins: voice leaves our server (to a Nigerian company, say so in Responsible AI); Brev then
-  does less speech work → Brev as the main brain (below) matters more for the Brev requirement.
+- [ ] **Speech check (Intron):** team voice notes (`eval/audio/<id>.m4a`) →
+  `python eval/run_eval.py --cases eval/cases_lang.jsonl --audio eval/audio --asr intron`, once with
+  `INTRON_EN_CODE=pcm` and once with `=en` (one project saw 645 vs 64,500 naira from that setting). Keep the better one;
+  `--asr spitch` as the comparison/backup.
+- [ ] **Photo reader check:** `python eval/lang_check.py --images-only --vision-models local,meta/llama-3.2-11b-vision-instruct`
+  + the real handwritten page → Brev vision model good enough? (tone marks, amounts)
 - [ ] **Default (decided 25 Sep): everything on Brev.** `.env` on the Brev box:
   `LOCAL_LLM_URL=http://localhost:8001/v1` and
   `LLM_MODELS=local,nvidia/nemotron-3-ultra-550b-a55b,nvidia/nemotron-3-super-120b-a12b` (our GPU first, cloud = backup).
@@ -86,18 +86,13 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
   `eval/results/cases_hard-ai-0925-0736.json` (cloud run). Same score → keep the default. Clearly worse (esp. Yoruba/Hausa/Igbo) → put the cloud first, Brev second,
   and say why in the submission.
 
-## How we use the Brev credits (decided 25 Sep)
-One GPU instance for the day (L4 24 GB; an L40S 48 GB if credits allow the backup AI brain too):
-1. **Speech-to-text (must):** Whisper (English/Pidgin) + Meta omniASR (Yoruba/Hausa/Igbo) on our GPU. omniASR needs
-   ~10 GB GPU memory, so a laptop can't run it. Pitch: voice notes never go to an outside speech service.
-2. **Host the demo:** web app + WhatsApp webhook on the same instance; public link via Gradio share (Brev links need login).
-3. **Backup AI brain (recommended):** a small open model (~8B) served on the GPU (vLLM, OpenAI-compatible) as the LAST
-   fallback after nemotron-3-ultra/super. Reason: the cloud models timed out 53/211 times on 25 Sep. Chain = cloud →
-   our GPU → offline rules, so the demo never stalls. ✅ built 25 Sep: `LOCAL_LLM_URL` (README → "Backup AI brain"); tested with fake servers, not yet on Brev.
-4. **Run the evals on Brev:** hard test set + real voice notes → timing numbers for the submission.
-5. **Proof for judges (required):** Brev console screenshots (GPU, hours, cost); stretch: a **Brev Launchable**
-   (one-click template to rerun our demo).
-- Save credits: start the omniASR download first; **stop the instance at lunch and whenever idle.**
+## How we use the Brev credits (updated 25 Sep: Intron hears, Brev thinks and reads)
+- **Brev GPU hosts two models (vLLM):** the AI brain (LLM) and the photo reader (vision model). README → "Run on NVIDIA Brev".
+- **Speech-to-text = Intron API** (Spitch backup). No Whisper/omniASR on the GPU any more.
+- App + WhatsApp webhook on the same instance; public link via Gradio share.
+- Chain for understanding: Brev model → NVIDIA cloud → offline rules. Photos: Brev vision → NVIDIA cloud.
+- Proof for judges: Brev console screenshot + `nvidia-smi` with both models; stretch: Brev Launchable.
+- Save credits: **stop the instance at lunch and whenever idle.**
 
 ## Sunday timeline
 8:30 check-in · 9:45 roster · 10:15 Brev voucher · 11:15–13:00 build · 11:30 mentor · 13:00 lunch + voice audition (stop idle GPU) ·

@@ -12,9 +12,9 @@ Tick each one on the day. Anything marked ❓ is unclear: ask a mentor/organiser
 
 ## NVIDIA Brev (mandatory)
 - [ ] Voucher received (by 10:15) and activated.
-- [ ] Brev credits **actually used in the project** (our Whisper GPU server + app hosting).
+- [ ] Brev credits **actually used in the project** (our AI brain + photo reader on the GPU, plus app hosting).
 - [ ] Submission **explains how** we used Brev (see `SUBMISSION.md`). Spending more does NOT earn more points: be efficient.
-- [ ] Screenshots: Brev console with instance/GPU/runtime; terminal showing Whisper on `cuda`.
+- [ ] Screenshots: Brev console with instance/GPU/runtime; `nvidia-smi` showing both vLLM models.
 - [ ] NVIDIA account requirements and usage terms respected.
 
 ## Submission (by 17:30 Tunis/Nigeria time)

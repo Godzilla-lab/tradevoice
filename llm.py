@@ -20,6 +20,13 @@ VISION_BASE_URL = os.getenv("VISION_BASE_URL", NVIDIA_BASE_URL)
 # Backup brain on OUR Brev GPU: any OpenAI-compatible server (vLLM, NVIDIA NIM). Tried LAST, after the cloud models,
 # with time kept aside for it. Put "local" in LLM_MODELS to choose its place yourself (LLM_MODELS=local = local only).
 LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct-AWQ")
+# Photo reader on OUR Brev GPU too (vision model served by vLLM): LOCAL_VISION_URL + LOCAL_VISION_MODEL.
+LOCAL_VISION_MODEL = os.getenv("LOCAL_VISION_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct-AWQ")
+LOCAL_ENV = {"llm": "LOCAL_LLM_URL", "vision": "LOCAL_VISION_URL"}
+
+
+def _local_name(kind):
+    return LOCAL_VISION_MODEL if kind == "vision" else LOCAL_LLM_MODEL
 LOCAL_RESERVE = float(os.getenv("LOCAL_LLM_RESERVE", "10"))      # seconds of the deadline kept for the local model
 COOLDOWN = float(os.getenv("LLM_COOLDOWN", "120"))               # skip a model this long after it times out / 5xx
 
@@ -29,17 +36,16 @@ _resting = {}  # model -> time until which we skip it (timed out / overloaded re
 
 def available(kind="llm"):
     """Is any AI configured? (cloud key, or for text also our own GPU model)"""
-    return bool(os.getenv("NVIDIA_API_KEY") or (kind == "llm" and os.getenv("LOCAL_LLM_URL"))
+    return bool(os.getenv("NVIDIA_API_KEY") or os.getenv(LOCAL_ENV[kind])
                 or (kind == "vision" and os.getenv("VISION_API_KEY")))
 
 
 def _client(kind, timeout, retries=0, model=None):
     from openai import OpenAI
 
-    if model == "local":
-        return OpenAI(base_url=os.environ["LOCAL_LLM_URL"],  # e.g. http://localhost:8001/v1
-                      api_key=os.getenv("LOCAL_LLM_KEY", "local"), timeout=timeout,
-                      max_retries=retries)
+    if model == "local":  # our own Brev GPU, e.g. http://localhost:8001/v1 (LLM) / :8002/v1 (vision)
+        return OpenAI(base_url=os.environ[LOCAL_ENV[kind]], api_key=os.getenv("LOCAL_LLM_KEY", "local"),
+                      timeout=timeout, max_retries=retries)
     if kind == "vision":
         return OpenAI(base_url=VISION_BASE_URL, api_key=os.getenv("VISION_API_KEY") or os.environ["NVIDIA_API_KEY"],
                       timeout=timeout, max_retries=retries)
@@ -69,7 +75,7 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
     hangs: when it runs out the caller falls back to the offline rules."""
     pinned = models is not None
     models = list(models or (VISION_MODELS if kind == "vision" else LLM_MODELS))
-    if kind == "llm" and os.getenv("LOCAL_LLM_URL") and not pinned and "local" not in models:
+    if os.getenv(LOCAL_ENV[kind]) and not pinned and "local" not in models:
         models.append("local")                    # our own GPU model: the last AI before the offline rules
     if not os.getenv("NVIDIA_API_KEY"):
         models = [m for m in models if m == "local"]
@@ -93,12 +99,12 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
             break
         client = _client(kind, min(timeout, budget), retries, model)
         try:
-            resp = client.chat.completions.create(model=LOCAL_LLM_MODEL if model == "local" else model,
+            resp = client.chat.completions.create(model=_local_name(kind) if model == "local" else model,
                                                   messages=messages, temperature=temperature, max_tokens=max_tokens)
             if not pinned:
                 _working[kind] = model
                 _resting.pop(model, None)
-            return clean(resp.choices[0].message.content), (f"local:{LOCAL_LLM_MODEL}" if model == "local" else model)
+            return clean(resp.choices[0].message.content), (f"local:{_local_name(kind)}" if model == "local" else model)
         except Exception as e:  # noqa: BLE001
             last = e
             if not _model_gone(e):

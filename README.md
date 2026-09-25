@@ -19,7 +19,7 @@ don't know their real profit, and without records they can't get a loan from a m
 ## What TradeVoice does
 | Feature | What the trader does | What happens |
 |---|---|---|
-| 🎙️ **Speak** | Sends a voice note: *"I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday"* (or in Yoruba, Hausa, Igbo) | Whisper for English/Pidgin, **Meta omniASR for Yoruba/Hausa/Igbo**, both on our **NVIDIA Brev GPU** → text → LLM → entry: *credit sale, ₦45,000, Mama Tunde, due Fri* → trader confirms |
+| 🎙️ **Speak** | Sends a voice note: *"I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday"* (or in Yoruba, Hausa, Igbo) | **Intron Sahara** speech-to-text (built for Nigerian languages and mixed sentences) → text → **AI brain on our NVIDIA Brev GPU** → entry: *credit sale, ₦45,000, Mama Tunde, due Fri* → trader confirms |
 | 📸 **Snap your book** | Takes a photo of a notebook page or receipt | Vision AI reads every line → editable table → trader ticks and saves all |
 | 🔊 **Voice replies** | Can't read? Just listen | The app reads the entry back aloud in Pidgin, English, Yoruba, Hausa or Igbo before and after saving (Spitch, Nigerian TTS) |
 | 🏷️ **Credit check** | Records a credit sale | Warning if that customer is already late: *"⛔ Oga Emeka already owes ₦30,600 and is 18 days late"* |
@@ -35,9 +35,9 @@ don't know their real profit, and without records they can't get a loan from a m
 
 ## How it works
 ```
- Voice note ─► Whisper (English/Pidgin) or Meta omniASR (Yoruba/Hausa/Igbo), on NVIDIA Brev GPU ┐
+ Voice note ─► Intron Sahara speech-to-text (Spitch backup) ─────────────────────┐
                                                                                  ├─► text lines
- Book photo ─► Nemotron Nano VL vision model (build.nvidia.com, or self-hosted on Brev) ┘
+ Book photo ─► vision model on our NVIDIA Brev GPU (NVIDIA cloud backup) ─────────┘
                                          │
                                          ▼
           NVIDIA Nemotron LLM (build.nvidia.com) ─► entries ◄─ rule-based parser (offline fallback
@@ -91,57 +91,51 @@ python app.py
 ```
 
 ## Run on NVIDIA Brev (event day)
-1. Activate the voucher → create a GPU instance (an L4 / A10-class 24 GB GPU is plenty; pick the cheapest that works).
+**Who does what (decided 25 Sep):**
+| Job | Where | Why |
+|---|---|---|
+| **Hear** the voice note (speech → text) | **Intron Sahara API** (Spitch as backup) | Best we found for English, Pidgin, Yoruba, Hausa, Igbo, incl. mixed-language sentences |
+| **Understand** the note (AI brain, LLM) | **Our Brev GPU** (vLLM), NVIDIA cloud models as backup, offline rules last | No cloud queue/timeouts; our own model |
+| **Read** notebook photos (vision model) | **Our Brev GPU** (vLLM), NVIDIA cloud as backup | Same |
+| **Speak** replies (voice notes) | Spitch API | Nigerian voices |
+| App + WhatsApp webhook | Our Brev GPU instance | Public link |
+
+1. Activate the voucher → create a GPU instance. **Two models share the GPU**: with 4-bit (AWQ) models a 24 GB L4 should
+   fit both (~6 GB + ~8 GB); a 48 GB L40S gives room for full-size models. ⚠️ Memory figures not tested yet: check `nvidia-smi`.
 2. On the instance:
    ```bash
    git clone https://github.com/Godzilla-lab/tradevoice.git && cd tradevoice
-   pip install -r requirements.txt
-   export NVIDIA_API_KEY=nvapi-...
-   # eval/audio/ is empty in git: upload one of the team's recorded voice notes first (e.g. with scp)
-   python -c "import asr; print(asr.transcribe('eval/audio/01.m4a'))"   # downloads + warms up Whisper on the GPU
-   GRADIO_SHARE=1 python app.py      # prints a public https://….gradio.live link for demo + submission
+   pip install -r requirements.txt vllm
+   # terminal 1: the AI brain (swap in NCAIR1/N-ATLaS, Nigeria's own 8B model, if it fits / scores better)
+   vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ --port 8001 --gpu-memory-utilization 0.35 --max-model-len 4096
+   # terminal 2: the photo reader
+   vllm serve Qwen/Qwen2.5-VL-7B-Instruct-AWQ --port 8002 --gpu-memory-utilization 0.45 --max-model-len 8192
+   ```
+3. `.env` on the instance (keys never in git):
+   ```
+   LOCAL_LLM_URL=http://localhost:8001/v1
+   LOCAL_VISION_URL=http://localhost:8002/v1
+   LLM_MODELS=local,nvidia/nemotron-3-ultra-550b-a55b,nvidia/nemotron-3-super-120b-a12b
+   VISION_MODELS=local,meta/llama-3.2-11b-vision-instruct
+   INTRON_API_KEY=...        # hearing (ASR_ENGINE defaults to intron when this is set)
+   SPITCH_API_KEY=...        # voice replies + backup hearing
+   NVIDIA_API_KEY=...        # cloud backup
+   ```
+   (`LOCAL_LLM_MODEL` / `LOCAL_VISION_MODEL` if you serve different models.)
+4. Check and start:
+   ```bash
+   set -a; source .env; set +a
+   python check_models.py        # "AI brain on our Brev GPU ✅" and "Photo reader on our Brev GPU ✅"
+   GRADIO_SHARE=1 python app.py  # prints a public https://….gradio.live link for demo + submission
    ```
    Why the Gradio link: Brev's own tunnels sit behind a Cloudflare login, so judges' phones can't open them directly.
-   For team-only testing you can also use `brev port-forward <instance> --port 7860:7860`.
-3. **Yoruba / Hausa / Igbo voice (Meta omniASR).** Start this early: it downloads ~17 GiB the first time.
-   ```bash
-   sudo apt-get install -y ffmpeg libsndfile1
-   pip install -r requirements-omni.txt
-   python -c "import asr; print(asr.omni_languages_ok())"          # expect all True
-   python -c "import asr; print(asr.transcribe('eval/audio/yo1.m4a', 'Yoruba'))"   # downloads + warms up
-   ```
-   Default model `omniASR_LLM_3B_v2` (~10 GB GPU memory) fits next to Whisper on a 24 GB L4. On a 48 GB L40S you can
-   use `OMNI_MODEL=omniASR_LLM_7B_v2` (~17 GB, more accurate). Voice notes are cut at 39 s (model limit).
-   If the install clashes with other packages: make a second virtualenv, run `asr_server` there
-   (`cd asr_server && uvicorn server:app --port 8000`) and start the app with `ASR_URL=http://localhost:8000`.
-4. If faster-whisper complains about missing cuDNN/cuBLAS (fix from the faster-whisper README):
-   ```bash
-   pip install nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"
-   export LD_LIBRARY_PATH=`python3 -c 'import os; import nvidia.cublas.lib; import nvidia.cudnn.lib; print(os.path.dirname(nvidia.cublas.lib.__file__) + ":" + os.path.dirname(nvidia.cudnn.lib.__file__))'`
-   ```
-5. **Stop the instance whenever you're not using it.** Screenshot the Brev console (GPU type, runtime, cost) for the submission.
+5. **Stop the instance whenever you're not using it.** Screenshot the Brev console (GPU type, runtime, cost) and
+   `nvidia-smi` showing both models for the submission.
 
-**Speech-to-text engine:** `ASR_ENGINE=local` (default: Whisper/omniASR on the Brev GPU, Spitch as fallback),
-`spitch` (Spitch first) or `spitch-local` (Spitch for Yoruba/Hausa/Igbo only). Without a GPU (e.g. a laptop) the
-Spitch fallback means voice notes still work. Which is more accurate: to be measured on our own voice notes
-(`eval/run_eval.py --audio eval/audio --asr spitch`).
-
-**Backup AI brain on the Brev GPU (recommended: the cloud models timed out 53/211 times on 25 Sep).**
-A small open model on our own GPU is tried LAST, after the cloud models, before the offline rules; a model that
-times out is skipped for 2 minutes. In a second terminal on the Brev box:
-```bash
-pip install vllm
-# ~6 GB with 4-bit AWQ, so it fits next to Whisper + omniASR on a 24 GB L4 (check `nvidia-smi` first)
-vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ --port 8001 --gpu-memory-utilization 0.30 --max-model-len 4096
-```
-Then in `.env`: `LOCAL_LLM_URL=http://localhost:8001/v1` (and `LOCAL_LLM_MODEL=` if you serve another model).
-Check: `python check_models.py` shows "Backup model on our GPU ✅". Test it alone: `LLM_MODELS=local python eval/run_eval.py`.
-⚠️ Model choice/memory numbers not tested on Brev yet: if it doesn't fit, lower `--gpu-memory-utilization` or skip it.
-An NVIDIA NIM container (needs an NGC key) works too: any OpenAI-compatible server does.
-
-Optional stretch (more Brev usage): self-host an open vision model on the same GPU with vLLM and set
-`VISION_BASE_URL=http://localhost:8001/v1`, `VISION_MODELS=<model>`, `VISION_API_KEY=none`. Bonus: package the whole
-stack as a **Brev Launchable** (one-click template) and show it in the video. See `docs/RESEARCH.md`.
+Fallbacks: if a Brev model is down, the cloud models answer; if everything fails, the offline rules still save the entry.
+A model that times out is skipped for 2 minutes. Our own speech models (Whisper / omniASR, `ASR_ENGINE=local`,
+`requirements-omni.txt`) still work as an option but are no longer the plan.
+Stretch: package the setup as a **Brev Launchable** (one-click template) so anyone can rerun our demo.
 
 ## Environment variables
 | Variable | Default | Purpose |

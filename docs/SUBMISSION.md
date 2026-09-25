@@ -24,12 +24,13 @@
 | Generated assets | ______ (e.g. none / thumbnail) | – | – |
 
 ## How we used our NVIDIA Brev credits
-We ran two speech models on the GPU: Whisper large-v3-turbo (English/Pidgin, float16 on CUDA) and Meta's omniASR 3B
-(Yoruba, Hausa, Igbo), together with and the TradeVoice app on a Brev
-______ GPU instance for ______ hours (≈ $______ of credits). Self-hosting speech on Brev means traders' voice notes are
-never sent to a third-party speech API and are deleted right after transcription. On the GPU a voice note takes
-≈ ______ s vs ≈ ______ s on a laptop CPU. We stopped the instance when idle to use credits efficiently.
-(Optional: we also self-hosted ______ vision model on the same GPU with vLLM.)
+We ran our two AI models on a Brev ______ GPU instance for ______ hours (≈ $______ of credits), served with vLLM:
+the **AI brain** (______, turns each note into a bookkeeping entry and answers "Ask my book") and the **photo reader**
+(______ vision model, reads handwritten notebook pages), plus the TradeVoice app and WhatsApp webhook.
+Running them on our own GPU means no queue behind other users (the free cloud API timed out on ~25% of our test notes)
+and the trader's notes are understood on our server. NVIDIA's cloud models are only a backup.
+Speech-to-text uses Intron's API, which beat the open speech models on Nigerian languages in independent tests.
+We stopped the instance when idle to use credits efficiently.
 Screenshots: ______
 
 ## What we built before vs. on the day
@@ -59,7 +60,8 @@ weekday average; the score is not validated against real loan outcomes.
 ## Responsible AI + data
 - Consent checkbox before any voice note or photo is processed.
 - Audio and photos deleted immediately after reading; only confirmed text entries are stored; "erase all my data" button.
-- Speech and photo AI run on our own Brev GPU / NVIDIA API; no third-party speech API. On WhatsApp, messages travel over
+- Voice notes go to Intron (Nigerian speech-AI company) for speech-to-text, then are deleted; understanding and
+  photo reading run on our own Brev GPU (NVIDIA cloud models as backup). On WhatsApp, messages travel over
   Meta's WhatsApp Business Platform before reaching our server; media is deleted after reading.
 - WhatsApp: the trader opts in first, the bot is task-specific (bookkeeping only), and we never ask for card, bank account or ID numbers.
 - The AI reads and phrases; all money maths is deterministic code, so the AI can't invent numbers in the books.

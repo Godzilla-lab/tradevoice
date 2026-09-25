@@ -51,8 +51,8 @@ def encode_image(path):
 
 def read_notebook(path):
     """Return {text, latency_ms, engine}. Raises if no vision API is configured."""
-    if not (os.getenv("VISION_API_KEY") or os.getenv("NVIDIA_API_KEY")):
-        raise RuntimeError("Photo reading needs NVIDIA_API_KEY (or VISION_API_KEY + VISION_BASE_URL).")
+    if not llm.available("vision"):
+        raise RuntimeError("Photo reading needs LOCAL_VISION_URL (our Brev GPU) or NVIDIA_API_KEY.")
     start = time.perf_counter()
     b64 = encode_image(path)
     text, model = llm.chat([{"role": "user", "content": [

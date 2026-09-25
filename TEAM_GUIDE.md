@@ -10,7 +10,7 @@
 A trader at Balogun or Mile 12 sells rice on credit to Mama Tunde and just **says it**, or **snaps a photo of their
 notebook**. TradeVoice turns that into clean records, shows **who owes them and who is late**, writes a **polite
 WhatsApp reminder in Pidgin/English/Yoruba**, **forecasts next week's cash**, and builds a **record score + statement**
-they can take to a lender. The speech AI runs on our own **NVIDIA Brev GPU**, so traders' voices aren't sent to a third-party speech service.
+they can take to a lender. Voice notes are heard by **Intron** (Nigerian speech AI); the AI brain and photo reader run on our own **NVIDIA Brev GPU**.
 
 Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
 
@@ -18,7 +18,7 @@ Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
 | Role | Person | Owns |
 |---|---|---|
 | 🧑‍✈️ **Lead / submitter** | ______ | Roster (by 10:00), timekeeping, final submission (by 17:30), prize dropdown/checkboxes |
-| ⚙️ **Brev + AI engineer** | ______ | Brev instance, Whisper on GPU, NVIDIA API keys, public demo link, Brev screenshots + cost |
+| ⚙️ **Brev + AI engineer** | ______ | Brev instance, AI brain + photo reader on the GPU (vLLM), API keys (Intron, Spitch, NVIDIA), public demo link, Brev screenshots + cost |
 | 🧪 **Testing + data** | ______ | Voice-note recordings, new test phrases, `run_eval.py` results, failure-mode list |
 | 🎨 **Product + demo** | ______ | App polish, demo script, 90-second video, project card |
 | 📲 **WhatsApp** | ______ | Meta setup before Sunday; on the day builds `whatsapp.py` (docs/WHATSAPP.md §5) |
@@ -61,7 +61,7 @@ Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
 | 08:30 | Check in, join the event channels | All |
 | 09:45–10:00 | **Submit final roster form** (primary prize: *Kredete Financial Inclusion Award*) | Lead |
 | 10:15 | Get the Brev voucher → activate | Engineer |
-| 10:15–11:15 | Brev workshop. Create GPU instance, clone repo, install, **start the omniASR install + download first** (17 GiB, README step 3), run Whisper once, start `GRADIO_SHARE=1 python app.py` | Engineer |
+| 10:15–11:15 | Brev workshop. Create GPU instance, clone repo, install, **start the two vLLM model servers first** (README → Run on NVIDIA Brev), `check_models.py`, start `GRADIO_SHARE=1 python app.py` | Engineer |
 | 11:15–11:30 | Sprint 1: team checks the public link works on phones | All |
 | 11:30 | Mentor checkpoint: show the live link + ask about Brev usage expectations | Lead |
 | 11:45–13:00 | Sprint 2: real voice notes through Brev (English/Pidgin **and** Yoruba/Hausa/Igbo); fix errors; tune prompts; photo reading working | Engineer, Testing |
@@ -107,6 +107,6 @@ See [`docs/RULES_CHECKLIST.md`](docs/RULES_CHECKLIST.md). The big ones:
 | NVIDIA API down / slow | The app falls back to offline rules automatically. Say so in the video: that's a reliability feature |
 | Whisper won't start on GPU | cuDNN fix in README step 3. Still stuck: `ASR_MODEL=small` or ask the Brev mentor. Last resort: type entries |
 | Photo reading fails | Check the key; try a smaller/clearer photo; you can paste lines into the box by hand |
-| Brev credits running low | Stop the instance; use a smaller GPU; keep only Whisper on Brev |
+| Brev credits running low | Stop the instance; keep only the AI brain on Brev and use the NVIDIA cloud for photos |
 | Gradio share link dies | Restart `app.py`, update the link in the submission |
 | Git conflict | Don't panic: the Engineer merges; everyone else works on docs/data |
