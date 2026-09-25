@@ -349,6 +349,43 @@ def download_statement(shop):
     return path
 
 
+def voice_ask(consent, audio_path, voice_lang, typed):
+    """Ask by voice in any of our languages; answer as text + voice note in the same language."""
+    if not consent:
+        return "⚠️ Please tick the consent box in the Speak tab first.", None
+    question = (typed or "").strip()
+    if audio_path:
+        try:
+            from asr import transcribe
+
+            question = transcribe(audio_path, voice_lang, vocab=ledger.known_words())["text"]
+        except Exception as e:  # noqa: BLE001
+            return f"⚠️ Could not hear the question ({type(e).__name__}). Type it instead.", None
+        finally:
+            _forget(audio_path)
+    if not question:
+        return "Record or type a question.", None
+    import askbook
+
+    lang = None if voice_lang == "English / Pidgin" else voice_lang
+    exact = askbook.ask_book(question, language=lang)
+    if exact:
+        text, said, lang, q, engine = exact
+        how = (f"_Searched your book: {q['what'].replace('_', ' ')}"
+               + (f" · {q['item']}" if q.get("item") else "") + (f" · {q['customer']}" if q.get("customer") else "")
+               + f" · {q['period'].replace('_', ' ')} ({engine}). Numbers are added up from your records, not guessed._")
+    else:
+        text, engine = insights.ask(question)
+        said, lang, how = text, "Pidgin", f"_({engine})_"
+    audio = None
+    try:
+        out = tts.speak(said, lang)
+        audio = out["path"] if out else None
+    except Exception as e:  # noqa: BLE001 - voice is a bonus
+        print(f"voice answer failed: {type(e).__name__}: {e}")
+    return f"🎙️ **You asked:** {question}\n\n### {text}\n\n{how}", audio
+
+
 def chat(question, history):
     answer, engine = insights.ask(question)
     return answer + (f"\n\n_— {engine}_" if engine != "rules" else "")
@@ -451,8 +488,22 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         i_md, i_df = gr.Markdown(), gr.Dataframe(interactive=False)
 
     with gr.Tab("💬 Ask my book"):
+        gr.Markdown("### 🎤 Ask by voice, in your language\n_e.g. \"Ìrẹsì mélòó ni mo tà lóṣù yìí?\" · "
+                    "\"Shinkafa nawa na sayar a wannan makon?\" · \"Osikapa ole ka m rere n'izu a?\" · "
+                    "\"How many crates of eggs I sell yesterday?\"_")
+        with gr.Row():
+            ask_audio = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Your question")
+            with gr.Column():
+                ask_lang = gr.Radio(list(VOICE_TO_REPLY), value="English / Pidgin", label="I am speaking")
+                ask_typed = gr.Textbox(label="…or type it", placeholder="Ẹyin mélòó ni mo tà lọ́sẹ̀ yìí?")
+                ask_btn = gr.Button("Ask", variant="primary")
+        ask_out = gr.Markdown()
+        ask_voice = gr.Audio(label="Answer (voice note)", autoplay=True, interactive=False)
+        ask_btn.click(voice_ask, [consent, ask_audio, ask_lang, ask_typed], [ask_out, ask_voice])
+        gr.Markdown("### 💬 Chat")
         gr.ChatInterface(chat, examples=["How much Oga Emeka owe me?", "Wetin sell pass this week?",
-                                         "How much I go make next week?", "How my market today?"])
+                                         "How much I go make next week?", "Who I owe?",
+                                         "Ìrẹsì mélòó ni mo tà lóṣù yìí?"])
 
     with gr.Tab("🏦 Credit profile"):
         p_md = gr.Markdown()

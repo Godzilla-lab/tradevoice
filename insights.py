@@ -175,6 +175,11 @@ def ask_offline(question, facts):
 
 
 def ask(question, today=None):
+    import askbook
+
+    exact = askbook.ask_book(question, today)  # counts and totals: computed exactly, answered in their language
+    if exact:
+        return exact[0], exact[4]
     facts = book_facts(today)
     if not os.getenv("NVIDIA_API_KEY"):
         return ask_offline(question, facts), "rules"

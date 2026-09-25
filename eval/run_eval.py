@@ -129,12 +129,14 @@ def report(rows, engines, fallbacks):
 
     if n:
         print("\n  Type confusion (rows = truth, columns = AI answer):")
-        short = {"sale": "sale", "credit_sale": "credit", "payment_received": "payment", "expense": "expense"}
-        print("    " + " " * 10 + "".join(f"{short[t]:>9}" for t in TYPES))
-        for g in TYPES:
+        short = {"sale": "sale", "credit_sale": "credit", "payment_received": "payment", "expense": "expense",
+                 "credit_purchase": "I owe", "payment_made": "I paid"}
+        seen = [t for t in TYPES if any(t in (r["case"]["type"], r["rec"].get("type")) for r in scored)]
+        print("    " + " " * 10 + "".join(f"{short.get(t, t):>9}" for t in seen))
+        for g in seen:
             cnt = Counter(r["rec"].get("type") for r in scored if r["case"]["type"] == g)
             if cnt:
-                print(f"    {short[g]:<10}" + "".join(f"{cnt.get(t, 0):>9}" for t in TYPES))
+                print(f"    {short.get(g, g):<10}" + "".join(f"{cnt.get(t, 0):>9}" for t in seen))
 
     bad = [r for r in rows if not r["all"]]
     if bad:

@@ -47,6 +47,9 @@ professional checks them. Here's what's next."*
 - **Cash vs transfer on each entry:** lenders trust verifiable records; the statement marks "transfer (verified)" vs
   "cash (self-reported)"; tip against fake transfer alerts.
 - **True profit under 15% inflation:** "you sold rice at the same price for 3 weeks but restock went up 12%".
+- **Photos as proof (opt-in):** keep supplier receipts and stock photos with the entry they belong to
+  (today photos are deleted after reading, for privacy). A photo of goods alone can't be a record: it needs a voice
+  note ("I buy these 10 cartons from Alhaji, 90k").
 - **Family access & export:** Kippa (about 500k users) shut down and users lost their books. Your book is yours: export it
   anytime, and optionally let family see it if you fall sick.
 

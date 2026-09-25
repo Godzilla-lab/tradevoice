@@ -38,6 +38,8 @@ python eval/run_eval.py --cases eval/cases_hard.jsonl --rules-only     # offline
 python eval/run_eval.py --cases eval/cases_hard.jsonl --lang yoruba --category negation,part_payment
 python eval/run_eval.py --compare eval/results/A.json eval/results/B.json   # is B really better, or luck?
 python eval/test_guards.py                     # offline: do our guards catch the AI's known mistakes?
+python eval/test_askbook.py                    # offline: questions in 5 languages -> right numbers from a fixed book
+python eval/run_eval.py --cases eval/cases_owe.jsonl   # "I owe" / "I paid back" vs the customer side
 python eval/lang_check.py                      # which model is best per language (text + photos)
 python eval/tts_check.py                       # voice-reply samples + scores.txt form for native speakers
 ```
