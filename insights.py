@@ -216,7 +216,56 @@ records from {p['span_days']} days ({p['days_recorded']} days with entries)</sma
 ({naira(p['overdue'])} overdue)</td></tr></table>
 <h3>Weekly summary</h3><table><tr><th>Week</th><th>Sales</th><th>Expenses</th><th>Sales − expenses</th>
 <th>Debts collected</th></tr>{wk_rows}</table>
+{_year_tables(today)}
 <h3>How the score is calculated</h3><table><tr><th>Factor</th><th>Points</th><th>Basis</th></tr>{parts}</table>
 <p><small>This statement is generated from records entered and confirmed by the business owner. It has not been
 audited. The score is a transparent indicator, not a credit decision; any lending decision must be made by the
 lender after its own checks.</small></p></body></html>"""
+
+
+# ---------------------------------------------------------------- year record (tax office, lender, the trader)
+
+def year_record(year=None, today=None):
+    """This year so far, from the trader's own records."""
+    today = today or dt.date.today()
+    year = year or today.year
+    end = min(dt.date(year, 12, 31), today)
+    return ledger.period_summary(dt.date(year, 1, 1), end), ledger.monthly_totals(year)
+
+
+def year_record_text(year=None, today=None):
+    """Plain words for the app, a WhatsApp message or a voice note. Facts from the book only: no tax advice."""
+    s, months = year_record(year, today)
+    if not s["entries"]:
+        return "No records this year yet."
+    lines = [f"Your business from {s['start']} to {s['end']} ({s['days_recorded']} days recorded):",
+             f"- Sales: {naira(s['sales'])} ({naira(s['credit_sales'])} of it on credit)",
+             f"- Money spent: {naira(s['expenses'])}"]
+    lines += [f"    - {k}: {naira(v)}" for k, v in s["expenses_by_type"].items()]
+    lines.append(f"- Sales minus money spent: {naira(s['profit'])}")
+    if s["rent_levies"]:
+        lines.append(f"- Rent and levies paid: {len(s['rent_levies'])} payments, "
+                     f"{naira(sum(x['amount'] for x in s['rent_levies']))}. Keep the receipts.")
+    if len(months) > 1:
+        best = max(months, key=lambda m: m["sales"])
+        lines.append(f"- Best month: {best['month']} ({naira(best['sales'])} sales)")
+    lines.append("This is from your own records, not an audit. Record every day so it stays true.")
+    return "\n".join(lines)
+
+
+def _year_tables(today):
+    s, months = year_record(today=today)
+    if not s["entries"]:
+        return ""
+    by_type = "".join(f"<tr><td>{html.escape(k)}</td><td>{naira(v)}</td></tr>"
+                      for k, v in s["expenses_by_type"].items())
+    month_rows = "".join(f"<tr><td>{m['month']}</td><td>{naira(m['sales'])}</td><td>{naira(m['expenses'])}</td>"
+                         f"<td>{naira(m['profit'])}</td><td>{m['days_recorded']}</td></tr>" for m in months)
+    rl = "".join(f"<tr><td>{x['date']}</td><td>{x['kind']}</td><td>{html.escape(x['item'] or '')}</td>"
+                 f"<td>{naira(x['amount'])}</td></tr>" for x in s["rent_levies"])
+    return f"""<h3>This year ({s['start']} to {s['end']})</h3>
+<table><tr><th>Month</th><th>Sales</th><th>Money spent</th><th>Sales − spent</th><th>Days recorded</th></tr>
+{month_rows}<tr><th>Total</th><th>{naira(s['sales'])}</th><th>{naira(s['expenses'])}</th>
+<th>{naira(s['profit'])}</th><th>{s['days_recorded']}</th></tr></table>
+<h3>Money spent by type</h3><table><tr><th>Type</th><th>Amount</th></tr>{by_type}</table>
+{"<h3>Rent and levies paid (keep the receipts)</h3><table><tr><th>Date</th><th>Type</th><th>What</th><th>Amount</th></tr>" + rl + "</table>" if rl else ""}"""

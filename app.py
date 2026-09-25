@@ -431,6 +431,9 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
 
     with gr.Tab("🏦 Credit profile"):
         p_md = gr.Markdown()
+        y_btn = gr.Button("📒 My year so far (sales, spending by type, rent & levies)")
+        y_md = gr.Markdown()
+        y_btn.click(lambda: "```\n" + insights.year_record_text() + "\n```", None, y_md)
         st_btn = gr.Button("⬇️ Download statement for lender / cooperative")
         st_file = gr.File(label="Business record statement (HTML — open and print to PDF)")
         st_btn.click(download_statement, shop, st_file)

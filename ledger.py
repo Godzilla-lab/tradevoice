@@ -190,3 +190,66 @@ def credit_profile(today=None):
         "avg_daily_sales": revenue / span, "outstanding": outstanding, "overdue": overdue,
         "has_demo_data": any(r["demo"] for r in rows),
     }
+
+
+# ---------------------------------------------------------------- spending by type, month and year
+
+# First match wins (so "market levy" is a levy, not transport). Words are lower case, without tone marks.
+# ⚠️ Yoruba (yo) / Hausa (ha) / Igbo (ig) words need a native-speaker check.
+EXPENSE_TYPES = [
+    ("Rent", ("rent", "stall", "shop fee", "owo ile", "haya", "ugwo ulo")),
+    ("Levies & dues", ("levy", "levies", "ticket", "dues", "association", "tax", "local government", "lga",
+                       "haraji", "owo ori", "utu isi")),
+    ("Power & fuel", ("light", "nepa", "phcn", "generator", "gen ", "diesel", "petrol", "fuel", "power")),
+    ("Transport", ("transport", "motor", "bus", "okada", "keke", "fare", "owo oko", "kudin mota", "ugbo ala")),
+    ("Staff", ("salary", "apprentice", "wage", "worker", "boy", "girl", "help")),
+    ("Restock (goods to sell)", ("restock", "stock", "goods", "bag", "carton", "crate", "paint", "rice", "beans",
+                                 "garri", "indomie", "oil", "tomato", "pepper", "yam")),
+]
+
+
+def expense_type(entry):
+    import unicodedata
+
+    text = " ".join(str(entry.get(k) or "") for k in ("item", "raw_text")).lower()
+    text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
+    for name, words in EXPENSE_TYPES:
+        if any(w in text for w in words):
+            return name
+    return "Other"
+
+
+def period_summary(start, end):
+    """Money in and out between two dates (inclusive). All numbers from the trader's own confirmed records."""
+    with conn() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT * FROM entries WHERE substr(created_at,1,10) BETWEEN ? AND ? ORDER BY created_at",
+            (start.isoformat(), end.isoformat()))]
+    tot, by_type, rent_levies = defaultdict(float), defaultdict(float), []
+    for r in rows:
+        tot[r["type"]] += r["amount"]
+        if r["type"] == "expense":
+            kind = expense_type(r)
+            by_type[kind] += r["amount"]
+            if kind in ("Rent", "Levies & dues"):
+                rent_levies.append({"date": r["created_at"][:10], "kind": kind, "item": r["item"],
+                                    "amount": r["amount"]})
+    sales = tot["sale"] + tot["credit_sale"]
+    return {"start": start.isoformat(), "end": end.isoformat(), "entries": len(rows),
+            "days_recorded": len({r["created_at"][:10] for r in rows}),
+            "sales": sales, "cash_sales": tot["sale"], "credit_sales": tot["credit_sale"],
+            "payments_received": tot["payment_received"], "expenses": tot["expense"],
+            "expenses_by_type": dict(sorted(by_type.items(), key=lambda kv: -kv[1])),
+            "profit": sales - tot["expense"], "rent_levies": rent_levies,
+            "has_demo_data": any(r["demo"] for r in rows)}
+
+
+def monthly_totals(year):
+    out = []
+    for m in range(1, 13):
+        start = dt.date(year, m, 1)
+        end = (dt.date(year + (m == 12), m % 12 + 1, 1) - dt.timedelta(days=1))
+        s = period_summary(start, end)
+        if s["entries"]:
+            out.append(dict(s, month=start.strftime("%b %Y")))
+    return out
