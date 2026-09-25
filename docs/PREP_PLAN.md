@@ -76,10 +76,14 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
   `--asr spitch-local`. Compare "heard vs really said" per language + ALL FIELDS (+ `--compare`). Pick per language.
   Trade-offs if Spitch wins: voice leaves our server (to a Nigerian company, say so in Responsible AI); Brev then
   does less speech work → Brev as the main brain (below) matters more for the Brev requirement.
-- [ ] **Brev as the main brain?** Start the Brev model (README → "Backup AI brain"), run
+- [ ] **Default (decided 25 Sep): everything on Brev.** `.env` on the Brev box:
+  `LOCAL_LLM_URL=http://localhost:8001/v1` and
+  `LLM_MODELS=local,nvidia/nemotron-3-ultra-550b-a55b,nvidia/nemotron-3-super-120b-a12b` (our GPU first, cloud = backup).
+  Note: running the APP on Brev is not enough; without `local` first the understanding still goes to NVIDIA's cloud.
+- [ ] **Check the default is good enough:** Start the Brev model (README → "Backup AI brain"), run
   `LLM_MODELS=local python eval/run_eval.py --cases eval/cases_hard.jsonl`, then `--compare` with
-  `eval/results/cases_hard-ai-0925-0736.json` (cloud run). Same score → `LLM_MODELS=local,nvidia/nemotron-3-ultra-550b-a55b`
-  (everything on our GPU, cloud = backup). Clearly worse → keep cloud first, Brev backup, and say so in the submission.
+  `eval/results/cases_hard-ai-0925-0736.json` (cloud run). Same score → keep the default. Clearly worse (esp. Yoruba/Hausa/Igbo) → put the cloud first, Brev second,
+  and say why in the submission.
 
 ## How we use the Brev credits (decided 25 Sep)
 One GPU instance for the day (L4 24 GB; an L40S 48 GB if credits allow the backup AI brain too):
