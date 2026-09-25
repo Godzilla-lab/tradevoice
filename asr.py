@@ -112,8 +112,17 @@ def _omni_transcribe(path, code):
             os.remove(wav)
 
 
-def transcribe(path, language=None):
+def _prompt(vocab):
+    """Whisper's prompt + this trader's own names/items (Whisper only reads the last ~224 tokens: keep it short)."""
+    if not vocab:
+        return INITIAL_PROMPT
+    extra = ", ".join((vocab.get("names") or [])[:15] + (vocab.get("items") or [])[:8])
+    return f"{INITIAL_PROMPT} {extra}." if extra else INITIAL_PROMPT
+
+
+def transcribe(path, language=None, vocab=None):
     """language: a key of LANGUAGES (e.g. "Yoruba"), a Whisper code like "en", or None for auto.
+    vocab: {"names": [...], "items": [...]} from this trader's book (helps Whisper; omniASR takes no prompt).
     Return {text, language, latency_ms, engine[, note]}."""
     start = time.perf_counter()
     engine, code = LANGUAGES.get(language, ("whisper", language or None))
@@ -133,7 +142,7 @@ def transcribe(path, language=None):
     else:
         model = _local_model()
         segments, info = model.transcribe(path, language=code, vad_filter=True,
-                                          initial_prompt=INITIAL_PROMPT, beam_size=5)
+                                          initial_prompt=_prompt(vocab), beam_size=5)
         out = {"text": " ".join(s.text.strip() for s in segments).strip(), "language": info.language,
                "engine": f"local:faster-whisper-{_model_name}"}
     out["latency_ms"] = round((time.perf_counter() - start) * 1000)

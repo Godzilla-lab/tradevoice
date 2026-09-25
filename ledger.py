@@ -295,3 +295,15 @@ def monthly_totals(year):
         if s["entries"]:
             out.append(dict(s, month=start.strftime("%b %Y")))
     return out
+
+
+def known_words(limit=25):
+    """This trader's own customer/supplier names and items, most used first, to help the speech model and the AI
+    hear and spell THEIR words ("Alhaji Sani", "paint of garri")."""
+    with conn() as c:
+        names = [r[0] for r in c.execute("SELECT customer FROM entries WHERE customer IS NOT NULL "
+                                         "GROUP BY lower(customer) ORDER BY count(*) DESC, max(created_at) DESC "
+                                         "LIMIT ?", (limit,))]
+        items = [r[0] for r in c.execute("SELECT item FROM entries WHERE item IS NOT NULL "
+                                         "GROUP BY lower(item) ORDER BY count(*) DESC LIMIT ?", (limit // 2,))]
+    return {"names": names, "items": items}

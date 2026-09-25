@@ -33,3 +33,22 @@ The jury picks the country top 3 **from the submitted video and materials**. Onl
 ## 30-second live demo (if we make the top 3)
 Speak (Pidgin voice note live) → credit check warning → Who owes me → WhatsApp reminder → statement. Have the demo data
 seeded and the voice note pre-recorded as backup in case the room is noisy.
+
+## Roadmap slide / Q&A answers (researched, NOT in the app yet: see `docs/FINANCE_RESEARCH.md`)
+Say: *"We researched the new 2026 tax laws and traders' money problems. We only put facts in the app after a tax
+professional checks them. Here's what's next."*
+- **"Your book protects you" tax card:** tax is on **profit, not sales**; first ₦800k of taxable profit at 0%;
+  "nobody will debit your account"; NIN is your free Tax ID; illegal levies → Tax Ombud. Laws are under review (Sep 2026),
+  so this ships after a professional check.
+- **Rent & school-fees pot:** rent is paid a year upfront (₦500k to ₦5M in big markets) and 42% of informal businesses can't
+  survive a month without income → save a little daily; rent history = credit (Kredete's own direction).
+- **Loan cost checker:** loan apps charge 2.5–30% **per month** → "₦50k, pay back ₦65k in 4 weeks = 30%/month";
+  checks the FCCPC list of ~505 approved lenders and explains the harassment rules.
+- **Cash vs transfer on each entry:** lenders trust verifiable records; the statement marks "transfer (verified)" vs
+  "cash (self-reported)"; tip against fake transfer alerts.
+- **True profit under 15% inflation:** "you sold rice at the same price for 3 weeks but restock went up 12%".
+- **Family access & export:** Kippa (about 500k users) shut down and users lost their books. Your book is yours: export it
+  anytime, and optionally let family see it if you fall sick.
+
+**Kredete line:** *"Kredete turns rent and payments into credit abroad; TradeVoice turns a market trader's daily voice
+notes into the record a lender can trust at home."*

@@ -75,7 +75,7 @@ def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", repl
         try:
             from asr import transcribe
 
-            res = transcribe(audio_path, voice_lang)
+            res = transcribe(audio_path, voice_lang, vocab=ledger.known_words())
             text = res["text"]
             asr_info = f"🎙️ Speech → text: {res['engine']}, {res['latency_ms']} ms, language `{res['language']}`  \n"
             if res.get("note"):
@@ -87,7 +87,7 @@ def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", repl
     if not text:
         return ["⚠️ Record a voice note or type what happened."] + blank
 
-    rec, meta = extract(text)
+    rec, meta = extract(text, vocab=ledger.known_words())
     warn = []
     if rec["amount"] is None:
         warn.append("No amount heard — please fill it in.")

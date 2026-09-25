@@ -379,10 +379,17 @@ def _parse_json(content):
     return found
 
 
-def llm_extract(text, today=None):
+def _vocab_line(vocab):
+    names = ", ".join((vocab or {}).get("names") or [])
+    return (f"\nPeople already in this trader's book: {names}. If the note names one of them (even misheard or "
+            f"misspelt), use that exact spelling.") if names else ""
+
+
+def llm_extract(text, today=None, vocab=None):
     """Return (record dict, model used)."""
     today = today or dt.date.today()
-    prompt = SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
+    prompt = (SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
+              + _vocab_line(vocab))
     content, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
                               max_tokens=900, timeout=int(os.getenv("LLM_TIMEOUT", "20")))  # then next model
     return _parse_json(content), model
@@ -463,8 +470,8 @@ def _normalise(rec, text, today):
     return out
 
 
-def extract(text, today=None):
-    """Return (record, meta). meta = {engine, latency_ms, error}."""
+def extract(text, today=None, vocab=None):
+    """Return (record, meta). meta = {engine, latency_ms, error}. vocab: this trader's known names (optional)."""
     today = today or dt.date.today()
     start = time.perf_counter()
     rules = rule_extract(text, today)
@@ -472,7 +479,7 @@ def extract(text, today=None):
     rec = rules
     if os.getenv("NVIDIA_API_KEY"):
         try:
-            raw, model = llm_extract(text, today)
+            raw, model = llm_extract(text, today, vocab)
             rec = _normalise(raw, text, today)
             meta["engine"] = f"llm:{model}"
             # backfill anything the LLM left empty but the rules found
