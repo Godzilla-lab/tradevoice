@@ -41,3 +41,16 @@ markets."* (Only say "understands" after the AI test above passes.)
 Currency + format, spoken currency name, default languages, savings-group and mobile-money names, and customer titles
 (Tantie/Tonton, Hajja, Lalla, Khalti, Mzee, Bibi…) per country. Tax/finance facts per country: `docs/COUNTRIES.md`
 (research in progress), shown in the app only after a local expert checks them, the same rule as Nigeria.
+
+## Is WhatsApp the right front door everywhere? (25 Sep)
+| Country | WhatsApp | Note |
+|---|---|---|
+| Kenya | ✅ 97% of internet users | highest |
+| Nigeria | ✅ ~95–98% of internet users (~51M) | |
+| Morocco | ✅ ~19M users | one of Africa's largest bases |
+| Saudi Arabia | ✅ ~75% of nationals (Gulf/MENA survey) | |
+| Senegal, Côte d'Ivoire | ✅ likely high [no exact figure found] | West Africa ~90%+ (Ghana 92%) |
+| **Algeria, Tunisia** | ⚠️ **Facebook Messenger leads** (Similarweb 2023) | add a Messenger front door later (same Meta platform, same engine) |
+Sources: [Yazi: WhatsApp penetration in Africa](https://www.askyazi.com/articles/whatsapp-penetration-across-africa-statistics-by-country),
+[Rasayel: WhatsApp statistics](https://learn.rasayel.io/en/blog/whatsapp-user-statistics/),
+[Similarweb: messaging apps by country](https://www.similarweb.com/blog/research-ru/market-research-ru/worldwide-messaging-apps/).
