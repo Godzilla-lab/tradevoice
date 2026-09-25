@@ -168,14 +168,14 @@ def _female(name):
     return bool(name) and name.split()[0].lower().rstrip(".") in _FEMALE
 
 
-def confirmation_text(rec, language="Pidgin", balance=None, saved=True, rng=None):
-    """Short spoken confirmation for one entry. saved=False reads it back for checking before saving.
-    `balance` = the customer's total debt after this entry (only spoken once saved). rng: for repeatable tests."""
-    import random
+def entry_sentence(rec, language="Pidgin", money=None):
+    """The core sentence for one entry ("Mama Tunde go pay you forty-five thousand naira, for Friday.").
+    money: how to write amounts (default: English words, for speaking)."""
+    return _sentence(rec, language, money or naira_words)[0]
 
-    pick = (rng or random).choice
+
+def _sentence(rec, language, money):
     t = TEMPLATES.get(language, TEMPLATES["English"])
-    pre = PREFIX.get(language, PREFIX["English"])
     day = _day(rec.get("due_date"))
     customer = rec.get("customer") or (
         {"Yoruba": "Oníbàárà", "Hausa": "Abokin ciniki", "Igbo": "Onye ahịa", "Pidgin": "Your customer"}.get(
@@ -184,14 +184,24 @@ def confirmation_text(rec, language="Pidgin", balance=None, saved=True, rng=None
          "Pidgin": "your supplier"}.get(language, "your supplier"))
     female = _female(rec.get("customer"))
     item = rec.get("item")
-    slots = dict(amount=naira_words(rec.get("amount") or 0), customer=customer,
+    slots = dict(amount=money(rec.get("amount") or 0), customer=customer,
                  item=f"{item} " if item and language in ("English", "Pidgin") else "",
                  item_for=f" on {item}" if item and language in ("English", "Pidgin") else "",
                  she="she" if female else "he", She="She" if female else "He", ya="ta" if female else "ya", za="za ta" if female else "zai")
     due = t["due"].format(day=day, **slots) if day else ""
     if rec.get("type") == "credit_purchase":  # "due" phrases say "SHE will pay"; for the trader's own debt use "on <day>"
         due = {"English": f", on {day}", "Pidgin": f", for {day}"}.get(language, f" ({day})") if day else ""
-    text = t.get(rec.get("type"), t["sale"]).format(due=due, **slots)
+    return t.get(rec.get("type"), t["sale"]).format(due=due, **slots), t, slots
+
+
+def confirmation_text(rec, language="Pidgin", balance=None, saved=True, rng=None):
+    """Short spoken confirmation for one entry. saved=False reads it back for checking before saving.
+    `balance` = the customer's total debt after this entry (only spoken once saved). rng: for repeatable tests."""
+    import random
+
+    pick = (rng or random).choice
+    pre = PREFIX.get(language, PREFIX["English"])
+    text, t, slots = _sentence(rec, language, naira_words)
     if not saved:
         return pick(pre["heard"]) + text + pick(pre["ask"])
     text = pick(pre["saved"]) + text

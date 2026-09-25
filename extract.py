@@ -317,6 +317,8 @@ def parse_type(text):
         return "credit_sale"
     if part_payment_amount(text) is not None:
         return "payment_received"
+    if re.search(r"\bpay me\b.*\bwey (?:he|she|e) (?:owe|dey owe)\b", t):  # "Emeka pay me 20k wey he owe"
+        return "payment_received"
     if any(k in t for k in _PAYMENT_KW):
         return "payment_received"
     if _EXPENSE_RE.search(t) and not _SELL_RE.search(t):
@@ -339,9 +341,10 @@ def rule_extract(text, today=None):
         rec["unit"] = unit[:-1] if unit.endswith("s") and unit not in ("pcs",) else unit
         rec["item"] = m.group(3).lower()
     elif rec["type"] == "expense":
-        k = _EXPENSE_RE.search(text or "")
-        if k and k.group(3):
-            rec["item"] = k.group(3).lower()
+        k = re.search(r"\b(transport|motor fare|shop rent|market levy|rent|levy|fuel|diesel|salary|restock)\b",
+                      text or "", re.I)
+        if k:
+            rec["item"] = k.group(1).lower()
     if rec["type"] in ("credit_sale", "credit_purchase"):
         rec["due_date"] = parse_due(text, today)
     t = fold(text)

@@ -91,7 +91,7 @@ def voice_status():
 
 
 def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", reply_lang="Off"):
-    blank = [gr.update()] * 8 + [None]
+    blank = [gr.update()] * 8 + [None] + [gr.update(value=""), gr.update(visible=False), gr.update(visible=False)]
     if not consent:
         return ["⚠️ Please tick the consent box first."] + blank
     text, asr_info = (typed_text or "").strip(), ""
@@ -113,6 +113,10 @@ def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", repl
             _forget(audio_path)
     if not text:
         return ["⚠️ Record a voice note or type what happened."] + blank
+    import note
+
+    if note.is_long(text):
+        return _process_long(text, asr_info, voice_lang, reply_lang)
 
     rec, meta = extract(text, vocab=ledger.known_words())
     warn = []
@@ -132,7 +136,44 @@ def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", repl
               f"confidence {rec['confidence']:.0%}  \n" + risk_line(rec) + "".join(f"⚠️ {w}  \n" for w in warn)
               + "**Check the details below, then press Confirm & save.**")
     return [status, text, TYPE_LABELS[rec["type"]], rec["item"] or "", rec["quantity"], rec["unit"] or "",
-            rec["amount"], rec["customer"] or "", rec["due_date"] or "", spoken(rec, reply_lang, saved=False)]
+            rec["amount"], rec["customer"] or "", rec["due_date"] or "", spoken(rec, reply_lang, saved=False),
+            gr.update(value=""), gr.update(visible=False), gr.update(visible=False)]
+
+
+def _note_rows(r):
+    rows = _table_rows(r["entries"], "said")
+    if r.get("offline") and len(rows):
+        rows["save"] = False  # offline reading of a long note: the trader ticks what is right
+    return rows
+
+
+def _process_long(text, asr_info, voice_lang, reply_lang):
+    """A long voice note: every money entry + a summary in the trader's language + helpful extras."""
+    import note
+
+    lang = reply_lang if reply_lang in tts.REPLY_LANGS else VOICE_TO_REPLY.get(voice_lang, "Pidgin")
+    r = note.understand(text, lang, vocab=ledger.known_words())
+    # written reply: always simple English; the voice note says the same in the trader's language
+    md = ["### 📝 What you told me", r["summary_en"] or "_(nothing with money found)_"]
+    md += [f"- 💡 {x}" for x in r["extras_en"]]
+    md += [f"- ❓ {q}" for q in (r["unclear_en"] or r["unclear"])]
+    if lang != "English" and r["summary"]:
+        md.append(f"\n<details><summary>🔊 The voice note says ({lang})</summary>\n\n{r['summary']}\n</details>")
+    md.append(f"\n_{len(r['entries'])} entries found · {r['engine']} · summary: {r['summary_source']}_"
+              + (f"  \n⚠️ {r['error']}" if r["error"] else ""))
+    if r["entries"]:
+        md.append("**Tick the entries to keep (edit any cell), then press ✅ Save all ticked.**")
+    audio = None
+    if reply_lang and reply_lang != "Off":
+        try:
+            out = tts.speak(note.spoken_text(r, lang), lang)
+            audio = out["path"] if out else None
+        except Exception as e:  # noqa: BLE001 - voice is a bonus
+            print(f"voice reply failed: {type(e).__name__}: {e}")
+    status = asr_info + f"🧠 Long note: understood as a whole ({r['engine']})."
+    return [status, text, gr.update(), "", None, "", None, "", "", audio,
+            gr.update(value="\n".join(md)), gr.update(value=_note_rows(r), visible=True),
+            gr.update(visible=bool(r["entries"]))]
 
 
 def _valid_due(due):
@@ -195,10 +236,7 @@ def read_photo(consent, image_path):
             f"'Turn lines into entries'.** Unreadable bits are marked [?]."), res["text"]
 
 
-def lines_to_table(lines_text):
-    recs, meta = extract_many(lines_text)
-    if not recs:
-        return "No lines with money found.", pd.DataFrame(columns=PHOTO_COLS)
+def _table_rows(recs, source="line"):
     rows = []
     for r in recs:
         checks = []
@@ -215,19 +253,31 @@ def lines_to_table(lines_text):
         rows.append({"save": r["amount"] is not None, "type": r["type"], "amount": r["amount"],
                      "customer": r["customer"] or "", "due_date": r["due_date"] or "", "item": r["item"] or "",
                      "quantity": r["quantity"], "unit": r["unit"] or "", "check": "; ".join(checks) or "ok",
-                     "from line": r["line"]})
+                     "from line": r.get(source) or ""})
+    return pd.DataFrame(rows, columns=PHOTO_COLS)
+
+
+def lines_to_table(lines_text):
+    recs, meta = extract_many(lines_text)
+    if not recs:
+        return "No lines with money found.", pd.DataFrame(columns=PHOTO_COLS)
+    rows = _table_rows(recs)
     msg = (f"🧠 {len(rows)} entries found ({meta['engine']}, {meta['latency_ms']} ms). Edit the table — "
            f"`type` must be one of {', '.join(TYPES)}. Untick `save` to skip a row. Then press **Save all ticked**.")
     if meta["error"]:
         msg += f"  \n⚠️ AI unavailable, used offline rules ({meta['error'][:80]})."
-    return msg, pd.DataFrame(rows, columns=PHOTO_COLS)
+    return msg, rows
 
 
 def _truthy(v):
     return v is True or str(v).strip().lower() in ("true", "1", "yes", "y", "✓")
 
 
-def save_table(df):
+def save_note_table(df):
+    return save_table(df, engine="voice/whole-note")
+
+
+def save_table(df, engine="photo"):
     if df is None or len(df) == 0:
         return "Nothing to save."
     saved, problems = 0, []
@@ -255,7 +305,7 @@ def save_table(df):
                           "due_date": due or None, "item": str(row.get("item") or "").strip() or None,
                           "quantity": None if qty in (None, "") or pd.isna(qty) else float(qty),
                           "unit": str(row.get("unit") or "").strip() or None},
-                         raw_text=str(row.get("from line") or ""), engine="photo")
+                         raw_text=str(row.get("from line") or ""), engine=engine)
         saved += 1
     return f"✅ Saved {saved} entries." + ("  \n⚠️ Not saved: " + "; ".join(problems) if problems else "")
 
@@ -463,6 +513,10 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         go = gr.Button("Process", variant="primary")
         status = gr.Markdown()
         heard_audio = gr.Audio(label="🔊 What I heard", autoplay=True, interactive=False)
+        note_md = gr.Markdown()
+        note_table = gr.Dataframe(headers=PHOTO_COLS, interactive=True, wrap=True, visible=False)
+        note_save = gr.Button("✅ Save all ticked", visible=False)
+        note_saved = gr.Markdown()
         with gr.Group():
             transcript = gr.Textbox(label="What we heard (edit if wrong)")
             with gr.Row():
@@ -478,7 +532,9 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         saved = gr.Markdown()
         saved_audio = gr.Audio(label="🔊 Saved", autoplay=True, interactive=False)
         go.click(process, [consent, audio, typed, voice_lang, reply_lang],
-                 [status, transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due, heard_audio])
+                 [status, transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due, heard_audio,
+                  note_md, note_table, note_save])
+        note_save.click(save_note_table, note_table, note_saved)
         confirm.click(save, [transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due, status,
                              reply_lang], [saved, saved_audio])
 
@@ -560,7 +616,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         wipe_btn.click(do_wipe, wipe_box, wipe_out)
 
     refresh = gr.Button("🔄 Refresh dashboards")
-    for trigger in (refresh.click, demo.load, confirm.click, save_all.click, wipe_btn.click):
+    for trigger in (refresh.click, demo.load, confirm.click, save_all.click, note_save.click, wipe_btn.click):
         trigger(today_view, None, [t_md, t_df])
         trigger(debtors_view, None, [d_md, d_df, r_who])
         trigger(creditors_view, None, [c_md, c_df])
