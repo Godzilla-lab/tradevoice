@@ -57,10 +57,7 @@ def number_words(n):
 
 
 def naira_words(amount):
-    """Amount + currency in words; the currency follows COUNTRY (default Nigeria: naira)."""
-    import country
-
-    return country.money_words(amount)
+    return f"{number_words(amount)} naira"
 
 
 # ------------------------------------------------------------------ what to say
@@ -163,9 +160,7 @@ PREFIX = {
              "ask": [" Ọ bụ otu a? Ọ bụrụ na ọ dị mma, pịa save."]},
 }
 
-_FEMALE = ("mama", "iya", "aunty", "auntie", "madam", "hajiya", "hajia", "alhaja", "mrs", "sister", "iyawo", "mallama",
-           # other event countries (⚠️ check): French West Africa, North Africa / Gulf, Kenya
-           "tantie", "tata", "maman", "madame", "mme", "hajja", "hajjah", "lalla", "khalti", "umm", "oum", "bibi")
+_FEMALE = ("mama", "iya", "aunty", "auntie", "madam", "hajiya", "hajia", "alhaja", "mrs", "sister", "iyawo", "mallama")
 
 
 def _female(name):

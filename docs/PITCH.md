@@ -55,7 +55,3 @@ professional checks them. Here's what's next."*
 
 **Kredete line:** *"Kredete turns rent and payments into credit abroad; TradeVoice turns a market trader's daily voice
 notes into the record a lender can trust at home."*
-
-## Beyond Nigeria (see `docs/LANGUAGES.md`): ONE line only, no demo (parked 25 Sep)
-Say only: *"Built for Nigeria first. The engine is ready for other countries: each one is a language and currency
-pack."* (We did not test other languages with the AI, so don't claim it understands them.)

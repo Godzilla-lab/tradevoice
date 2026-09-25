@@ -14,17 +14,14 @@ import unicodedata
 TYPES = ("sale", "credit_sale", "payment_received", "expense", "credit_purchase", "payment_made")
 import llm
 
-SYSTEM_PROMPT = """You turn an African market trader's voice note into ONE bookkeeping record. Usually Nigerian (English,
-Nigerian Pidgin, Yoruba, Hausa, Igbo, or mixed), but it may also be French, Arabic (incl. Moroccan/Algerian/Tunisian
-Darija written in Latin letters with numbers like 3 = ع, 7 = ح, 5 = خ), Swahili, Wolof, or a mix with English.
+SYSTEM_PROMPT = """You turn a Nigerian market trader's voice note (English, Nigerian Pidgin, or mixed) into ONE bookkeeping record.
 Today is __TODAY__ (__WEEKDAY__).
 Return ONLY a JSON object with these keys:
 - "type": one of "sale" (customer paid now), "credit_sale" (customer took goods and will pay later / owes), "payment_received" (customer paying back an earlier debt), "expense" (the trader spent money: restock, transport, rent, levy, fuel, etc.), "credit_purchase" (the TRADER took goods or money on credit from a supplier/lender and OWES them: "I owe Alhaji 200k", "Alhaji give me 10 bags, I go pay Friday"), "payment_made" (the TRADER paid back money they owed: "I don pay Alhaji 50k", "I settle my supplier")
 - "item": short product or expense name, or null
 - "quantity": number or null
 - "unit": e.g. "bag", "carton", "crate", "paint", "mudu", or null
-- "amount": TOTAL amount as a plain number in the currency said (naira, CFA franc, dirham, dinar, shilling, riyal; no conversion):
-  45k -> 45000, 1.5m -> 1500000, "twenty thousand" -> 20000, "45 000 FCFA" -> 45000, "3.5 dinar" -> 3.5; null if not said
+- "amount": TOTAL amount in naira as a plain number (45k -> 45000, 1.5m -> 1500000, "twenty thousand" -> 20000), or null if not said
 - "customer": the other person's name as said (customer, or the supplier/lender for credit_purchase/payment_made), or null
 - "item": for money borrowed (not goods), use "loan"
 - "due_date": date the customer promised to pay, as YYYY-MM-DD, or null
@@ -49,7 +46,7 @@ Never invent an amount or a name that was not said."""
 
 _SUFFIX = {"k": 1e3, "thousand": 1e3, "grand": 1e3, "m": 1e6, "mil": 1e6, "million": 1e6}
 _AMOUNT_RE = re.compile(
-    r"(?P<cur>₦|\bNGN\s?|\bN(?=\d))?\s*(?P<num>\d{1,3}(?:,\d{3})+|\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?!\d)|\d+(?:\.\d+)?)\s*"
+    r"(?P<cur>₦|\bNGN\s?|\bN(?=\d))?\s*(?P<num>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*"
     r"(?P<suf>k|thousand|grand|million|mil|m)?(?![a-z])(?P<naira>\s*naira)?",
     re.IGNORECASE,
 )
@@ -58,8 +55,7 @@ _UNITS = (r"bags?|cartons?|crates?|pieces?|pcs|tins?|packs?|packets?|paints?|der
 _QTY_RE = re.compile(rf"\b(\d+(?:\.\d+)?)\s*({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b)[a-z]+)?)",
                      re.IGNORECASE)
 _HONORIFIC = (r"mama|papa|iya|baba|alhaji|alhaja|madam|oga|aunty|auntie|uncle|mr\.?|mrs\.?|"
-              r"chief|brother|sister|bros|mallam|mallama|iyawo|hajiya|hajia|dr\.?|customer|"
-              r"tonton|tantie|tata|maman|madame|hajja|hajj|lalla|khalti|ammi|mzee|bibi|abu|umm|oum")  # other countries
+              r"chief|brother|sister|bros|mallam|mallama|iyawo|hajiya|hajia|dr\.?|customer")
 _NOT_NAMES = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
               "today", "tomorrow", "next", "week", "month", "i", "naira", "the", "me", "am", "am"}
 _FILLERS = {"ehn", "abeg", "sha", "um", "so", "okay", "o", "se", "to", "wai", "dai", "ngwa", "kwa", "ni", "fun",
@@ -206,7 +202,7 @@ def _amount_values(text):
     text = _PHONE_RE.sub(" ", text or "")
     out = set()
     for m in _AMOUNT_RE.finditer(text):
-        v = float(re.sub(r"[,\s\u00a0\u202f]", "", m.group("num"))) * _SUFFIX.get((m.group("suf") or "").lower(), 1)
+        v = float(m.group("num").replace(",", "")) * _SUFFIX.get((m.group("suf") or "").lower(), 1)
         if v >= 100 or m.group("suf") or m.group("cur"):
             out.add(v)
     w = _words_amount(text)
@@ -226,7 +222,7 @@ def unit_total(text):
     if not prices:
         return None
     price_m = min(prices, key=lambda p: p[0])[1]
-    price = float(re.sub(r"[,\s\u00a0\u202f]", "", price_m.group("num"))) * _SUFFIX.get((price_m.group("suf") or "").lower(), 1)
+    price = float(price_m.group("num").replace(",", "")) * _SUFFIX.get((price_m.group("suf") or "").lower(), 1)
     for q in re.finditer(r"(?<![\d.,])(\d{1,3})(?![\d.,])(?!\s*(?:k|thousand|m\b|naira))", t):
         if price_m.start() <= q.start() < price_m.end():
             continue
@@ -242,7 +238,7 @@ def part_payment_amount(text):
         return None
     verb = _PAYVERB_RE.search(t)
     for m in _AMOUNT_RE.finditer(t[verb.end():]):  # the FIRST amount after "paid", not the biggest
-        v = float(re.sub(r"[,\s\u00a0\u202f]", "", m.group("num"))) * _SUFFIX.get((m.group("suf") or "").lower(), 1)
+        v = float(m.group("num").replace(",", "")) * _SUFFIX.get((m.group("suf") or "").lower(), 1)
         if m.group("suf") or m.group("cur") or v >= 100:
             return int(v) if v == int(v) else v
     return None
@@ -251,7 +247,7 @@ def part_payment_amount(text):
 def _digits_amount(text):
     best, best_score = None, -1
     for m in _AMOUNT_RE.finditer(text or ""):
-        num = float(re.sub(r"[,\s\u00a0\u202f]", "", m.group("num")))
+        num = float(m.group("num").replace(",", ""))
         suf = (m.group("suf") or "").lower()
         value = num * _SUFFIX.get(suf, 1)
         score = 0
@@ -392,10 +388,8 @@ def _vocab_line(vocab):
 def llm_extract(text, today=None, vocab=None):
     """Return (record dict, model used)."""
     today = today or dt.date.today()
-    import country
-
     prompt = (SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
-              + country.ai_hint() + _vocab_line(vocab))
+              + _vocab_line(vocab))
     content, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
                               max_tokens=900, timeout=int(os.getenv("LLM_TIMEOUT", "20")))  # then next model
     return _parse_json(content), model
