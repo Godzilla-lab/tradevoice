@@ -51,8 +51,15 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - WhatsApp works → WhatsApp + web · Meta fails, 360dialog works → 360dialog · both fail → web only, WhatsApp as "next step"
 - A language scores badly → don't demo it, say so honestly
 
+## Moved to Sunday (decided 25 Sep)
+- [ ] **Voice audition** (15 min, lunch 13:00): `python eval/tts_check.py --audition` → 2–3 people pick blind
+  (without seeing voice names) the voice they'd "trust with their money" per language + speed → put in `.env`
+  (`TTS_VOICE_PIDGIN=…`, `TTS_SPEED=…`). Until then the defaults are used (ufoma, lucy, sade, amina, ngozi, speed 1.0).
+- [ ] **Native-speaker scores** (5 min per language): play `eval/tts_samples/` to a Yoruba, Hausa, Igbo, Pidgin speaker
+  (another team or a volunteer) → `scores.txt`. Any language < 3 → no voice for it in the demo video.
+
 ## Sunday timeline
-8:30 check-in · 9:45 roster · 10:15 Brev voucher · 11:15–13:00 build · 11:30 mentor · 13:00 lunch (stop idle GPU) ·
+8:30 check-in · 9:45 roster · 10:15 Brev voucher · 11:15–13:00 build · 11:30 mentor · 13:00 lunch + voice audition (stop idle GPU) ·
 14:00–15:30 build + phone tests · 15:30 checkpoint · 15:45–16:45 video · 16:45–17:15 submission · **17:15 SUBMIT**
 
 ## Rules
