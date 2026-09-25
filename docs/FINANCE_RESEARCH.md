@@ -94,7 +94,75 @@ whether a specific levy is illegal (varies by state) · whether they must file �
 advice to use cash or word transfers to avoid tax · any amnesty or waiver.
 
 ## Part 2: Loans, rent, levies, savings
-_(research in progress)_
+(Same caveat: mostly from search summaries. Check numbers before they go on a slide.)
 
-## Part 3: What to build (ranked)
-_(after Part 2)_
+### Kredete (the prize sponsor)
+Kredete sends money to Africa and **builds credit history** for African immigrants who have none in the US.
+$22M Series A (AfricInvest, Partech), about 700k monthly users, average +58 US credit-score points; plans **rent
+reporting**, credit-linked savings, goal-based loans
+([Partech](https://partechpartners.com/news/kredete-raises-a-22m-series-a-round-to-expand-credit-building-infrastructure-with-stablecoin-transfers-to-africa),
+[Sacra](https://sacra.com/c/kredete/)).
+➡️ **Pitch line:** *"Kredete turns rent and payments into credit abroad; TradeVoice turns a market trader's daily
+voice notes into the record a lender can trust at home."*
+
+### Credit
+- Lenders ask for BVN/NIN, **6 months of statements**, proof of trade, and a **shop rent receipt** (Moniepoint).
+  Moniepoint sets loan limits from your Moniepoint transactions ([NairaCompare](https://nairacompare.ng/blogs/how-to-get-a-nirsal-microfinance-bank-loan-in-nigeria-2026),
+  [naijaloanapp](https://naijaloanapp.com.ng/how-to-qualify-for-a-moniepoint-loan/)) [unverified].
+- Loan apps charge **2.5–30% per MONTH** (PalmPay Flexi 0.6–1.5% per DAY); CBN policy rate 23% per YEAR
+  ([TechCabal](https://techcabal.com/2025/11/20/best-interest-rate-loan-apps-nigeria-2025/),
+  [PM News](https://pmnewsnigeria.com/2026/09/22/cbn-cuts-interest-rate-to-23-from-26-5/)).
+- Cash-flow lending works: a World Bank pilot saw **~99% repayment without collateral**
+  ([World Bank](https://openknowledge.worldbank.org/server/api/core/bitstreams/369c8618-a46a-44e6-9162-a6b556e5255f/content)).
+  Lenders trust **verifiable** records (transfers/POS) more than self-typed ones → label entries
+  "transfer (ref …)" vs "cash (self-reported)".
+- Government: TraderMoni ₦10k–50k at 0% + 2.5% fee; PCGS ₦50k grant for nano businesses; DBN lends via 84 partners
+  (81% of 2025 end-borrowers women). ⚠️ Many "GEEP 2026 portal" sites are fake.
+- Build a credit file: borrow small and repay on time with a lender that reports to **CRC / FirstCentral /
+  CreditRegistry**. Banks can recover a defaulted loan from **any account linked to your BVN** (GSI).
+
+### Predatory loans (FCCPC DEON rules, upheld by court 20 Jul 2026)
+Loan apps may **not** contact your friends/family/employer or shame you; they must show all fees upfront; fines up to
+₦100M. About **505 approved lenders**; check the FCCPC list before borrowing
+([TheCable](https://www.thecable.ng/fccpc-resumes-enforcement-as-court-upholds-digital-lending-regulations-limits-licensing-to-ncc/),
+[FCCPC list](https://fccpc.gov.ng/registration-of-digital-money-lenders/approvals-of-dmls/)). No interest cap found.
+
+### Rent: the big shock
+Shops cost ₦500k to ₦5M+/yr, plus "attachment" and agent fees (Balogun). Ibadan Gbagi rents jumped from ₦20–30k to ₦1.6–7.5M.
+**Lagos Tenancy Law 2011:** for a sitting yearly tenant, a landlord may not demand **more than 1 year** in
+advance (some areas excluded)
+([NPC](https://nigeriapropertycentre.com/blog/renting-letting/the-lagos-tenancy-law-in-detail)).
+**42% of informal businesses can't survive one month without income**
+([Champion/Moniepoint](https://championnews.com.ng/2025/10/19/79-of-informal-businesses-record-increase-in-cost-moniepoint-report/)).
+
+### Levies & touts
+₦400–1,800 **per day** to touts/levies in Lagos markets; one trader paid ~₦576k in a year; tickets marked ₦200
+while ₦2,000 is collected
+([BusinessDay](https://businessday.ng/businessday-investigation/article/in-nigerias-largest-city-smes-choke-as-touts-levy-multiple-taxes/)).
+Lagos is merging 60+ levies into one daily market ticket; unauthorised collection is punishable by up to ₦5M / 3 yrs.
+A legal levy has an **official state/LGA receipt**.
+
+### Safety nets, payments, inflation
+- Fire: ≥25 major market fires Jan–May 2025; only **8% of MSMEs insured**; about 85% of Nigerians lack health insurance.
+- Micro-pension reached only about 200k people; PenCom is launching a digital Personal Pension Plan.
+- Fees: transfers ₦10–50; **₦50 stamp duty paid by the sender** (≥₦10k); POS ₦100 per ₦20k plus the agent's fee.
+- **Fake transfer alerts:** only the balance counts, not the SMS or screenshot.
+- Inflation Aug 2026: **15.39%, food 19.57%**. 65% of informal firms saw revenue rise but only 47% saw profit rise.
+  **Real profit = sales − cost to restock TODAY − rent/levy set-aside − the owner's own pay.**
+- **Kippa (about 500k users) went dark in Jan 2024 and users lost their books.** Traders must be able to export their data.
+
+## Part 3: What to build, ranked
+Scored on: trader value × Kredete fit × safety ÷ hours. **S** = under 2 h, **M** = half a day.
+| # | Feature | Why it matters | Effort | Status |
+|---|---|---|---|---|
+| 1 | **Year record** (sales, spending by type, rent & levies list) | Proof for the tax office, lender and levy disputes | S | ✅ built |
+| 2 | **"Your book protects you" tax card**: the safe facts above, each with its source, in the trader's language | Myths push traders to cash; records beat presumed tax | S | next |
+| 3 | **Rent pot**: rent amount + due date → "keep ₦X today"; on-track voice note | #1 cash shock; rent history = credit (Kredete) | S | next |
+| 4 | **Export my data** (CSV) | Kippa lesson: your book is yours | S | next |
+| 5 | **Cash vs transfer on each entry**: statement shows "verified (transfer)" vs "self-reported (cash)"; fake-alert tip | Lenders trust verifiable records | M | Sunday? |
+| 6 | **Loan cost checker**: "₦50k, pay ₦65k in 4 weeks" → 30%/month, about 360%/yr; FCCPC list; your rights | Predatory apps | M | Sunday? |
+| 7 | **True profit**: restock price today vs selling price ("you're losing on rice") | Inflation hides losses | M | later |
+| 8 | Owner pay tag, ajo tracker, fire/health/pension prompts | Real gaps, but more advice risk | M | later / pitch only |
+
+**Rules for all of it:** facts + sources, never a tax bill or "you are exempt"; nothing shared without the trader's
+say-so (NDPA); never promise a loan; everything the app says about law carries a date and "check with your state revenue office".
