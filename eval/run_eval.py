@@ -101,6 +101,14 @@ def report(rows, engines, fallbacks):
     if flags:
         print(f"  unclear notes where the AI asked instead of guessing: {sum(r['ok']['flagged'] for r in flags)}"
               f"/{len(flags)}")
+    errs = [r for r in rows if r.get("error")]
+    if errs:
+        ai = [r for r in scored if not r.get("error")]
+        print(f"  AI answered {len(ai)}/{len(scored)}: ALL FIELDS on those {score(sum(r['all'] for r in ai), len(ai))}")
+        why = Counter(" ".join(str(r["error"]).split())[:90] for r in errs)
+        print("  why the AI failed (-> rules used):")
+        for msg, k in why.most_common(5):
+            print(f"    {k:>3} x {msg}")
     lat = [r["latency_ms"] for r in rows]
     print(f"  understanding latency: median {statistics.median(lat):.0f} ms, "
           f"90% under {sorted(lat)[int(0.9 * (len(lat) - 1))]} ms, max {max(lat)} ms")
@@ -138,7 +146,8 @@ def report(rows, engines, fallbacks):
             diff["due"] = (rec.get("due_date"), c["due_weekday"])
         if "flagged" in r["ok"]:
             diff = {"should have asked": (rec.get("confidence"), rec.get("note"))}
-        print(f"  ✗ {c['id']} [{c.get('category', '')}] {r['text']!r}\n      got vs expected: {diff}")
+        src = " (rules: AI failed)" if r.get("error") else ""
+        print(f"  ✗ {c['id']} [{c.get('category', '')}]{src} {r['text']!r}\n      got vs expected: {diff}")
 
 
 def compare(path_a, path_b):

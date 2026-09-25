@@ -45,15 +45,49 @@ Rules score 0% on unit price, part payment, amounts in words, local number words
 AI answer to payment. Also: phone numbers read as the amount (Pidgin/Yoruba/Hausa/Igbo), "Hajiya" not known as a title.
 ➡️ Next run: the same set **with the AI** (Mac, `--sleep 1.5`), to see how much the AI fixes and where the guards hurt.
 
+### Hard trap set WITH the AI, 25 Sep (Mac, `--sleep 1.5`, before the fixes below)
+Engine answered: nemotron-3-ultra (gemma-4 never answered in this run: to check). **AI failed on 38/211 → rules used.**
+**All fields 171/208 = 82% (95%: 76–87%)**; type 96%, amount 92%, customer 96%, due day 88%; macro-F1 0.97;
+🚨 wrong amount written 10/208; invented 0/14; asked on unclear notes 3/3. Latency median 8.2 s, 90% under 30 s.
+Weakest: Yoruba 62%; local number words 42%; speech-to-text style 70%; negation 71%.
+What went wrong (37 mistakes):
+- **Our own guard broke right answers:** "she has not paid me" → forced to payment (4 cases).
+- **Yoruba due dates:** the AI computed wrong dates for Ẹtì / Ọjọ́rú / Àbámẹ́ta (7 cases).
+- **The AI multiplied:** "katan indomie 2 a 3500" → 7,000; "ẹgbàá" (2,000) with 2 cartons → 4,000.
+- **Local number words:** ẹgbẹ̀rún mẹ́wàá (10,000) → 20,000; puku ise (5,000) → 500 / empty.
+- **Rules fallback bugs:** phone number as amount, "N27" as a customer name, lower-case names, "Hajiya" unknown.
+
+### Fixes (25 Sep), checked offline
+- Rules now handle: "not paid yet" in 5 languages, part payments, "X each" (quantity × price), self-corrections,
+  phone numbers, amounts in English/Hausa/Igbo/Yoruba words (⚠️ native check), lower-case names, Hajiya/Mallama/Dr.
+- New AI checks (`_check_guard`): not-paid → credit; part payment → payment; **weekday dates always from the rules**;
+  **the AI's amount must be a number actually said** (or quantity × price when "each" is said), else the rules amount
+  is used and the trader is told why.
+- Prompt: total vs per-unit, number words, not-paid words, Yoruba weekday names.
+- `eval/test_guards.py`: the real AI mistakes above, replayed offline → **16/16 caught**.
+
+| Offline rules only | Before | After |
+|---|---|---|
+| `cases_hard` (211, the set we tuned on) | 55% | 99% (205/208)* |
+| `cases_fresh` (210, NEW draw, seed 7, not tuned on) | — | **99% (205/207, 95%: 97–100%)** |
+| `cases.jsonl` / `cases_lang.jsonl` | 20/20, 16/16 | 20/20, 16/16 |
+\* Tuned on this set, so it flatters us. `cases_fresh` uses the **same templates** with new names/amounts, so it
+checks we didn't memorise cases, NOT that we handle new ways of speaking. The honest test is still
+`cases_team.jsonl` (team phrases written without reading the code) + real voice notes.
+Remaining: Hausa code-switch "za ta pay ranar …" → rules say sale (the AI should handle it).
+➡️ Re-run with the AI on the Mac: `python3 eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5`, then
+`--compare` old vs new result file; and find out why the AI failed 38 times (the report now lists the reasons).
+
 ### Voice replies (Spitch), `eval/tts_check.py`, 25 Sep
 ✅ All 25 samples generated (5 languages × 5 messages; voices ufoma, lucy, sade, amina, ngozi).
-Fixed before the listening test: Hausa used "ya/zai" (he) for women customers → now "ta/za ta"; trader now "An sayar"
+✅ Re-generated with the fixes (25 Sep). Fixed before the listening test: Hausa used "ya/zai" (he) for women customers → now "ta/za ta"; trader now "An sayar"
 (no gender guess); Yoruba sale "ní" added.
 - [ ] Native-speaker listening scores (`eval/tts_samples/scores.txt`): Pidgin __ · Yoruba __ · Hausa __ · Igbo __
 - [ ] Check: English numbers inside Yoruba/Hausa/Igbo voices; English day names vs Ẹtì / Juma'a / Fraịdee
 
 ### Still to do
-- [ ] Hard trap set with the AI (and `--compare` against the rules run)
+- [x] Hard trap set with the AI (first run above)
+- [ ] Re-run after fixes + `--compare`; fix the 38 AI failures
 - [ ] Handwritten notebook photos (eval/photos/)
 - [ ] Team-written phrases (eval/cases_team.jsonl) and native-speaker phrases
 - [ ] Voice notes through Whisper / omniASR on Brev (speed + accuracy)

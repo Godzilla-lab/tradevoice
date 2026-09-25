@@ -9,6 +9,8 @@ wrong number in a trader's book, and every score comes with a 95% range.
 | `eval/cases.jsonl` | 20 easy English/Pidgin phrases | Claude |
 | `eval/cases_lang.jsonl` | 16 phrases: Pidgin, Yoruba, Hausa, Igbo (4 each) | Claude ⚠️ native check |
 | `eval/cases_hard.jsonl` | **211 trap phrases**, 5 languages, 13 trap types (`python eval/make_hard_cases.py`) | generated from templates ⚠️ native check |
+| `eval/cases_fresh.jsonl` | 210 phrases, same templates, **new random draw** (seed 7): checks fixes weren't tuned to `cases_hard` | generated ⚠️ native check |
+| `eval/test_guards.py` | real AI mistakes replayed offline: our guards must catch them (no key needed) | from our AI runs |
 | `eval/cases_team.jsonl` | the team's own phrases, written **without reading the code** (most honest score) | team |
 | `eval/photos/` | real notebook photos + `.txt` of what is written | team |
 | `eval/audio/` | real voice notes named by case id | team (native speakers) |
@@ -35,6 +37,7 @@ python eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5      # AI + gu
 python eval/run_eval.py --cases eval/cases_hard.jsonl --rules-only     # offline rules = the baseline to beat
 python eval/run_eval.py --cases eval/cases_hard.jsonl --lang yoruba --category negation,part_payment
 python eval/run_eval.py --compare eval/results/A.json eval/results/B.json   # is B really better, or luck?
+python eval/test_guards.py                     # offline: do our guards catch the AI's known mistakes?
 python eval/lang_check.py                      # which model is best per language (text + photos)
 python eval/tts_check.py                       # voice-reply samples + scores.txt form for native speakers
 ```

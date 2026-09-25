@@ -1,6 +1,8 @@
 """Generate a HARD test set: ~180 trader phrases in 5 languages with the traps that break bookkeeping AI.
 
 python eval/make_hard_cases.py            # writes eval/cases_hard.jsonl (same output every time: fixed seed)
+python eval/make_hard_cases.py --seed 7 --out eval/cases_fresh.jsonl   # a FRESH draw to check fixes didn't just
+                                          # memorise cases_hard (same templates, new names/amounts/combinations)
 python eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5
 
 Each case has: id, lang, category, text, type, amount, customer (+ due_weekday when a weekday is said,
@@ -213,6 +215,14 @@ def draw(lang, cat, typ, text, rule, style=None):
 
 
 def main():
+    import argparse
+
+    global OUT, rng
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seed", type=int, default=27092026)
+    ap.add_argument("--out", default=OUT)
+    args = ap.parse_args()
+    OUT, rng = args.out, random.Random(args.seed)
     cases = []
     for lang, cats in T.items():
         for cat, templates in cats.items():
