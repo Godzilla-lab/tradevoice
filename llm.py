@@ -25,16 +25,19 @@ def _client(kind, timeout):
 
     if kind == "vision":
         return OpenAI(base_url=VISION_BASE_URL, api_key=os.getenv("VISION_API_KEY") or os.environ["NVIDIA_API_KEY"],
-                      timeout=timeout, max_retries=3)
-    return OpenAI(base_url=NVIDIA_BASE_URL, api_key=os.environ["NVIDIA_API_KEY"], timeout=timeout, max_retries=3)
+                      timeout=timeout, max_retries=1)
+    # one quick retry per model; if it is still slow we move to the next model instead of making the trader wait
+    return OpenAI(base_url=NVIDIA_BASE_URL, api_key=os.environ["NVIDIA_API_KEY"], timeout=timeout, max_retries=1)
 
 
 def _model_gone(err):
-    """Errors that mean 'try the next model' rather than 'the service is down'."""
+    """Errors that mean 'try the next model': model removed/forbidden, or too slow/overloaded right now."""
     status = getattr(err, "status_code", None)
     text = str(err).lower()
-    return status in (400, 404, 410, 422) or any(s in text for s in ("not found", "deprecated", "does not exist",
-                                                                     "unknown model", "not supported"))
+    if type(err).__name__ in ("APITimeoutError", "Timeout", "ReadTimeout"):
+        return True
+    return status in (400, 403, 404, 410, 422, 429, 500, 502, 503, 504) or any(
+        s in text for s in ("not found", "deprecated", "does not exist", "unknown model", "not supported", "timed out"))
 
 
 def clean(text):

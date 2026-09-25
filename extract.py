@@ -211,14 +211,20 @@ def llm_extract(text, today=None):
     today = today or dt.date.today()
     prompt = SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
     content, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
-                              max_tokens=900, timeout=45)  # room for models that reason before answering
+                              max_tokens=900, timeout=int(os.getenv("LLM_TIMEOUT", "20")))  # then next model
     return _parse_json(content), model
 
 
 def _sell_guard(rec, rules, text):
-    """The AI sometimes calls 'I sold' an expense in Yoruba/Igbo. If the words clearly say sold and nothing says the
-    trader paid for something, trust the words."""
+    """The AI sometimes misreads Yoruba/Igbo/Hausa keywords. Trust clear words over the AI:
+    - 'has paid back' words (akwụọla, ti san, ta biya, don pay...) -> payment_received, not a new credit sale
+    - 'I sold' words with nothing saying the trader paid for something -> sale, not expense."""
     t = fold(text)
+    if rec.get("type") in ("credit_sale", "sale") and rules["type"] == "payment_received":
+        rec["type"] = "payment_received"
+        rec["note"] = ((rec.get("note") or "") + " Type corrected to payment: the words say 'has paid'.").strip()
+        rec["confidence"] = min(rec.get("confidence") or 0.6, 0.6)
+        return rec
     if rec.get("type") == "expense" and _SELL_RE.search(t) and not _EXPENSE_RE.search(t):
         rec["type"] = rules["type"] if rules["type"] in ("sale", "credit_sale") else "sale"
         rec["note"] = ((rec.get("note") or "") + " Type corrected to sale: the words say 'sold'.").strip()

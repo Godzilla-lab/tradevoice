@@ -58,7 +58,7 @@ def read_notebook(path):
     text, model = llm.chat([{"role": "user", "content": [
         {"type": "text", "text": PROMPT},
         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-    ]}], kind="vision", max_tokens=1000, timeout=90)
+    ]}], kind="vision", max_tokens=1000, timeout=int(os.getenv("VISION_TIMEOUT", "45")))
     if text.upper() == "NONE":
         text = ""
     return {"text": text, "latency_ms": round((time.perf_counter() - start) * 1000), "engine": f"vision:{model}"}
