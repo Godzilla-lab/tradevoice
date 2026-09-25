@@ -71,6 +71,20 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
   Ask my book by voice (English + one local language) · 📒 My year so far
 - [ ] `python check_models.py` on Brev (is gemma back?)
 
+## How we use the Brev credits (decided 25 Sep)
+One GPU instance for the day (L4 24 GB; an L40S 48 GB if credits allow the backup AI brain too):
+1. **Speech-to-text (must):** Whisper (English/Pidgin) + Meta omniASR (Yoruba/Hausa/Igbo) on our GPU. omniASR needs
+   ~10 GB GPU memory, so a laptop can't run it. Pitch: voice notes never go to an outside speech service.
+2. **Host the demo:** web app + WhatsApp webhook on the same instance; public link via Gradio share (Brev links need login).
+3. **Backup AI brain (recommended):** a small open model (~8B) served on the GPU (vLLM, OpenAI-compatible) as the LAST
+   fallback after nemotron-3-ultra/super. Reason: the cloud models timed out 53/211 times on 25 Sep. Chain = cloud →
+   our GPU → offline rules, so the demo never stalls. ⚠️ Needs code first: `llm.py` only calls NVIDIA's cloud today;
+   add a `LOCAL_LLM_URL` option (~15 min). Not built yet.
+4. **Run the evals on Brev:** hard test set + real voice notes → timing numbers for the submission.
+5. **Proof for judges (required):** Brev console screenshots (GPU, hours, cost); stretch: a **Brev Launchable**
+   (one-click template to rerun our demo).
+- Save credits: start the omniASR download first; **stop the instance at lunch and whenever idle.**
+
 ## Sunday timeline
 8:30 check-in · 9:45 roster · 10:15 Brev voucher · 11:15–13:00 build · 11:30 mentor · 13:00 lunch + voice audition (stop idle GPU) ·
 14:00–15:30 build + phone tests · 15:30 checkpoint · 15:45–16:45 video · 16:45–17:15 submission · **17:15 SUBMIT**
