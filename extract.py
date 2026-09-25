@@ -27,6 +27,10 @@ Return ONLY a JSON object with these keys:
 - "confidence": number 0-1, how sure you are
 - "note": short description of anything unclear, or null
 Pidgin hints: "e don pay", "don settle", "come pay" = payment_received. "go pay", "owe", "na credit", "never pay", "balance remain" = credit_sale. "I buy", "I pay for" (the trader spending) = expense.
+Yoruba/Hausa/Igbo hints: "mo ta" (yo), "na sayar" (ha), "ere m" (ig) = I SOLD, so it is a sale (or credit_sale if a debt
+word appears), never an expense. "mo san" (yo), "na biya" (ha), "akwụrụ m" (ig) = I paid = expense. Debt words:
+"gbèsè"/"jẹ mí" (yo), "bashi" (ha), "ụgwọ"/"ji m" (ig) = credit_sale. "ti san" (yo), "ta biya"/"biya bashi" (ha),
+"akwụọla" (ig) = payment_received.
 Never invent an amount or a name that was not said."""
 
 # ---------------------------------------------------------------- rules
@@ -207,8 +211,19 @@ def llm_extract(text, today=None):
     today = today or dt.date.today()
     prompt = SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
     content, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
-                              max_tokens=400, timeout=30)
+                              max_tokens=900, timeout=45)  # room for models that reason before answering
     return _parse_json(content), model
+
+
+def _sell_guard(rec, rules, text):
+    """The AI sometimes calls 'I sold' an expense in Yoruba/Igbo. If the words clearly say sold and nothing says the
+    trader paid for something, trust the words."""
+    t = fold(text)
+    if rec.get("type") == "expense" and _SELL_RE.search(t) and not _EXPENSE_RE.search(t):
+        rec["type"] = rules["type"] if rules["type"] in ("sale", "credit_sale") else "sale"
+        rec["note"] = ((rec.get("note") or "") + " Type corrected to sale: the words say 'sold'.").strip()
+        rec["confidence"] = min(rec.get("confidence") or 0.6, 0.6)
+    return rec
 
 
 def _normalise(rec, text, today):
@@ -246,6 +261,7 @@ def extract(text, today=None):
             for k in ("amount", "customer", "quantity", "unit", "item"):
                 if rec.get(k) in (None, "") and rules.get(k) is not None:
                     rec[k] = rules[k]
+            rec = _sell_guard(rec, rules, text)
             # guard against hallucinated money: amount must be traceable to the transcript
             if rec["amount"] is not None and rules["amount"] is not None and rec["amount"] != rules["amount"]:
                 rec["note"] = ((rec.get("note") or "") + f" Check amount (rules heard {rules['amount']:,}).").strip()
@@ -302,7 +318,7 @@ def extract_many(text, today=None):
                 if i not in got:  # LLM skipped a line: keep the rules version so nothing is lost
                     out.append(rr)
                     continue
-                rec = _normalise(got[i], line, today)
+                rec = _sell_guard(_normalise(got[i], line, today), rr, line.replace("=>", " ; "))
                 for k in ("amount", "customer", "quantity", "unit", "item"):
                     if rec.get(k) in (None, "") and rr.get(k) is not None:
                         rec[k] = rr[k]
