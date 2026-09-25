@@ -39,6 +39,23 @@ CASES = [  # question, expected money, expected language
     ("How much rice I buy this week?", 120000, "English"),
     ("Who I owe?", 70000, "English"),
     ("How much Mama Tunde owe me?", 30000, "English"),
+    # everyday English phrasings
+    ("What were my total sales last month?", 150000, "English"),
+    ("How much did I sell yesterday?", 45000, "English"),
+    ("How many eggs did I sell today?", 21600, "English"),
+    ("How much did I spend on transport this week?", 3500, "English"),
+    ("How much do I owe Alhaji Sani?", 70000, "English"),
+    ("What are my sales today?", 51600, "English"),
+    ("How much profit did I make this week?", -26900, "English"),   # sales 96,600 - spent 123,500
+    ("What did I make today?", 51600, "English"),                  # nothing spent today
+    ("How much money came in today?", 21600, "English"),           # cash sale only (the rice was on credit)
+    ("Did Mama Tunde buy anything this week?", 30000, "English"),
+    ("Show me my expenses for this month", 123500, "English"),
+    ("How much rice have I sold so far?", 300000, "English"),
+    ("How much I don make this week?", -26900, "Pidgin"),
+    ("Èrè mélòó ni mo jẹ lọ́sẹ̀ yìí?", -26900, "Yoruba"),
+    ("Riba nawa na samu a wannan makon?", -26900, "Hausa"),
+    ("Uru ole ka m nwetara n'izu a?", -26900, "Igbo"),
 ]
 
 

@@ -50,9 +50,16 @@ PERIOD_WORDS = {
 }
 # what the trader asks about (folded words). "saya" (ha) = buy but "sayar" = sell: order matters.
 WHAT_WORDS = [
+    # yo "èrè … mo jẹ" = profit I made (not "mo jẹ" = I owe): checked first
+    ("profit", [r"\bere (melo|elo)\b", r"\bje ere\b", r"\bjere\b"]),
     ("i_owe", [r"\b(i|we) (still )?(dey )?owe\b", r"\bwho i owe\b", r"\bmo je\b", r"\bina da bashi"]),
     ("owed_to_me", [r"\bowe me\b", r"\bwho owe\b", r"\bdey owe me\b", r"\bje mi\b", r"\bgbese\b", r"\bbashi\b",
                     r"\bugwo\b", r"\bji m\b"]),
+    ("profit", [r"\bprofit\b", r"\bgain\b", r"\b(make|made|making)\b", r"\bremain for me\b", r"\bjere\b",
+                r"\bere mi\b", r"\briba\b", r"\buru\b"]),
+    ("cash_in", [r"\b(came|come|coming) in\b", r"\bcash in\b", r"\bmoney (i )?(collect|collected|receive|received)\b",
+                 r"\breceived\b", r"\benter my hand\b", r"\bowo to wole\b", r"\bkudin da (ya )?shigo\b",
+                 r"\bego batara\b"]),
     ("sold", [r"\bsell\b", r"\bsold\b", r"\bsales?\b", r"\bta\b", r"\bsayar\b", r"\bere\b", r"\brere\b"]),
     ("bought", [r"\bbuy\b", r"\bbought\b", r"\brestock\b", r"\bra\b", r"\bsaya\b", r"\bsayo\b", r"\bzutara\b",
                 r"\bzuru\b", r"\bgotara\b"]),
@@ -65,13 +72,15 @@ LANG_HINTS = {"Yoruba": ["mo", "melo", "elo", "loni", "yii", "ni", "ta", "iresi"
 
 QUERY_PROMPT = """A Nigerian market trader asks a question about their own record book, in English, Pidgin, Yoruba,
 Hausa or Igbo. Do NOT answer it. Turn it into this JSON search and nothing else:
-{"kind": "query" or "other", "what": "sold" | "bought" | "spent" | "owed_to_me" | "i_owe",
+{"kind": "query" or "other", "what": "sold" | "bought" | "spent" | "profit" | "cash_in" | "owed_to_me" | "i_owe",
  "item": one of the book's items below, or null, "customer": one of the book's names below, or null,
  "period": "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "this_year" | "all",
  "language": "English" | "Pidgin" | "Yoruba" | "Hausa" | "Igbo"}
 Use "kind": "other" for questions that are not about amounts or counts in the book (e.g. forecasts, advice).
 Map local item words to the book's item (ìrẹsì / shinkafa / osikapa = rice; ẹ̀wà / wake / agwa = beans ...).
-"what": sold = sales (ta / sayar / ere); bought = goods the trader bought (ra / saya / zụrụ); spent = all money spent.
+"what": sold = sales (ta / sayar / ere; also "Did Mama Tunde buy…" = what the trader sold to her); bought = goods the
+trader bought (ra / saya / zụrụ); spent = all money spent; profit = "profit / what did I make / èrè / riba / uru";
+cash_in = money that actually came in (cash sales + debts paid back).
 No period said -> "all".
 Items in this trader's book: __ITEMS__
 Names in this trader's book: __NAMES__"""
@@ -111,12 +120,15 @@ def parse_offline(question, vocab=None):
         if item is None and it and re.search(rf"\b{re.escape(fold(it))}\b", t):
             item = it
     customer = next((n for n in (vocab or {}).get("names") or [] if fold(n) in t), None)
+    if customer and what == "bought" and re.search(rf"{re.escape(fold(customer))}\s+(buy|bought|take|took|collect)", t):
+        what = "sold"  # "Did Mama Tunde buy…" = what I sold TO her
     how_many = re.search(r"\bhow (many|much)\b|\bmelo\b|\belo\b|\bnawa\b|\bole\b|\bego ole\b|\bhow e be\b", t)
     if re.search(r"\bpass\b|\bbest\b|\bmost\b|\bnext week\b|\bforecast\b", t):
         return {"kind": "other", "what": what or "sold", "item": item, "customer": customer, "period": period,
                 "language": guess_language(question)}  # best sellers / forecast: answered by insights.ask
     asks_sales = what == "sold" and (period != "all" or re.search(r"\bwetin\b|\bwhat\b|\bkini\b|\bme\b", t))
-    kind = "query" if (item or customer or what in ("bought", "spent", "i_owe", "owed_to_me") or how_many
+    kind = "query" if (item or customer or what in ("bought", "spent", "i_owe", "owed_to_me", "profit", "cash_in")
+                       or how_many
                        or asks_sales) else "other"
     return {"kind": kind, "what": what or "sold", "item": item, "customer": customer, "period": period,
             "language": guess_language(question)}
@@ -154,6 +166,14 @@ def run(q, today=None):
             people = [p for p in people if ledger.customer_key(p["customer"]) == ledger.customer_key(q["customer"])]
         return {"people": [(p["customer"], p["balance"]) for p in people],
                 "money": sum(p["balance"] for p in people)}
+    if q["what"] in ("profit", "cash_in"):
+        start, end = _bounds(q["period"], today)
+        s = ledger.period_summary(start, end)
+        if q["what"] == "profit":
+            return {"money": s["profit"], "sales": s["sales"], "spent": s["expenses"], "entries": s["entries"],
+                    "start": start, "end": end}
+        return {"money": s["cash_sales"] + s["payments_received"], "cash": s["cash_sales"],
+                "debts": s["payments_received"], "entries": s["entries"], "start": start, "end": end}
     types = {"sold": ("sale", "credit_sale"), "bought": ("credit_purchase", "expense"),
              "spent": ("expense", "credit_purchase")}[q["what"]]
     start, end = _bounds(q["period"], today)
@@ -213,12 +233,25 @@ OWED = {"owed_to_me": {"English": "{who} owes you {m}.", "Pidgin": "{who} dey ow
                  "Igbo": "Onweghị onye."}}
 
 
+PROFIT = {"English": "{p}, you sold {s} and spent {x}. Sales minus spending: {m}.",
+          "Pidgin": "{p}, you sell {s}, you spend {x}. Wetin remain na {m}.",
+          "Yoruba": "{p}, o ta ọjà ní {s}, o ná {x}. Èrè jẹ́ {m}.",
+          "Hausa": "{p}, an sayar na {s}, an kashe {x}. Riba: {m}.",
+          "Igbo": "{p}, i rere {s}, i mefuru {x}. Uru bụ {m}."}
+CASH_IN = {"English": "{p}, money that came in: {m} ({c} cash sales + {d} debts paid back).",
+           "Pidgin": "{p}, money wey enter your hand na {m} ({c} cash sales, {d} from people wey pay their debt).",
+           "Yoruba": "{p}, owó tó wọlé jẹ́ {m} ({c} owó ọjà, {d} gbèsè tí wọ́n san).",
+           "Hausa": "{p}, kuɗin da ya shigo {m} ({c} na sayarwa, {d} na bashin da aka biya).",
+           "Igbo": "{p}, ego batara bụ {m} ({c} site n'ahịa, {d} ụgwọ a kwụrụ)."}
+
+
 def answer(q, res, spoken=False):
     """Build the reply from the numbers. spoken=True writes amounts in words for the voice reply."""
     from tts import naira_words, number_words
 
     lang = q["language"] if q["language"] in LANGS else "English"
-    money = (lambda x: naira_words(x)) if spoken else (lambda x: f"₦{x:,.0f}")
+    money = ((lambda x: ("minus " if x < 0 else "") + naira_words(abs(x))) if spoken
+             else (lambda x: f"-₦{abs(x):,.0f}" if x < 0 else f"₦{x:,.0f}"))
     count = (lambda x: number_words(x)) if spoken else (lambda x: f"{x:g}")
     if q["what"] in ("owed_to_me", "i_owe"):
         if not res["people"]:
@@ -227,6 +260,10 @@ def answer(q, res, spoken=False):
     p = PERIOD_SAY[lang][q["period"]]
     if not res["entries"]:
         return NOTHING[lang].format(p=p.lower() if lang in ("English", "Pidgin") else f"({p})")
+    if q["what"] == "profit":
+        return PROFIT[lang].format(p=p, s=money(res["sales"]), x=money(res["spent"]), m=money(res["money"]))
+    if q["what"] == "cash_in":
+        return CASH_IN[lang].format(p=p, m=money(res["money"]), c=money(res["cash"]), d=money(res["debts"]))
     item = q.get("item")
     name = LOCAL_ITEM.get(lang, {}).get(item, item) if item else None
     qty = ", ".join(f"{count(v)} {u}{'s' if v != 1 and lang in ('English', 'Pidgin') else ''}"

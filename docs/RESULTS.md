@@ -78,6 +78,15 @@ Remaining: Hausa code-switch "za ta pay ranar …" → rules say sale (the AI sh
 ➡️ Re-run with the AI on the Mac: `python3 eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5`, then
 `--compare` old vs new result file; and find out why the AI failed 38 times (the report now lists the reasons).
 
+### Hard trap set WITH the AI, re-run after the fixes (25 Sep, Mac, `--sleep 1.5`)
+**All fields 208/208 = 100% (95%: 98–100%)**, wrong amounts 0, invented 0, asked on unclear notes 3/3,
+every language and every trap 100%. **AI answered 157/211 → 157/157 correct (95%: 98–100%).**
+⚠️ Honest reading: the rules were tuned on this set, and the 53 AI failures were answered by those rules. Quote the
+**157/157 AI-answered** figure, and use `cases_team.jsonl` + real voice notes as the real test.
+**Problem: AI failed 53/211** (42 timeouts, 6 no JSON, 3 × 503, 2 connection errors); median 10.2 s, 90% under 30 s.
+Engines that answered: nemotron-3-super + nemotron-3-ultra; **gemma-4 answered none**, probably timing out first
+in the model list and eating the 30 s budget. → re-check `check_models.py`, reorder `LLM_MODELS`.
+
 ### Voice replies (Spitch), `eval/tts_check.py`, 25 Sep
 ✅ All 25 samples generated (5 languages × 5 messages; voices ufoma, lucy, sade, amina, ngozi).
 ✅ Re-generated with the fixes (25 Sep). Fixed before the listening test: Hausa used "ya/zai" (he) for women customers → now "ta/za ta"; trader now "An sayar"
