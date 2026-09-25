@@ -11,6 +11,7 @@ import pandas as pd
 
 import settings  # noqa: F401  (loads .env before the other modules read it)
 import insights
+import ui_text
 import ledger
 import tts
 from extract import TYPES, extract, extract_many
@@ -469,6 +470,42 @@ def voice_ask(consent, audio_path, voice_lang, typed):
     return f"🎙️ **You asked:** {question}\n\n### {text}\n\n{how}", audio
 
 
+def read_aloud(screen, lang):
+    """🔊 button: the screen as a short voice note in the chosen language (numbers from the book)."""
+    import readaloud
+
+    lang = lang if lang in readaloud.LANGS else "English"
+    said = readaloud.text(screen, lang)
+    try:
+        out = tts.speak(said, lang)
+        if out:
+            return gr.update(value=out["path"], visible=True), said
+    except Exception as e:  # noqa: BLE001
+        print(f"read aloud failed: {type(e).__name__}: {e}")
+    return gr.update(value=None, visible=False), said + "  \n_(🔇 voice is off: add SPITCH_API_KEY to .env)_"
+
+
+def _read_aloud_row(screen, app_lang):
+    with gr.Row():
+        btn = gr.Button(ui_text.t("read", "English"), size="lg", variant="primary")  # big: made for people who can't read
+    words = gr.Markdown()
+    player = gr.Audio(autoplay=True, interactive=False, visible=False, show_label=False)
+    btn.click(read_aloud, [gr.State(screen), app_lang], [player, words])
+    return btn, player
+
+
+def switch_language(lang):
+    """🌍 App language: tab names, main buttons and consent in that language; replies follow it."""
+    t = lambda k: ui_text.t(k, lang)  # noqa: E731
+    return [gr.update(label=t("tab_speak")), gr.update(label=t("tab_snap")), gr.update(label=t("tab_today")),
+            gr.update(label=t("tab_owes")), gr.update(label=t("tab_insights")), gr.update(label=t("tab_ask")),
+            gr.update(label=t("tab_credit")), gr.update(label=t("tab_data")),
+            gr.update(value=t("process")), gr.update(value=t("confirm")), gr.update(value=t("ask")),
+            gr.update(value=t("refresh")), gr.update(label=t("voice_note")), gr.update(label=t("type_it")),
+            gr.update(label=t("consent"))] + [gr.update(value=t("read"))] * 4 + [
+            gr.update(value=lang if lang in tts.REPLY_LANGS else "Pidgin")]
+
+
 def chat(question, history):
     answer, engine = insights.ask(question)
     return answer + (f"\n\n_— {engine}_" if engine != "rules" else "")
@@ -494,10 +531,11 @@ GRADIO6 = int(gr.__version__.split(".")[0]) >= 6  # Gradio 6 moved `theme` from 
 with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as demo:
     gr.Markdown("# 🗣️💰 TradeVoice\nSpeak it or snap your book — we keep your records, chase who owes you, "
                 "and show where your money is going.")
+    app_lang = gr.Radio(ui_text.LANGS, value="English", label="🌍 App language (the 🔊 buttons speak it too)")
     consent = gr.Checkbox(label=CONSENT, value=False)
     shop = gr.Textbox(label="Shop name (used on reminders & statement)", value=SHOP_NAME)
 
-    with gr.Tab("🎙️ Speak"):
+    with gr.Tab("🎙️ Speak") as t_speak:
         with gr.Row():
             with gr.Column():
                 voice_lang = gr.Radio(["English / Pidgin", "Yoruba", "Hausa", "Igbo"], value="English / Pidgin",
@@ -538,7 +576,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         confirm.click(save, [transcript, f_type, f_item, f_qty, f_unit, f_amount, f_customer, f_due, status,
                              reply_lang], [saved, saved_audio])
 
-    with gr.Tab("📸 Snap your book"):
+    with gr.Tab("📸 Snap your book") as t_snap:
         gr.Markdown("Take a photo of a page of your record book or a receipt. Flat page, good light, whole page in view.")
         photo = gr.Image(sources=["upload", "webcam"], type="filepath", label="Book page / receipt")
         read_btn = gr.Button("Read photo", variant="primary")
@@ -553,7 +591,8 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         to_table.click(lines_to_table, photo_lines, [table_status, table])
         save_all.click(save_table, table, save_all_out)
 
-    with gr.Tab("📊 Today"):
+    with gr.Tab("📊 Today") as t_today:
+        ra_today, ra_today_audio = _read_aloud_row("today", app_lang)
         t_md, t_df = gr.Markdown(), gr.Dataframe(interactive=False)
         with gr.Row():
             del_id = gr.Number(label="Entry id to delete", precision=0)
@@ -561,7 +600,8 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         del_out = gr.Markdown()
         del_btn.click(do_delete, del_id, del_out).then(today_view, None, [t_md, t_df])
 
-    with gr.Tab("📒 Who owes me / who I owe"):
+    with gr.Tab("📒 Who owes me / who I owe") as t_owes:
+        ra_owes, _ = _read_aloud_row("owes", app_lang)
         d_md, d_df = gr.Markdown(), gr.Dataframe(interactive=False)
         gr.Markdown("### 📲 Send a polite reminder")
         with gr.Row():
@@ -573,10 +613,11 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         r_btn.click(make_reminder, [r_who, r_lang, shop], [r_msg, r_link])
         c_md, c_df = gr.Markdown(), gr.Dataframe(interactive=False)
 
-    with gr.Tab("🔮 Insights"):
+    with gr.Tab("🔮 Insights") as t_ins:
+        ra_ins, _ = _read_aloud_row("insights", app_lang)
         i_md, i_df = gr.Markdown(), gr.Dataframe(interactive=False)
 
-    with gr.Tab("💬 Ask my book"):
+    with gr.Tab("💬 Ask my book") as t_ask:
         gr.Markdown("### 🎤 Ask by voice, in your language\n_e.g. \"Ìrẹsì mélòó ni mo tà lóṣù yìí?\" · "
                     "\"Shinkafa nawa na sayar a wannan makon?\" · \"Osikapa ole ka m rere n'izu a?\" · "
                     "\"How many crates of eggs I sell yesterday?\"_")
@@ -594,7 +635,8 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
                                          "How much I go make next week?", "Who I owe?",
                                          "Ìrẹsì mélòó ni mo tà lóṣù yìí?"])
 
-    with gr.Tab("🏦 Credit profile"):
+    with gr.Tab("🏦 Credit profile") as t_credit:
+        ra_credit, _ = _read_aloud_row("profile", app_lang)
         p_md = gr.Markdown()
         y_btn = gr.Button("📒 My year so far (sales, spending by type, rent & levies)")
         y_md = gr.Markdown()
@@ -603,7 +645,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         st_file = gr.File(label="Business record statement (HTML — open and print to PDF)")
         st_btn.click(download_statement, shop, st_file)
 
-    with gr.Tab("🔒 My data"):
+    with gr.Tab("🔒 My data") as t_data:
         gr.Markdown("- Voice notes and photos are read and **deleted immediately**; only the text entries are stored.\n"
                     "- Voice notes are turned into text by **Intron** (a Nigerian speech-AI company) and deleted; the "
                     "AI that understands your notes and reads your photos runs on **our own GPU server (NVIDIA Brev)**.\n"
@@ -616,6 +658,13 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         wipe_btn.click(do_wipe, wipe_box, wipe_out)
 
     refresh = gr.Button("🔄 Refresh dashboards")
+    lang_targets = [t_speak, t_snap, t_today, t_owes, t_ins, t_ask, t_credit, t_data, go, confirm, ask_btn, refresh,
+                    audio, typed, consent, ra_today, ra_owes, ra_ins, ra_credit, reply_lang]
+    app_lang.change(switch_language, app_lang, lang_targets)
+    # tabs are drawn when first opened, so re-apply the language to their buttons on opening
+    for tab, btn, key in ((t_today, ra_today, "read"), (t_owes, ra_owes, "read"), (t_ins, ra_ins, "read"),
+                          (t_credit, ra_credit, "read"), (t_ask, ask_btn, "ask")):
+        tab.select(lambda lang, key=key: gr.update(value=ui_text.t(key, lang)), app_lang, btn)
     for trigger in (refresh.click, demo.load, confirm.click, save_all.click, note_save.click, wipe_btn.click):
         trigger(today_view, None, [t_md, t_df])
         trigger(debtors_view, None, [d_md, d_df, r_who])

@@ -52,7 +52,9 @@ def number_words(n):
             parts.append(f"{_under_1000(n // value)} {name}")
             n %= value
     if n:
-        parts.append(("and " if parts and n < 100 else "") + _under_1000(n))
+        if parts and n < 100:  # 216,050 -> "two hundred and sixteen thousand and fifty"
+            return ", ".join(parts) + " and " + _under_1000(n)
+        parts.append(_under_1000(n))
     return ", ".join(parts)
 
 

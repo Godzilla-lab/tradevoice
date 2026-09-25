@@ -66,6 +66,7 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
   (build.nvidia.com) alongside Brev OK, or must all AI run on Brev?
 
 ## Sunday checks (in the build sprints)
+- [ ] **Native speakers check the words:** `ui_text.py` (screen words), `readaloud.py` + `tts.py` TEMPLATES (spoken sentences), `note.py` EXTRA (tips). Fix wording directly in those files.
 - [ ] `python eval/test_guards.py` · `python eval/test_askbook.py` · `run_eval.py --cases eval/cases_team.jsonl` (team phrases)
 - [ ] Real handwritten notebook page through Snap your book → `eval/photos/hand1_mixed.jpg` + `.txt`
 - [ ] Try in the app: "I collect 5 carton indomie from Oga Emeka on credit, 60k, I go pay am Monday" · Who I owe ·
