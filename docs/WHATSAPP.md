@@ -93,7 +93,8 @@ Trader → "today" / "how market today?" → today's sales and expenses
 Trader → "language yoruba" → voice notes go to omniASR in Yoruba
 Trader → "statement"   → lender statement as a document
 Trader → "delete my data" → confirm, then erase
-First message ever → short welcome + consent: "Reply YES to let TradeVoice keep your records"
+First message ever → sign-up in chat: language → consent (YES) → shop name → voice replies on/off (see 4a)
+Trader → "I owe Alhaji Sani 120k, I go pay Friday" → 🧾 saved under "Who I owe"; "who I owe" → the list
 ```
 **Voice replies:** for traders who can't read, the bot also sends the confirmation as a **voice note**
 (`tts.speak(text, lang, fmt="ogg_opus")` with Spitch gives WhatsApp's voice-note format directly; upload it with
@@ -101,6 +102,31 @@ First message ever → short welcome + consent: "Reply YES to let TradeVoice kee
 instead of tapping buttons.
 
 Keep it **task-specific** (see policy): anything off-topic → "I only help with your shop records."
+
+## 4a. Accounts, sign-up and language (WhatsApp-first)
+**The WhatsApp number IS the account.** No app download, no password, no separate sign-up.
+- **Anyone** who messages the number gets the sign-up in the chat (in real life). **On Sunday only the 5 phones
+  allowlisted on Meta's test number can talk to it**, so register the team's phones + 1 spare for a judge.
+- **Sign-up in chat (first message ever), about 1 minute:**
+  1. Language: buttons **[Pidgin/English] [Yorùbá] [Hausa] [Igbo]** (WhatsApp allows up to 3 reply buttons, so use a
+     *list message* for 4 options)
+  2. Consent in that language: "Your records are yours. Reply YES to let TradeVoice keep them." (nothing is stored before YES)
+  3. Shop name
+  4. Voice replies? **[🔊 Voice note] [📝 Text only]**
+  Stored per phone number: `language`, `consent_at`, `shop_name`, `voice_replies`. Change anytime:
+  "change language", "voice off", "delete my data".
+- **Language decides the ears and the mouth:** voice notes go to Whisper (English/Pidgin) or omniASR (Yoruba, Hausa,
+  Igbo) by the trader's setting; replies (text + voice note) come back in the same language.
+  If the text they send looks like another language, ask once: "You wan switch to Hausa? [Yes] [No]".
+- **"A voice model per user", the cheap version:** we don't train a model per person (needs hours of audio + privacy
+  risk). Instead each trader's **own customer names and items** from their book are given to the speech model
+  (Whisper prompt) and to the AI, so it hears *their* "Alhaji Sani", "Mama Put", "paint of garri" correctly, and it
+  improves as the book grows. The language setting does the rest.
+- **Web dashboard = opened from WhatsApp.** "dashboard" or "👉 See more" → private link with a token that expires after 24 h.
+  Opening the website directly → type phone number → **one-time code sent on WhatsApp** → in. So only real WhatsApp
+  users have dashboards, and the phone number ties both together.
+- Data model: one table `traders(phone, language, consent_at, shop_name, voice_replies)` + `owner` column on
+  entries (the demo can use one owner, `SHOP_PHONE` in `.env`).
 
 ## 4b. What goes where (WhatsApp vs web dashboard)
 One shared record book: anything saved on WhatsApp shows on the dashboard instantly, and the other way round.
