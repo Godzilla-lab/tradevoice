@@ -19,6 +19,7 @@ don't know their real profit, and without records they can't get a loan from a m
 ## What TradeVoice does
 | Feature | What the trader does | What happens |
 |---|---|---|
+| 💬 **Talk to TradeVoice** | One conversation, switching language whenever they like: *"Mama Tunde dey owe me forty-five thousand"* → *"yes"* → *"Ṣé mo ní gbèsè lọ́wọ́ Alhaji?"* → *"Remind her tomorrow"* | Each message is routed (record / yes-no / question / reminder) and answered **in the language it was said in**, from the same book. It remembers who "her/him/am" is, fills a missing amount from the next message ("How much?" → "50k"), matches "Alhaji" to the right Alhaji (the one you owe vs the one who owes you), and sets reminders that show up on the day with the WhatsApp message ready. Works offline. `converse.py`, `eval/test_converse.py` (18/18). Typed messages switch language freely; for voice notes the trader taps the language once (the speech engine needs it) |
 | 🎙️ **Speak** | Sends a voice note: *"I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday"* (or in Yoruba, Hausa, Igbo) | **Intron Sahara** speech-to-text (built for Nigerian languages and mixed sentences) → text → **AI brain on our NVIDIA Brev GPU** → entry: *credit sale, ₦45,000, Mama Tunde, due Fri* → trader confirms |
 | 📸 **Snap your book** | Takes a photo of a notebook page or receipt | Vision AI reads every line → editable table → trader ticks and saves all |
 | 🔊 **Voice replies** | Can't read? Just listen | The app reads the entry back aloud in Pidgin, English, Yoruba, Hausa or Igbo before and after saving (Spitch, Nigerian TTS) |
@@ -67,6 +68,7 @@ deterministic and explainable, so the AI can never invent a number in your books
 | `asr_server/server.py` | Optional standalone speech API (FastAPI) for a Brev GPU, same engines as `asr.py` |
 | `vision.py` | Book photo → text lines (shrinks the image to fit NVIDIA's inline-image limit) |
 | `extract.py` | Text → entries. LLM first; rules as fallback and amount cross-check. `extract()` for one, `extract_many()` for many lines |
+| `converse.py` | 💬 One conversation over one book: routes each message (record, yes/no, question, reminder), follows the language per message, remembers who "her/him" is. Channel-free: the WhatsApp bot can call `reply()` as it is |
 | `ledger.py` | SQLite storage, daily summary, debtors (oldest debt paid first), customer credit check, record score |
 | `insights.py` | Forecast, best sellers, WhatsApp reminders, Ask-my-book, lender statement |
 | `seed_demo.py` | 3 weeks of **synthetic, flagged** demo history for the presentation |

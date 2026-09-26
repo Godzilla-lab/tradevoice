@@ -52,7 +52,8 @@ PERIOD_WORDS = {
 WHAT_WORDS = [
     # yo "èrè … mo jẹ" = profit I made (not "mo jẹ" = I owe): checked first
     ("profit", [r"\bere (melo+|elo+)\b", r"\bje ere\b", r"\bjere\b"]),
-    ("i_owe", [r"\b(i|we) (still )?(dey )?owe\b", r"\bwho i owe\b", r"\bmo je\b", r"\bina da bashi"]),
+    ("i_owe", [r"\b(i|we) (still )?(dey )?owe\b", r"\bwho i owe\b", r"\bmo je\b", r"\bmo ni gbese\b",
+               r"\bina da bashi", r"\bana m ji\b", r"\ba m ji\b"]),
     ("owed_to_me", [r"\bowe me\b", r"\bwho owe\b", r"\bdey owe me\b", r"\bje mi\b", r"\bgbese\b", r"\bbashi\b",
                     r"\bugwo\b", r"\bji m\b"]),
     ("profit", [r"\bprofit\b", r"\bgain\b", r"\b(make|made|making)\b", r"\bremain for me\b", r"\bjere\b",
@@ -65,7 +66,8 @@ WHAT_WORDS = [
                 r"\bzuru\b", r"\bgotara\b"]),
     ("spent", [r"\bspend\b", r"\bspent\b", r"\bexpense", r"\bna\b(?= owo)", r"\bkashe\b", r"\bmefuru\b"]),
 ]
-LANG_HINTS = {"Yoruba": ["mo", "melo", "elo", "loni", "yii", "ni", "ta", "iresi", "ose", "osu", "gbese"],
+LANG_HINTS = {"Yoruba": ["mo", "melo", "elo", "loni", "yii", "ni", "ta", "iresi", "ose", "osu", "gbese", "se", "lowo",
+                        "owo", "mi"],
               "Hausa": ["nawa", "na", "yau", "wannan", "sayar", "shinkafa", "mako", "wata", "bashi", "nake"],
               "Igbo": ["m", "ole", "taa", "rere", "ere", "ahia", "osikapa", "izu", "onwa", "ugwo", "ka"],
               "Pidgin": ["wetin", "dey", "don", "abeg", "how many i", "wey", "na im", "dis", "sell pass"]}
@@ -97,11 +99,21 @@ def _bounds(period, today):
             "all": (dt.date(2000, 1, 1), today)}.get(period, (dt.date(2000, 1, 1), today))
 
 
+# letters only one of our languages writes: a strong hint even in a short question
+_SCRIPT = {"Yoruba": "ẹṣẸṢ\u0300\u0301", "Igbo": "ịụṅỊỤṄ", "Hausa": "ɗƙɓƴƊƘƁ"}
+
+
 def guess_language(question):
     t = fold(question)
     words = set(re.findall(r"[a-z']+", t))
     score = {lang: sum(1 for h in hints if (h in words if " " not in h else h in t))
              for lang, hints in LANG_HINTS.items()}
+    import unicodedata
+
+    raw = unicodedata.normalize("NFD", question or "")
+    for lang, letters in _SCRIPT.items():
+        if any(ch in raw or unicodedata.normalize("NFD", ch) in raw for ch in letters if not ch.isspace()):
+            score[lang] += 2
     best = max(score, key=score.get)
     return best if score[best] >= 2 else ("Pidgin" if score["Pidgin"] else "English")
 
@@ -119,7 +131,7 @@ def parse_offline(question, vocab=None):
     for it in (vocab or {}).get("items") or []:  # the trader's own item names
         if item is None and it and re.search(rf"\b{re.escape(fold(it))}\b", t):
             item = it
-    customer = next((n for n in (vocab or {}).get("names") or [] if fold(n) in t), None)
+    customer = find_name(question, (vocab or {}).get("names"))
     if customer and what == "bought" and re.search(rf"{re.escape(fold(customer))}\s+(buy|bought|take|took|collect)", t):
         what = "sold"  # "Did Mama Tunde buy…" = what I sold TO her
     how_many = re.search(r"\bhow (many|much)\b|\bmelo\b|\belo\b|\bnawa\b|\bole\b|\bego ole\b|\bhow e be\b", t)
@@ -132,6 +144,24 @@ def parse_offline(question, vocab=None):
                        or asks_sales) else "other"
     return {"kind": kind, "what": what or "sold", "item": item, "customer": customer, "period": period,
             "language": guess_language(question)}
+
+
+def find_name(text, names):
+    """A known name in the text: the full name ("Alhaji Sani"), else the words of it that were said ("Alhaji"),
+    which run() matches against the right list (people I owe vs people who owe me)."""
+    t = set(re.findall(r"[a-z']+", fold(text)))
+    full = next((n for n in names or [] if fold(n) in fold(text)), None)
+    if full:
+        return full
+    best = max(((len(said), " ".join(said)) for n in names or []
+                for said in [[w for w in n.split() if fold(w) in t]] if said), default=None)
+    return best[1] if best else None
+
+
+def same_person(asked, name):
+    """"Alhaji" matches "Alhaji Sani"; "Mama Tunde" matches "mama tunde"."""
+    a, n = ledger.customer_key(asked).split(), ledger.customer_key(name).split()
+    return a == n or (a and all(w in n for w in a))
 
 
 def parse(question, vocab=None):
@@ -165,7 +195,7 @@ def run(q, today=None):
     if q["what"] in ("owed_to_me", "i_owe"):
         people = ledger.debtors(today) if q["what"] == "owed_to_me" else ledger.creditors(today)
         if q.get("customer"):
-            people = [p for p in people if ledger.customer_key(p["customer"]) == ledger.customer_key(q["customer"])]
+            people = [p for p in people if same_person(q["customer"], p["customer"])]
         return {"people": [(p["customer"], p["balance"]) for p in people],
                 "money": sum(p["balance"] for p in people)}
     if q["what"] in ("profit", "cash_in"):
@@ -189,7 +219,7 @@ def run(q, today=None):
         words = [fold(q["item"])] + [w for ws in ITEM_WORDS.get(q["item"], {}).values() for w in ws]
         rows = [r for r in rows if any(w in fold(f"{r['item'] or ''} {r['raw_text'] or ''}") for w in words)]
     if q.get("customer"):
-        rows = [r for r in rows if ledger.customer_key(r["customer"]) == ledger.customer_key(q["customer"])]
+        rows = [r for r in rows if r["customer"] and same_person(q["customer"], r["customer"])]
     units = {}
     for r in rows:
         if r["quantity"]:

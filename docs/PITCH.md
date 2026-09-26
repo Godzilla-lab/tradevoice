@@ -31,8 +31,13 @@ The jury picks the country top 3 **from the submitted video and materials**. Onl
   partner with a microfinance bank/cooperative to accept the statement.
 
 ## 30-second live demo (if we make the top 3)
-Speak (Pidgin voice note live) → credit check warning → Who owes me → WhatsApp reminder → statement. Have the demo data
-seeded and the voice note pre-recorded as backup in case the room is noisy.
+**💬 Talk to TradeVoice, one conversation, three languages, one book:**
+1. Pidgin voice note: *"Mama Tunde dey owe me forty-five thousand."* → "I hear say… talk yes" → tap **✅ Yes** → "Now Mama Tunde dey owe you ₦… total."
+2. Tap Yoruba, speak: *"Ṣé mo ní gbèsè lọ́wọ́ Alhaji?"* → answered in Yoruba, voice note in Yoruba: *"O jẹ Alhaji Sani ní ₦60,000."* (it knew which Alhaji: the one you owe)
+3. *"Remind her tomorrow."* → it knows "her" is Mama Tunde → reminder set + WhatsApp message ready.
+Line to say: *"Not three features. One conversation that switches language and keeps the same financial state."*
+Backup: type the lines (typing switches language automatically); have the demo data seeded and the voice notes
+pre-recorded in case the room is noisy.
 
 ## Roadmap slide / Q&A answers (researched, NOT in the app yet: see `docs/FINANCE_RESEARCH.md`)
 Say: *"We researched the new 2026 tax laws and traders' money problems. We only put facts in the app after a tax

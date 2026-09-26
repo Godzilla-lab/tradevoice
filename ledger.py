@@ -18,6 +18,15 @@ CREATE TABLE IF NOT EXISTS entries (
     raw_text TEXT, engine TEXT, demo INTEGER NOT NULL DEFAULT 0
 )"""
 
+# "Remind Mama Tunde tomorrow": on that day the app (or WhatsApp bot) tells the TRADER, with the message ready;
+# nothing is ever sent to the customer automatically.
+REMINDERS = """
+CREATE TABLE IF NOT EXISTS reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer TEXT NOT NULL, remind_on TEXT NOT NULL, language TEXT,
+    created_at TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0
+)"""
+
 
 def conn():
     c = sqlite3.connect(DB_PATH)
@@ -30,6 +39,7 @@ def conn():
             c.execute("INSERT INTO entries SELECT * FROM entries_old")
             c.execute("DROP TABLE entries_old")
     c.execute(SCHEMA)
+    c.execute(REMINDERS)
     return c
 
 
@@ -85,7 +95,35 @@ def delete_entry(entry_id):
 
 def wipe():
     with conn() as c:
+        c.execute("DELETE FROM reminders")
         return c.execute("DELETE FROM entries").rowcount
+
+
+def add_reminder(customer, remind_on, language=None):
+    with conn() as c:
+        c.execute("DELETE FROM reminders WHERE lower(customer)=? AND done=0", (customer_key(customer),))
+        return c.execute("INSERT INTO reminders (customer, remind_on, language, created_at) VALUES (?,?,?,?)",
+                         (customer, str(remind_on), language,
+                          dt.datetime.now().isoformat(timespec="seconds"))).lastrowid
+
+
+def reminders(today=None, due_only=False):
+    """Open reminders (due_only: those for today or earlier), each with what the person still owes."""
+    today = (today or dt.date.today()).isoformat()
+    with conn() as c:
+        rows = [dict(r) for r in c.execute("SELECT * FROM reminders WHERE done=0 ORDER BY remind_on")]
+    owed = {customer_key(d["customer"]): d["balance"] for d in debtors()}
+    out = []
+    for r in rows:
+        r["balance"] = owed.get(customer_key(r["customer"]), 0)
+        if r["balance"] and (not due_only or r["remind_on"] <= today):
+            out.append(r)
+    return out
+
+
+def reminder_done(reminder_id):
+    with conn() as c:
+        return c.execute("UPDATE reminders SET done=1 WHERE id=?", (reminder_id,)).rowcount
 
 
 def day_summary(day=None):

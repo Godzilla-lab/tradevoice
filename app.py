@@ -315,7 +315,7 @@ def save_table(df, engine="photo"):
 
 def today_view():
     s = ledger.day_summary()
-    md = (f"### Today ({s['date']}) — {s['count']} entries\n"
+    md = (reminders_md() + "\n\n" if reminders_md() else "") + (f"### Today ({s['date']}) — {s['count']} entries\n"
           f"| | |\n|---|---|\n"
           f"| Sales | **{naira(s['sales'])}** (cash {naira(s['cash_sales'])}, credit {naira(s['credit_sales'])}) |\n"
           f"| Debts collected | {naira(s['payments_received'])} |\n"
@@ -470,6 +470,56 @@ def voice_ask(consent, audio_path, voice_lang, typed):
     return f"🎙️ **You asked:** {question}\n\n### {text}\n\n{how}", audio
 
 
+def talk(consent, audio_path, voice_lang, typed, history, state, shop):
+    """💬 One conversation: record, ask, remind, in any of our languages, message after message."""
+    import converse
+
+    history = list(history or [])
+    if not consent:
+        return history + [{"role": "assistant", "content": "⚠️ Please tick the consent box first."}], state, None, \
+            gr.update(), gr.update()
+    text = (typed or "").strip()
+    if audio_path:
+        audio_path = _own_copy(audio_path)
+        if not audio_path:
+            return history + [{"role": "assistant", "content": GONE}], state, None, gr.update(), None
+        try:
+            from asr import transcribe
+
+            text = transcribe(audio_path, voice_lang, vocab=ledger.known_words())["text"]
+        except Exception as e:  # noqa: BLE001
+            return (history + [{"role": "assistant", "content": f"⚠️ Could not hear that ({type(e).__name__}). "
+                                                                "Type it instead."}], state, None, gr.update(), None)
+        finally:
+            _forget(audio_path)
+    if not text:
+        return history, state, None, gr.update(), None
+    state = state or converse.new_state()
+    r = converse.reply(text, state, shop=shop or SHOP_NAME)
+    shown = r["text"]
+    if r.get("english"):
+        shown += f"\n\n_🇬🇧 {r['english']}_"
+    if r.get("message"):
+        shown += (f"\n\n✉️ Message ready for them:\n> {r['message']}\n\n[📲 Open in WhatsApp]({r['link']}) "
+                  "(you choose the contact and press send)")
+    voice = None
+    try:
+        out = tts.speak(r["spoken"], r["lang"] if r["lang"] in tts.REPLY_LANGS else "Pidgin")
+        voice = out["path"] if out else None
+    except Exception as e:  # noqa: BLE001 - voice is a bonus
+        print(f"chat voice failed: {type(e).__name__}: {e}")
+    history += [{"role": "user", "content": ("🎙️ " if audio_path else "") + text},
+                {"role": "assistant", "content": shown}]
+    return history, state, voice, "", None
+
+
+def reminders_md():
+    import converse
+
+    due = converse.due_today()
+    return "\n".join(due) if due else ""
+
+
 def read_aloud(screen, lang):
     """🔊 button: the screen as a short voice note in the chosen language (numbers from the book)."""
     import readaloud
@@ -497,7 +547,7 @@ def _read_aloud_row(screen, app_lang):
 def switch_language(lang):
     """🌍 App language: tab names, main buttons and consent in that language; replies follow it."""
     t = lambda k: ui_text.t(k, lang)  # noqa: E731
-    return [gr.update(label=t("tab_speak")), gr.update(label=t("tab_snap")), gr.update(label=t("tab_today")),
+    return [gr.update(label=t("tab_talk")), gr.update(label=t("tab_speak")), gr.update(label=t("tab_snap")), gr.update(label=t("tab_today")),
             gr.update(label=t("tab_owes")), gr.update(label=t("tab_insights")), gr.update(label=t("tab_ask")),
             gr.update(label=t("tab_credit")), gr.update(label=t("tab_data")),
             gr.update(value=t("process")), gr.update(value=t("confirm")), gr.update(value=t("ask")),
@@ -534,6 +584,33 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
     app_lang = gr.Radio(ui_text.LANGS, value="English", label="🌍 App language (the 🔊 buttons speak it too)")
     consent = gr.Checkbox(label=CONSENT, value=False)
     shop = gr.Textbox(label="Shop name (used on reminders & statement)", value=SHOP_NAME)
+
+    with gr.Tab("💬 Talk to TradeVoice") as t_talk:
+        gr.Markdown("Talk to your book like a person, in any of our languages, and switch whenever you like: "
+                    "tell it a sale or a debt, ask it a question, ask it to remind you. _e.g._ "
+                    "\"Mama Tunde dey owe me forty-five thousand\" → \"yes\" → \"Ṣé mo ní gbèsè lọ́wọ́ Alhaji?\" → "
+                    "\"Remind Mama Tunde tomorrow\"")
+        talk_due = gr.Markdown()
+        talk_state = gr.State(None)
+        talk_box = gr.Chatbot(height=420, show_label=False)
+        talk_voice = gr.Audio(label="🔊 Reply", autoplay=True, interactive=False)
+        with gr.Row():
+            talk_audio = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Voice note")
+            with gr.Column():
+                talk_lang = gr.Radio(list(VOICE_TO_REPLY), value="English / Pidgin",
+                                     label="I am speaking (for voice notes; typing works in any language)")
+                talk_typed = gr.Textbox(label="…or type it", placeholder="Mama Tunde dey owe me 45k")
+                with gr.Row():
+                    talk_send = gr.Button("Send", variant="primary")
+                    talk_yes = gr.Button("✅ Yes, save")
+                    talk_no = gr.Button("❌ No")
+        talk_in = [consent, talk_audio, talk_lang, talk_typed, talk_box, talk_state, shop]
+        talk_out = [talk_box, talk_state, talk_voice, talk_typed, talk_audio]
+        talk_events = [talk_send.click(talk, talk_in, talk_out), talk_typed.submit(talk, talk_in, talk_out)]
+        talk_events += [talk_yes.click(talk, [consent, gr.State(None), talk_lang, gr.State("yes"), talk_box, talk_state, shop],
+                       talk_out),
+                        talk_no.click(talk, [consent, gr.State(None), talk_lang, gr.State("no"), talk_box, talk_state,
+                                             shop], talk_out)]
 
     with gr.Tab("🎙️ Speak") as t_speak:
         with gr.Row():
@@ -658,19 +735,20 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         wipe_btn.click(do_wipe, wipe_box, wipe_out)
 
     refresh = gr.Button("🔄 Refresh dashboards")
-    lang_targets = [t_speak, t_snap, t_today, t_owes, t_ins, t_ask, t_credit, t_data, go, confirm, ask_btn, refresh,
+    lang_targets = [t_talk, t_speak, t_snap, t_today, t_owes, t_ins, t_ask, t_credit, t_data, go, confirm, ask_btn, refresh,
                     audio, typed, consent, ra_today, ra_owes, ra_ins, ra_credit, reply_lang]
     app_lang.change(switch_language, app_lang, lang_targets)
     # tabs are drawn when first opened, so re-apply the language to their buttons on opening
     for tab, btn, key in ((t_today, ra_today, "read"), (t_owes, ra_owes, "read"), (t_ins, ra_ins, "read"),
                           (t_credit, ra_credit, "read"), (t_ask, ask_btn, "ask")):
         tab.select(lambda lang, key=key: gr.update(value=ui_text.t(key, lang)), app_lang, btn)
-    for trigger in (refresh.click, demo.load, confirm.click, save_all.click, note_save.click, wipe_btn.click):
+    for trigger in [refresh.click, demo.load, confirm.click, save_all.click, note_save.click, wipe_btn.click] + [e.then for e in talk_events]:
         trigger(today_view, None, [t_md, t_df])
         trigger(debtors_view, None, [d_md, d_df, r_who])
         trigger(creditors_view, None, [c_md, c_df])
         trigger(insights_view, None, [i_md, i_df])
         trigger(profile_view, None, p_md)
+        trigger(reminders_md, None, talk_due)
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=int(os.getenv("PORT", 7860)),

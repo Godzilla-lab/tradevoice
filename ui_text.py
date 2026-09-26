@@ -6,6 +6,8 @@ check and fix this file (one place for all of it). Anything not listed here stay
 LANGS = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"]
 
 UI = {
+    "tab_talk": ["💬 Talk to TradeVoice", "💬 Yarn with TradeVoice", "💬 Bá TradeVoice sọ̀rọ̀", "💬 Yi hira da TradeVoice",
+                 "💬 Gwa TradeVoice okwu"],
     "tab_speak": ["🎙️ Speak", "🎙️ Talk am", "🎙️ Sọ̀rọ̀", "🎙️ Yi magana", "🎙️ Kwuo okwu"],
     "tab_snap": ["📸 Snap your book", "📸 Snap your book", "📸 Ya fọ́tò ìwé rẹ", "📸 Ɗauki hoton littafinka",
                  "📸 See foto akwụkwọ gị"],
