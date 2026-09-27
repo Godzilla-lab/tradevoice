@@ -72,7 +72,13 @@ CASES = [
      {"type": "credit_purchase", "amount": 7500, "customer": "Hajiya Amina"}, {"type": "payment_received"}),
     ("ehn ere m akpa agwa 5 nye mama tunde 7500 ehn o ji m ugwo o ga-akwu na sondee",
      {"type": "sale", "amount": 7500, "customer": "Mama Tunde"}, {"type": "credit_sale", "due_date": "2026-10-04"}),
+    # 27 Sep, 14B on Brev: no amount was said, the AI made one up -> keep it empty and ask
+    ("Mo ta káàtọ̀nù indomie 4 fún Madam Ngozi, gbèsè ni, yóò san lọ́jọ́ Ẹtì",
+     {"type": "credit_sale", "amount": 48000, "customer": "Madam Ngozi"}, {"amount": None}),
+    ("Ere m katọn indomie 5 nye Aunty Kemi, ọ ji m ụgwọ, ọ ga-akwụ na Sọndee",
+     {"type": "credit_sale", "amount": 5, "customer": "Aunty Kemi"}, {"amount": None}),
     # must NOT be changed: the AI was right
+    ("Mo ta ẹyin fún Bisi ní ẹgbẹ̀rún mẹ́wàá", {"type": "sale", "amount": 10000, "customer": "Bisi"}, {"amount": 10000}),
     ("Aunty Kemi paid 26k out of the 80k she owes, 54k remaining",
      {"type": "payment_received", "amount": 26000, "customer": "Aunty Kemi"}, {"amount": 26000}),
     ("Iya Bisi don pay 12000 wey she owe me", {"type": "payment_received", "amount": 12000, "customer": "Iya Bisi"},

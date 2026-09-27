@@ -142,3 +142,13 @@ in the model list and eating the 30 s budget. → re-check `check_models.py`, re
 - Guard added: when the rules found a **clear word** for the type, the rules decide the type; the AI fills the
   rest. A customer name must be said as a name (capital, after a title, or where a person goes). Expenses have no
   customer. 10 of these mistakes are now permanent tests (`eval/test_guards.py`, 32/32).
+
+## 27 Sep: AI on our Brev GPU, Qwen2.5-14B-Instruct-AWQ (vLLM) + guards: the headline run
+- `cases_hard` (208 notes, 5 languages): **205/208 = 99% all fields right (95%: 96–100%)**, type macro-F1 1.00,
+  **0 wrong amounts written**, median **995 ms** per note (90% under 1.2 s) on the Brev GPU.
+  English, Pidgin, Hausa 100%; Yoruba 97%; Igbo 95%.
+- The 3 misses: no amount was said and the AI made one up (3/14 "invented"). Guard added after this run: an amount
+  that is not in the words (digits or number words) is dropped and TradeVoice asks "How much?"
+  (`eval/test_guards.py`, 35/35). Re-run on Brev to confirm.
+- Compared with the 7B model on the same GPU earlier today: 7B mixed up who paid whom in Hausa/Igbo (fixed by
+  guards); the 14B made none of those mistakes.

@@ -491,6 +491,12 @@ def _check_guard(rec, rules, text, today):
     digits = _digits_amount(_PHONE_RE.sub(" ", text))
     special = unit_total(text) or (parse_amount(text) if _CORRECT_RE.search(text.lower()) or digits is None else None)
     amt = rec.get("amount")
+    # no amount was said at all (not in digits, not in words): the AI must not make one up, ask instead
+    if amt is not None and rules["amount"] is None and float(amt) not in said:
+        rec["amount"] = None
+        rec["note"] = ((rec.get("note") or "") + " No amount heard. How much?").strip()
+        rec["confidence"] = min(rec.get("confidence") or 0.5, 0.5)
+        amt = None
     if amt is not None and rules["amount"] is not None and float(amt) != float(rules["amount"]):
         if special and float(rules["amount"]) == float(special):
             _fix(rec, "amount", rules["amount"], f"Amount set to {rules['amount']:,} (AI said {amt:,}).")
