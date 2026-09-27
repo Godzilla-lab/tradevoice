@@ -98,7 +98,11 @@ async function api(path, opts = {}) {
   try { body = await r.json(); } catch {}
   if (r.status === 401 && body && body.login && !path.startsWith("/api/auth/me")) { showLogin(); }
   if (r.status === 423) { setUnlock(""); showPin(); }
-  if (!r.ok) throw new Error((body && (body.error || (typeof body.detail === "string" && body.detail))) || t("error", "Something went wrong."));
+  if (!r.ok) {
+    const err = new Error((body && (body.error || body.warning || (typeof body.detail === "string" && body.detail))) || t("error", "Something went wrong."));
+    err.status = r.status; err.body = body;
+    throw err;
+  }
   return body;
 }
 const post = (path, data) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -257,9 +261,12 @@ function confirmCard(d) {
     <div class="cf-type"><span class="ricon ${cls}">${cls === "in" ? "↓" : cls === "out" ? "↑" : "⏳"}</span>${esc(TYPES[d.type]?.[1] || d.type)}${q("type")}</div>
     <dl class="cf">${rows.map(([f, k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}${q(f)}</dd></div>`).join("")}</dl>
     ${why ? `<ul class="why">${why}</ul>` : ""}${d.note && !why ? `<ul class="why"><li>${esc(d.note)}</li></ul>` : ""}
+    ${d.limit && d.limit.over ? `<div class="overlim"><b>${esc(t("over_limit_title", "Above the credit limit"))}</b>
+      ${esc(t("over_limit_body", "{who} owes {bal}. This sale makes it {after}. Limit: {lim}.").replace("{who}", d.limit.name)
+        .replace("{bal}", naira(d.limit.balance)).replace("{after}", naira(d.limit.after)).replace("{lim}", naira(d.limit.limit)))}</div>` : ""}
     <div class="cf-btns ${noAmount ? "two" : ""}">${noAmount
       ? `<button class="cf-add" data-cf="change">${esc(t("add_amount", "Add amount"))}</button>`
-      : `<button class="cf-save" data-cf="save">${esc(t("save", "Save"))}</button><button data-cf="change">${esc(t("change", "Change"))}</button>`}
+      : `<button class="cf-save ${d.limit && d.limit.over ? "risky" : ""}" data-cf="save">${esc(d.limit && d.limit.over ? t("sell_anyway", "Sell anyway") : t("save", "Save"))}</button><button data-cf="change">${esc(t("change", "Change"))}</button>`}
       <button data-cf="cancel">${esc(t("cancel", "Cancel"))}</button></div>
     <p class="cf-note">${esc(t("nothing_saved", "Nothing is saved until you confirm."))}</p></div>`;
 }
@@ -547,7 +554,8 @@ function recordRow(e, today) {
 }
 
 async function loadHome() {
-  const [d, debts, ins] = await Promise.all([api("/api/today"), api("/api/debts"), api("/api/insights").catch(() => ({}))]);
+  const [d, debts, ins, rep] = await Promise.all([api("/api/today"), api("/api/debts"), api("/api/insights").catch(() => ({})),
+                                                  api("/api/repeats").catch(() => ({ repeats: [] }))]);
   const s = d.summary, net = s.money_in - s.money_out;
   const owed = debts.owed_to_me.reduce((a, x) => a + x.balance, 0), mine = debts.i_owe.reduce((a, x) => a + x.balance, 0);
   const late = debts.owed_to_me.filter((x) => x.overdue).length;
@@ -585,6 +593,11 @@ async function loadHome() {
       <button class="minib" data-go="customers">${svg("bell", 20)}<span>${esc(t("collect", "Collect"))}</span></button>
       <button class="minib" data-share>${svg("doc", 20)}<span>${esc(t("lender_report", "Lender report"))}</span></button>
     </div>
+    ${rep.repeats.length ? `<section class="sect"><h2>${esc(t("usual_today", "Usual orders today"))}</h2>
+      ${rep.repeats.slice(0, 4).map((p) => `<div class="lrow"><span class="ricon in">↻</span>
+        <span class="main"><span class="t">${esc(p.customer)}</span><span class="s">${esc(usualWhat(p))} · <span class="money">${naira(p.amount)}</span></span></span>
+        <button class="textbtn" data-usual='${esc(JSON.stringify({ customer_id: p.customer_id, item: p.item }))}'>${esc(t("record_it", "Record it"))}</button></div>`).join("")}
+      <p class="note">${esc(t("usual_note", "They bought this on the same day for {n} weeks. Nothing is saved until you confirm.").replace("{n}", rep.repeats[0].times))}</p></section>` : ""}
     ${f ? `<section class="sect"><h2>${esc(t("next_week", "Next 7 days"))}</h2>
       <p class="plain"><b class="money">${naira(f.week_sales)}</b> ${esc(t("expected", "expected"))} · ${esc(t("busiest", "Busiest day"))}: <b>${esc(wd(f.busiest_day))}</b>
       <button class="textbtn inline" data-go="insights">${esc(t("see_all", "See all"))}</button></p></section>` : ""}
@@ -593,7 +606,20 @@ async function loadHome() {
   $("#homeBody").querySelector(".ask").onclick = () => openAssist("today");
   $("#homeBody").querySelector("[data-snap]").onchange = (e) => { const f2 = e.target.files[0]; e.target.value = ""; if (f2) { showTab("talk"); sendPhoto(f2); } };
 }
+const usualWhat = (p) => {
+  let u = p.unit || ""; if (p.quantity && p.quantity !== 1 && u && !/s$/.test(u)) u += "s";
+  if (!["English", "Pidgin"].includes(S.lang)) return `${p.item}${p.quantity ? ` × ${p.quantity}${u ? " " + u : ""}` : ""}`;
+  return `${p.quantity ? p.quantity + " " : ""}${u ? u + " of " : ""}${p.item}`;
+};
 document.addEventListener("click", async (e) => {
+  const u = e.target.closest("[data-usual]");
+  if (u) {   // the usual order becomes a DRAFT on the confirmation card
+    try {
+      const r = await post("/api/repeats/draft", { session: S.session, lang: S.lang, ...JSON.parse(u.dataset.usual) });
+      showTab("talk"); showReply(r);
+    } catch (err) { toast(err.message); }
+    return;
+  }
   if (e.target.closest("[data-share]")) return shareSheet();
   if (e.target.closest("[data-sample]")) {
     try { await post("/api/demo_data", {}); toast(`✓ ${t("sample_added", "Sample records added")}`); loadHome(); } catch (err) { toast(err.message); }
@@ -620,7 +646,7 @@ document.addEventListener("click", (ev) => {
 });
 
 async function loadInsights() {
-  const { forecast: f, top } = await api("/api/insights");
+  const { forecast: f, top, margins = [], suppliers = [] } = await api("/api/insights");
   if (!f) { $("#insightsBody").innerHTML = `<section class="welcome-empty"><h2>${esc(t("empty_insights_title", "Not enough records yet"))}</h2>
     <p>${esc(t("empty_insights", "Record a few days of sales and TradeVoice will show your trends."))}</p>
     <button class="tell" data-go="talk">${svg("mic", 24)}<span>${esc(t("tell_tv", "Tell TradeVoice"))}</span></button></section>`; return; }
@@ -636,7 +662,28 @@ async function loadInsights() {
     <section class="sect"><h2>${esc(t("best_sellers", "Best sellers"))} <small>· 14 days</small></h2>
       ${top.map((x, i) => `<div class="lrow"><span class="when">${i + 1}</span><span class="main"><span class="t">${esc(x.item)}</span>
         <span class="s">${x.qty && x.unit ? `${Math.round(x.qty)} ${esc(x.unit)}${x.qty !== 1 ? "s" : ""}` : ""}</span></span><span class="amt">${naira(x.revenue)}</span></div>`).join("")}</section>
+    ${marginsHtml(margins)}${suppliersHtml(suppliers)}
     <p class="note">${esc(t("forecast_note", ""))}</p>`;
+}
+
+// 🏷️ what each item really earns: selling price per unit vs buying price per unit (only where quantities were said)
+function marginsHtml(ms) {
+  const per = (u) => t("per_unit", "per {u}").replace("{u}", u || t("one", "one"));
+  return `<section class="sect"><h2>${esc(t("margin_title", "Margin per item"))}</h2>${ms.length ? ms.slice(0, 6).map((m) => `
+    <div class="mrow"><div class="mtop"><b>${esc(m.item)}</b><span class="amt ${m.margin >= 0 ? "in" : "out"}">${m.margin >= 0 ? "+" : "−"}${naira(Math.abs(m.margin))} <small>${esc(per(m.unit))}</small></span></div>
+      <div class="s">${esc(t("sell_buy", "Sell {s} · buy {b}").replace("{s}", naira(m.sell)).replace("{b}", naira(m.buy)))} · ${m.pct}%</div>
+      <div class="meter thin"><i style="width:${Math.max(3, Math.min(100, m.pct * 2))}%"></i></div></div>`).join("")
+    : `<p class="muted">${esc(t("margin_empty", "Say how many you buy and sell (\"I buy 10 bags rice 120k\") and TradeVoice shows what each item earns you."))}</p>`}</section>`;
+}
+
+// 🏪 who sells each item cheapest (from purchases where the supplier was named)
+function suppliersHtml(ss) {
+  const multi = ss.filter((x) => x.offers.length > 1);
+  if (!ss.length) return "";
+  const list = (multi.length ? multi : ss).slice(0, 4);
+  return `<section class="sect"><h2>${esc(t("cheapest_title", "Cheapest supplier"))}</h2>${list.map((x) => `
+    <div class="mrow"><div class="mtop"><b>${esc(x.item)}</b>${x.saving ? `<span class="save-tag">${esc(t("save_per", "Save {m} per {u}").replace("{m}", naira(x.saving)).replace("{u}", x.unit || t("one", "one")))}</span>` : ""}</div>
+      ${x.offers.slice(0, 3).map((o, i) => `<div class="offer ${i === 0 ? "best" : ""}"><span>${i === 0 ? "✓ " : ""}${esc(o.supplier)}</span><span class="amt">${naira(o.price)} <small>/${esc(x.unit || t("one", "one"))}</small></span></div>`).join("")}</div>`).join("")}</section>`;
 }
 
 // 👤 Me: who is logged in, the score + lender statement, the year + tax, then settings
@@ -869,7 +916,7 @@ function openAssist(screen) {
   sheet(`<div class="assist">
     <div class="ahead"><h3>${esc(t("assist_title", "Ask TradeVoice"))}</h3><button class="icon" id="aClose" aria-label="Close">✕</button></div>
     <div class="alog" id="alog"></div>
-    <div class="aex"><span>${esc(t("try_asking", "Try asking"))}</span><div class="chips" id="aex">${[1, 2, 3].map((i) => {
+    <div class="aex"><span>${esc(t("try_asking", "Try asking"))}</span><div class="chips" id="aex">${[1, 2, 3, 4].map((i) => {
       const key = `ex_${screen === "today" || screen === "talk" ? "today" : screen}_${i}`;
       const who = (typeof C !== "undefined" && (C.list.find((c) => c.owes_me > 0) || C.list[0])?.name) || "Mama Tunde";
       const q = t(key).replace("Mama Tunde", who);  // the trader's own customer, not a stranger

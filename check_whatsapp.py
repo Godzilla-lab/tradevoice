@@ -110,4 +110,26 @@ if seen:
     elif seen.get("bad_signature"):
         print("   → Empty WHATSAPP_APP_SECRET in .env (or paste the right one), then restart the app.")
 
+print("\n6) Voice notes on WhatsApp")
+try:
+    import whatsapp  # noqa: E402
+
+    path = whatsapp.voice_file("Hello, I am your book.", "Pidgin")
+    if path:
+        size = os.path.getsize(path)
+        os.remove(path)
+        say(size > 1000, f"A voice note can be made ({size} bytes, ogg)")
+    else:
+        say(False, "No voice set up", "SPITCH_API_KEY in .env, and: .venv/bin/pip install spitch")
+except Exception as e:  # noqa: BLE001
+    say(False, f"Making a voice note failed: {type(e).__name__}: {e}"[:300],
+        "If it mentions ffmpeg: sudo apt-get install -y ffmpeg. If Spitch: check SPITCH_API_KEY.")
+if seen.get("last_voice_error"):
+    print(f"   Last voice error while replying: {seen['last_voice_error']}")
+    if "upload" in seen["last_voice_error"]:
+        print("   → Meta refused the audio upload: check the token has whatsapp_business_messaging permission.")
+if seen:
+    print(f"   Voice notes sent since the app started: {seen.get('voice_sent', 0)}")
+print("   (Voice replies are on by default; a trader can send 'voice off' / 'voice on'.)")
+
 print("\n" + ("All good: send 'hi' to the test number." if not problems else f"{problems} thing(s) to fix above."))

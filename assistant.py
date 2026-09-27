@@ -111,6 +111,10 @@ def explain(screen, lang="English", today=None):
 
 # Questions the book answers exactly (no AI): the example questions on each screen, in the five languages.
 INTENTS = [
+    ("cheapest", r"cheap|best price|lowest price|which supplier|who (dey )?sell .{0,20}(less|lower)|where (i|to) (go )?buy|"
+                 r"wo ni o din|mafi arha|kacha ọnụ ala|onye na-ere .{0,10}ọnụ ala"),
+    ("margin", r"\bmargins?\b|profit (on|for|per|from)|most profit|gain (on|for|per)|wetin i dey gain|which item .{0,20}(profit|gain)|"
+               r"ere lori|riba (a kan|daga)|uru (na|n')"),
     ("owe_most", r"owes? (me )?(the )?most|owe (me )?pass|biggest debt|highest debt|who (dey )?owe me pass|ju lo|fi yawa|kacha"),
     ("late", r"\b(who|which).{0,20}\b(late|overdue)\b|\blate (people|customers)|don pass (date|time)|ti pe|jinkiri|egbu oge"),
     ("i_owe", r"what do i (need to |have to )?pay|who do i owe|wetin i (go |dey )?pay|i owe who|my debts?\b|mo je|ana bina|a m ji"),
@@ -120,6 +124,26 @@ INTENTS = [
     ("score", r"(my|record|credit) score|score (be|am)|ami mi|makina|akara m"),
 ]
 SAYS = {
+    "margin_one": {"English": "{item}: you sell at {sell} and buy at {buy} per {unit}, so {m} for you on each {unit} ({pct}%).",
+                   "Pidgin": "{item}: you dey sell {sell}, you dey buy {buy} per {unit}, so {m} dey enter your pocket for each {unit} ({pct}%).",
+                   "Yoruba": "{item}: o ń tà á ní {sell}, o ń rà á ní {buy} fún {unit} kan; èrè {m} lórí {unit} kọ̀ọ̀kan ({pct}%).",
+                   "Hausa": "{item}: kana sayarwa {sell}, kana saya {buy} kowane {unit}; riba {m} a kan kowane {unit} ({pct}%).",
+                   "Igbo": "{item}: ị na-ere ya {sell}, ị na-azụ ya {buy} otu {unit}; uru {m} n'otu {unit} ọ bụla ({pct}%)."},
+    "margin_top": {"English": "Most profit per item: {list}.", "Pidgin": "Item wey dey give you pass: {list}.",
+                   "Yoruba": "Èrè tó pọ̀ jù lórí ọjà: {list}.", "Hausa": "Kayan da suka fi riba: {list}.", "Igbo": "Ihe na-enye uru kacha: {list}."},
+    "margin_none": {"English": "To see margins, say how many you buy and sell: \"I buy 10 bags rice 120k\", \"I sold 2 bags rice 30k\".",
+                    "Pidgin": "Make I fit show your gain, talk how many you buy and sell: \"I buy 10 bags rice 120k\", \"I sell 2 bags rice 30k\".",
+                    "Yoruba": "Kí n tó lè fi èrè hàn, sọ iye tí o rà àti tí o tà: \"Mo ra àpò ìrẹsì 10 ní 120k\".",
+                    "Hausa": "Don in nuna riba, faɗi yawan da ka saya da wanda ka sayar: \"Na sayi buhun shinkafa 10 kan 120k\".",
+                    "Igbo": "Ka m gosi uru, kwuo ole ị zụrụ na ole ị rere: \"Azụrụ m akpa osikapa 10 na 120k\"."},
+    "cheap_one": {"English": "{item}: {list}. Cheapest is {best}.", "Pidgin": "{item}: {list}. The cheapest na {best}.",
+                  "Yoruba": "{item}: {list}. Ẹni tó din jù ni {best}.", "Hausa": "{item}: {list}. Mafi arha shi ne {best}.",
+                  "Igbo": "{item}: {list}. Onye kacha ọnụ ala bụ {best}."},
+    "cheap_none": {"English": "To compare suppliers, say who you bought from and how many: \"I buy 10 bags rice from Alhaji Sani 120k\".",
+                   "Pidgin": "Make I compare suppliers, talk who you buy from and how many: \"I buy 10 bags rice from Alhaji Sani 120k\".",
+                   "Yoruba": "Kí n tó fi àwọn olùtajà wé ara wọn, sọ ẹni tí o rà lọ́wọ́ rẹ̀ àti iye: \"Mo ra àpò ìrẹsì 10 lọ́wọ́ Alhaji Sani\".",
+                   "Hausa": "Don in kwatanta masu sayarwa, faɗi wanda ka saya daga gare shi da yawa: \"Na sayi buhun shinkafa 10 daga Alhaji Sani\".",
+                   "Igbo": "Ka m tụnyere ndị na-ere, kwuo onye ị zụtara n'aka ya na ole: \"Azụrụ m akpa osikapa 10 n'aka Alhaji Sani\"."},
     "owe_most": {"English": "{name} owes you the most: {m}.", "Pidgin": "{name} dey owe you pass: {m}.",
                  "Yoruba": "{name} ló jẹ ọ́ jù: {m}.", "Hausa": "{name} ne ke da bashinka mafi yawa: {m}.",
                  "Igbo": "{name} ji gị ụgwọ kacha: {m}."},
@@ -170,6 +194,23 @@ def book_answer(question, lang="English", today=None):
     if intent == "i_owe":
         d = ledger.creditors(today)
         return say("i_owe", list=", ".join(f"{x['customer']} {money(x['balance'])}" for x in d)) if d else say("i_owe_none")
+    if intent == "margin":
+        ms = insights.margins(today=today)
+        if not ms:
+            return say("margin_none")
+        one = next((m for m in ms if re.search(rf"\b{re.escape(m['item'])}s?\b", t)), None)
+        if one:
+            return say("margin_one", item=one["item"].title(), sell=money(one["sell"]), buy=money(one["buy"]),
+                       unit=one["unit"] or "one", m=money(one["margin"]), pct=one["pct"])
+        return say("margin_top", list=", ".join(f"{m['item']} {money(m['margin'])}/{m['unit'] or 'one'}" for m in ms[:3]))
+    if intent == "cheapest":
+        ss = insights.suppliers(today=today)
+        one = next((x for x in ss if re.search(rf"\b{re.escape(x['item'])}s?\b", t)), None) or (ss[0] if ss else None)
+        if not one:
+            return say("cheap_none")
+        return say("cheap_one", item=one["item"].title(),
+                   list=", ".join(f"{o['supplier']} {money(o['price'])}/{one['unit'] or 'one'}" for o in one["offers"][:3]),
+                   best=one["offers"][0]["supplier"])
     if intent == "best":
         top = insights.top_items(days=7, today=today, n=1)
         return say("best", item=top[0]["item"], m=money(top[0]["revenue"])) if top else say("empty")

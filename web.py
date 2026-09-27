@@ -92,6 +92,13 @@ def _state(session, lang=None):
     return st
 
 
+def _lang_of(request):
+    """The logged-in trader's language (English if unknown)."""
+    phone = request.scope.get("state", {}).get("phone")
+    lang = accounts.profile(phone).get("lang") if phone else None
+    return lang if lang in VOICE_LANGS else "English"
+
+
 def _speak_id(text, lang):
     if not text:
         return None
@@ -127,7 +134,8 @@ def _draft(state):
     return {"type": rec.get("type"), "amount": rec.get("amount"), "customer": rec.get("customer"),
             "new_customer": bool(rec.get("customer")) and not known, "item": rec.get("item"),
             "quantity": rec.get("quantity"), "unit": rec.get("unit"), "due_date": rec.get("due_date"),
-            "note": converse.friendly_note(rec.get("note"), state.get("lang") or "English"), "unsure": unsure}
+            "note": converse.friendly_note(rec.get("note"), state.get("lang") or "English"), "unsure": unsure,
+            "limit": converse.draft_limit(rec)}
 
 
 def _reply_json(r, state, heard=None):
@@ -230,12 +238,20 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
 
 
 @app.get("/api/voice_check")
-def voice_check(lang: str = "Yoruba"):
+def voice_check(lang: str = "Yoruba", fmt: str = "wav"):
     """Open /api/voice_check?lang=Yoruba in a browser: says whether the voice works, and the error if not."""
     samples = {"English": "Hello, I am your book.", "Pidgin": "Hello, na me be your book.",
                "Yoruba": "Ẹ n lẹ́ o. Èmi ni ìwé rẹ.", "Hausa": "Sannu. Ni ne littafinka.", "Igbo": "Ndewo. Abụ m akwụkwọ gị."}
     try:
-        out = tts.speak(samples.get(lang, samples["English"]), lang if lang in tts.REPLY_LANGS else "English")
+        text = samples.get(lang, samples["English"])
+        if fmt == "ogg_opus":  # exactly what the WhatsApp bot sends (fmt=ogg_opus tests the voice-note path)
+            path = whatsapp.voice_file(text, lang)
+            if not path:
+                return {"lang": lang, "ok": False, "error": "no voice set up: SPITCH_API_KEY missing or spitch not installed"}
+            size = os.path.getsize(path)
+            os.remove(path)
+            return {"lang": lang, "ok": True, "format": "ogg (WhatsApp voice note)", "bytes": size}
+        out = tts.speak(text, lang if lang in tts.REPLY_LANGS else "English")
         if not out:
             return {"lang": lang, "ok": False, "error": "no voice set up: SPITCH_API_KEY missing or spitch not installed"}
         return {"lang": lang, "ok": True, "engine": out["engine"], "bytes": os.path.getsize(out["path"])}
@@ -305,13 +321,17 @@ class NewCustomer(BaseModel):
     name: str
     phone: str | None = None
     notes: str | None = None
+    credit_limit: float | None = None
 
 
 @app.post("/api/customers")
 def new_customer(c: NewCustomer):
     if not c.name.strip():
         raise HTTPException(400, "name needed")
-    return ledger.customer_summary(ledger.create_customer(c.name, c.phone, c.notes))
+    cid = ledger.create_customer(c.name, c.phone, c.notes)
+    if c.credit_limit and c.credit_limit > 0:
+        ledger.update_customer(cid, credit_limit=c.credit_limit)
+    return ledger.customer_summary(cid)
 
 
 @app.get("/api/customers/{cid}")
@@ -323,12 +343,18 @@ class CustomerEdit(BaseModel):
     name: str | None = None
     phone: str | None = None
     notes: str | None = None
+    credit_limit: float | None = None   # 0 = remove the limit
 
 
 @app.patch("/api/customers/{cid}")
 def edit_customer(cid: int, e: CustomerEdit):
     _customer_or_404(cid)
-    ledger.update_customer(cid, **{k: v for k, v in e.model_dump().items() if v is not None})
+    fields = {k: v for k, v in e.model_dump().items() if v is not None}
+    if "credit_limit" in fields:
+        if fields["credit_limit"] < 0:
+            raise HTTPException(400, "The limit can't be below ₦0.")
+        fields["credit_limit"] = fields["credit_limit"] or None
+    ledger.update_customer(cid, **fields)
     return ledger.customer_summary(cid)
 
 
@@ -350,6 +376,7 @@ class CustRecord(BaseModel):
     item: str | None = None
     due_date: str | None = None
     raw_text: str | None = None
+    over_limit_ok: bool = False   # the trader saw the limit warning and chose "Sell anyway"
 
 
 @app.post("/api/customers/{cid}/record")
@@ -359,6 +386,10 @@ def customer_record(cid: int, r: CustRecord, request: Request):
     _customer_or_404(cid)
     if r.type not in TYPES or r.amount <= 0:
         raise HTTPException(400, "needs a type and an amount")
+    if r.type == "credit_sale" and not r.over_limit_ok:
+        lim = ledger.limit_check(cid, r.amount)
+        if lim and lim["over"]:  # ask first: "Sell anyway?"
+            return JSONResponse({"over_limit": lim, "warning": converse.over_limit_text(lim, _lang_of(request))}, 409)
     ledger.add_entry({"type": r.type, "amount": r.amount, "item": (r.item or "").strip() or None,
                       "due_date": r.due_date or None, "customer_id": cid}, raw_text=r.raw_text or "", engine="customer")
     phone = request.scope["state"].get("phone")
@@ -457,9 +488,36 @@ def reminder(customer: str, request: Request, lang: str = "Pidgin", shop: str = 
     return {"message": msg, "link": link}
 
 
+@app.get("/api/repeats")
+def repeats():
+    """Today's usual orders not recorded yet (suggestions: the trader confirms)."""
+    return {"repeats": insights.repeat_orders()}
+
+
+class RepeatPick(BaseModel):
+    session: str = "anon"
+    lang: str | None = None
+    customer_id: int
+    item: str
+
+
+@app.post("/api/repeats/draft")
+def repeat_draft(b: RepeatPick):
+    """Tap "Record it": the usual order becomes a draft on the confirmation card (nothing saved yet)."""
+    state = _state(b.session, b.lang)
+    p = next((x for x in insights.repeat_orders(only_today=False)
+              if x["customer_id"] == b.customer_id and x["item"].lower() == b.item.lower()), None)
+    if not p:
+        raise HTTPException(404, "That usual order isn't there any more.")
+    lang = b.lang if b.lang in VOICE_LANGS else "English"
+    state["lang"] = lang
+    return _reply_json(converse.draft_repeat(state, p, lang), state)
+
+
 @app.get("/api/insights")
 def insights_api():
-    return {"forecast": insights.forecast(), "top": insights.top_items()}
+    return {"forecast": insights.forecast(), "top": insights.top_items(), "margins": insights.margins(),
+            "suppliers": insights.suppliers()}
 
 
 @app.get("/api/profile")

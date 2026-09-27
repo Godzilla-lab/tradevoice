@@ -74,6 +74,7 @@ function renderRows() {
       <span class="cright">
         ${amt > 0 ? `<span class="cbig ${st}"><span class="money">${naira(amt)}</span></span>` : ""}
         <span class="cstat ${c.overdue ? "late" : st}">${esc(status)}</span>
+        ${c.credit_limit && c.owes_me > c.credit_limit ? `<span class="cstat overlim">${esc(t("over_limit_short", "Over limit"))}</span>` : ""}
       </span>
     </button>`;
   }).join("") : C.list.length ? `<div class="empty">${esc(t("no_match", "Nobody matches."))}</div>`
@@ -125,14 +126,16 @@ function renderThread() {
     const d = e.created_at.slice(0, 10);
     if (d !== lastDay) { html += `<div class="tday">${esc(dayLabel(e.created_at))}</div>`; lastDay = d; }
     html += e.event === "record" ? recordCard(e, { theirs: Math.max(0, theirs), mine: Math.max(0, mine) })
-      : ["reminder", "receipt"].includes(e.kind) ? reminderBubble(e, c) : e.kind === "payclaim" ? claimBubble(e) : noteBubble(e);
+      : ["reminder", "receipt", "statement"].includes(e.kind) ? reminderBubble(e, c) : e.kind === "payclaim" ? claimBubble(e) : noteBubble(e);
   }
   if (!ev.length) html = `<div class="empty">${esc(t("empty_thread", "Nothing here yet.").replace("{n}", c.name))}</div>`;
   const st = c.owes_me > 0 ? "owes" : c.i_owe > 0 ? "mine" : "clear";
   const big = c.owes_me > 0 ? c.owes_me : c.i_owe;
   const label = st === "owes" ? t("you_are_owed", "You are owed") : st === "mine" ? t("you_owe_them", "You owe them") : t("paid_up", "Paid up");
   const sub = [c.overdue ? t("days_overdue", "{n} days overdue").replace("{n}", c.days_late) : "",
-               c.due_date && !c.overdue ? t("due", "Due {d}").replace("{d}", day(c.due_date)) : ""].filter(Boolean).join(" · ");
+               c.due_date && !c.overdue ? t("due", "Due {d}").replace("{d}", day(c.due_date)) : "",
+               c.credit_limit ? (c.owes_me > c.credit_limit ? t("over_limit_short", "Over limit") + " " : "")
+                 + t("limit_of", "Limit {m}").replace("{m}", naira(c.credit_limit)) : ""].filter(Boolean).join(" · ");
   $("#cthread").innerHTML = `
     <div class="thead">
       <button class="icon back" aria-label="${esc(t("back", "Back"))}">${svg("back")}</button>
@@ -142,7 +145,9 @@ function renderThread() {
       <button class="icon" data-act="contact" aria-label="${esc(t("edit_contact", "Edit contact"))}">${svg("more")}</button>
     </div>
     <div class="tbal ${st}"><div class="tbal-v"><span class="money">${big > 0 ? naira(big) : "₦0"}</span></div>
-        <div class="tbal-k">${esc(label)}</div>${sub ? `<div class="tbal-s ${c.overdue ? "late" : ""}">${esc(sub)}</div>` : ""}</div>
+        <div class="tbal-k">${esc(label)}</div>${sub ? `<div class="tbal-s ${c.overdue ? "late" : ""}">${esc(sub)}</div>` : ""}
+        ${ev.some((e) => e.event === "record" && ["credit_sale", "payment_received", "sale"].includes(e.type))
+          ? `<button class="textbtn small" data-act="statement">${esc(t("send_statement", "Send them a statement"))}</button>` : ""}</div>
     <div class="tmsgs" id="tmsgs">${html}${C.draft ? draftCard() : ""}</div>
     <div class="tactions">
       <button class="gave" data-act="sale">↑ ${esc(t("you_gave", "You gave"))}</button>
@@ -176,7 +181,7 @@ function noteBubble(e) {
 function reminderBubble(e, c) {
   const opened = e.status === "opened";
   return `<div class="msg in tv" data-mid="${e.id}">
-    <div class="tvlabel">${esc(e.kind === "receipt" ? t("receipt", "Receipt") : t("reminder", "Reminder"))} · ${esc(opened ? t("opened_note", "Opened in WhatsApp") : t("you_send", "Check it, then send it yourself"))}</div>
+    <div class="tvlabel">${esc(e.kind === "receipt" ? t("receipt", "Receipt") : e.kind === "statement" ? t("statement_label", "Statement") : t("reminder", "Reminder"))} · ${esc(opened ? t("opened_note", "Opened in WhatsApp") : t("you_send", "Check it, then send it yourself"))}</div>
     <div class="rtext">${fmt(e.content)}</div>
     ${c.phone ? "" : `<div class="en">${esc(t("no_phone", "No phone saved."))}</div>`}
     <div class="rbtns"><button class="wa-btn" data-act="openwa">${esc(opened ? t("send_again", "Send again") : t("send_whatsapp", "Send on WhatsApp"))}</button>
@@ -243,6 +248,10 @@ $("#cthread").addEventListener("click", async (e) => {
       }
       return;
     }
+    if (act === "statement") {
+      const r = await post(`/api/customers/${c.id}/statement`, {});
+      return refreshThread(r);
+    }
     if (act === "cancelmsg" && bub) {
       await api(`/api/messages/${bub.dataset.mid}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
                                                       body: JSON.stringify({ status: "cancelled" }) });
@@ -265,7 +274,8 @@ $("#cthread").addEventListener("click", async (e) => {
     if (act === "draftno") { C.draft = null; return renderThread(); }
     if (act === "draftyes") {
       const d = C.draft; C.draft = null;
-      const res = await post(`/api/customers/${c.id}/record`, d);
+      const res = await recordFor(c.id, d);
+      if (!res) return renderThread();
       toast(`${typeLabel(d.type)} ${naira(d.amount)} · ${balanceLine(res.customer)}`, 3500);
       return refreshThread(res);
     }
@@ -285,13 +295,24 @@ $("#cthread").addEventListener("submit", async (e) => {
 
 // ------------------------------------------------------------------ sheets (same sheet component as Settings)
 
+// every sale recorded on a customer's page goes through here: over the credit limit -> "Sell anyway?" first
+async function recordFor(cid, payload) {
+  try { return await post(`/api/customers/${cid}/record`, payload); }
+  catch (err) {
+    if (err.status !== 409 || !err.body?.over_limit) throw err;
+    const go = await askSheet({ title: t("over_limit_title", "Above the credit limit"), body: err.body.warning,
+                                ok: t("sell_anyway", "Sell anyway"), danger: true });
+    return go ? post(`/api/customers/${cid}/record`, { ...payload, over_limit_ok: true }) : null;
+  }
+}
+
 function recordSheet(c, type) {
   const due = [["", t("none", "None")], [isoPlus(0), t("today", "Today")], [isoPlus(1), t("tomorrow", "Tomorrow")], [nextFriday(), t("friday", "Friday")]];
   const isPay = type === "payment_received";
   sheet(`<h3>${esc(isPay ? t("record_payment", "Record payment") : t("record_sale", "Record sale"))} · ${esc(c.name)}</h3>
     <label>${esc(t("amount", "Amount (₦)"))}<input id="rAmt" inputmode="numeric" value="${isPay && c.owes_me ? Math.round(c.owes_me) : ""}"></label>
     ${isPay ? "" : `<label>${esc(t("item", "Item"))}<input id="rItem" autocomplete="off"></label>
-    <div class="opts" id="rKind"><button data-k="sale">${esc(t("paid_now", "Paid now"))}</button><button data-k="credit_sale" class="on">${esc(t("on_credit", "On credit"))}</button></div>
+    <div class="opts" id="rKind"><button data-k="sale">${esc(t("paid_now", "Paid now"))}</button><button data-k="credit_sale" class="on">${esc(t("on_credit_btn", "On credit"))}</button></div>
     <h3>${esc(t("will_pay", "Will pay"))}</h3><div class="opts" id="rDue">${due.map(([v, l], i) => `<button data-d="${v}" class="${i === 0 ? "on" : ""}">${esc(l)}</button>`).join("")}</div>`}
     <button class="primary" id="rSave">${esc(t("save", "Save"))}</button>`);
   let kind = isPay ? "payment_received" : "credit_sale", dueV = "";
@@ -304,9 +325,11 @@ function recordSheet(c, type) {
       if (!(amount > 0)) return toast(t("amount", "Amount (₦)"));
       b.disabled = true; b.textContent = "…";
       try {
-        const r = await post(`/api/customers/${c.id}/record`, { type: kind, amount, item: $("#rItem")?.value || null,
-                                                                due_date: kind === "credit_sale" ? dueV || null : null });
-        $("#sheet").hidden = true; refreshThread(r);
+        const r = await recordFor(c.id, { type: kind, amount, item: $("#rItem")?.value || null,
+                                          due_date: kind === "credit_sale" ? dueV || null : null });
+        $("#sheet").hidden = true;
+        if (!r) return;
+        refreshThread(r);
         // confirm what changed, in words: the action, then the new balance
         toast(`${typeLabel(kind)} ${naira(amount)} · ${balanceLine(r.customer)}`, 3500);
       } catch (err) { b.disabled = false; toast(err.message); }
@@ -319,13 +342,17 @@ function contactSheet(c) {
     <label>${esc(t("name", "Name"))}<input id="kName" value="${esc(c ? c.name : "")}" autocomplete="off"></label>
     <label>${esc(t("phone", "Phone number"))}<input id="kPhone" inputmode="tel" value="${esc(c ? c.phone || "" : "")}" placeholder="0803 123 4567"></label>
     <label>${esc(t("notes", "Notes"))}<input id="kNotes" value="${esc(c ? c.notes || "" : "")}" autocomplete="off"></label>
+    <label>${esc(t("credit_limit", "Credit limit (₦)"))}<input id="kLimit" inputmode="numeric" value="${c && c.credit_limit ? Math.round(c.credit_limit) : ""}" placeholder="${esc(t("no_limit", "No limit"))}"></label>
+    <p class="note">${esc(t("credit_limit_why", "The most this customer may owe you. TradeVoice warns you before a sale goes over it."))}</p>
     <button class="primary" id="kSave">${esc(t("save", "Save"))}</button>
     ${c ? `<p></p><button class="danger" id="kDel">${esc(t("delete", "Delete"))} ${esc(c.name)}</button>` : ""}`);
   $("#sheetBody").onclick = async (e) => {
     const b = e.target.closest("button"); if (!b) return;
     try {
       if (b.id === "kSave") {
-        const body = { name: $("#kName").value.trim(), phone: $("#kPhone").value.trim(), notes: $("#kNotes").value.trim() };
+        const lim = parseFloat(($("#kLimit").value || "").replace(/[₦,\s]/g, "").replace(/k$/i, "000"));
+        const body = { name: $("#kName").value.trim(), phone: $("#kPhone").value.trim(), notes: $("#kNotes").value.trim(),
+                       credit_limit: isNaN(lim) ? 0 : lim };
         if (!body.name) return toast(t("name", "Name"));
         if (c) {
           await api(`/api/customers/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

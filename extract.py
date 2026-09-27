@@ -22,7 +22,7 @@ Return ONLY a JSON object with these keys:
 - "quantity": number or null
 - "unit": e.g. "bag", "carton", "crate", "paint", "mudu", or null
 - "amount": TOTAL amount in naira as a plain number (45k -> 45000, 1.5m -> 1500000, "twenty thousand" -> 20000), or null if not said
-- "customer": the other person's name as said (customer, or the supplier/lender for credit_purchase/payment_made), or null
+- "customer": the other person's name as said (customer, or the supplier/lender for credit_purchase/payment_made, or the supplier for goods bought for cash: "I buy 10 bags rice from Alhaji Sani" -> "Alhaji Sani"), or null
 - "item": for money borrowed (not goods), use "loan"
 - "due_date": date the customer promised to pay, as YYYY-MM-DD, or null
 - "confidence": number 0-1, how sure you are
@@ -52,11 +52,11 @@ _AMOUNT_RE = re.compile(
 )
 _UNITS = (r"bags?|cartons?|crates?|pieces?|pcs|pairs?|tins?|packs?|packets?|paints?|derica|mudu|"
           r"kg|kilos?|litres?|liters?|yards?|dozens?|sachets?|bottles?|tubers?|baskets?|rolls?|tubes?")
-_QTY_RE = re.compile(rf"\b(\d+(?:\.\d+)?)\s*({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b|wey\b|wen\b|and\b|that\b|which\b|na\b|dey\b|dem\b|he\b|she\b|i\b|we\b|on\b|at\b)[a-z]+)?)",
+_QTY_RE = re.compile(rf"\b(\d+(?:\.\d+)?)\s*({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|from\b|to\b|give\b|wey\b|wen\b|and\b|that\b|which\b|na\b|dey\b|dem\b|he\b|she\b|i\b|we\b|on\b|at\b)[a-z]+)?)",
                      re.IGNORECASE)
 _QTY_WORDS = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
               "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "half": 0.5}
-_QTY_WORD_RE = re.compile(rf"\b({'|'.join(_QTY_WORDS)})\s+({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b|wey\b|wen\b|and\b|that\b|which\b|na\b|dey\b|dem\b|he\b|she\b|i\b|we\b|on\b|at\b)[a-z]+)?)",
+_QTY_WORD_RE = re.compile(rf"\b({'|'.join(_QTY_WORDS)})\s+({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|from\b|to\b|give\b|wey\b|wen\b|and\b|that\b|which\b|na\b|dey\b|dem\b|he\b|she\b|i\b|we\b|on\b|at\b)[a-z]+)?)",
                           re.IGNORECASE)  # speech says "two bags of rice", not "2 bags"
 _HONORIFIC = (r"mama|papa|iya|baba|alhaji|alhaja|madam|oga|aunty|auntie|uncle|mr\.?|mrs\.?|"
               r"chief|brother|sister|bros|mallam|mallama|iyawo|hajiya|hajia|dr\.?|customer")
@@ -104,6 +104,7 @@ _SELL_RE = re.compile(r"\b(sell|sold|ta|sayar|ere m|ree)\b")  # en, yo, ha, ig
 _I_OWE_RE = re.compile(r"\b(?:i|we)\s+(?:(?:still|dey|don|am|are)\s+)*(?:owe|owing)\b|\bon credit from\b"
                        r"|\b(?:give|gave|supply|supplied|lend|lent|borrow(?:ed)?)\s+me\b"
                        r"|\bi (?:borrow|borrowed|collect|collected|take|took)\b.*\b(?:on credit|credit|from)\b"
+                       r"|\b(?:i|we) (?:buy|bought|carry|carried)\b.*\b(?:on credit|for credit)\b"
                        r"|\bi (?:go|will) pay (?:him|her|am|them)\b"
                        r"|\b(?:i|we)\s+(?:has not|have not|haven'?t|did not|didn'?t|never|no|not)\s+(?:yet\s+)?"
                        r"(?:pay|paid)\s+(?:him|her|am|them|my supplier|back|alhaji|oga|madam|mama|hajiya)\b"

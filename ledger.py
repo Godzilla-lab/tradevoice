@@ -74,6 +74,9 @@ def _migrate(c):
     cols = {r[1] for r in c.execute("PRAGMA table_info(entries)")}
     if "customer_id" not in cols:
         c.execute("ALTER TABLE entries ADD COLUMN customer_id INTEGER")
+    ccols = {r[1] for r in c.execute("PRAGMA table_info(customers)")}
+    if "credit_limit" not in ccols:  # the most this customer may owe me (None = no limit)
+        c.execute("ALTER TABLE customers ADD COLUMN credit_limit REAL")
     rcols = {r[1] for r in c.execute("PRAGMA table_info(reminders)")}
     if "customer_id" not in rcols:
         c.execute("ALTER TABLE reminders ADD COLUMN customer_id INTEGER")
@@ -191,7 +194,8 @@ def get_customer(cid):
 
 
 def update_customer(cid, **fields):
-    allowed = {k: v for k, v in fields.items() if k in ("name", "phone", "notes", "language", "last_read_at")}
+    allowed = {k: v for k, v in fields.items()
+               if k in ("name", "phone", "notes", "language", "last_read_at", "credit_limit")}
     with conn() as c:
         for k, v in allowed.items():
             c.execute(f"UPDATE customers SET {k}=? WHERE id=?", (v, cid))
@@ -420,6 +424,19 @@ def balance_with(name=None, today=None, customer_id=None):
     return theirs, mine
 
 
+def limit_check(customer_id, amount, today=None):
+    """Would this credit sale take the customer over their limit? None when no limit is set.
+    {limit, balance (owed now), after (owed after this sale), over (bool)}"""
+    cust = get_customer(customer_id) if customer_id else None
+    if not cust or not cust.get("credit_limit"):
+        return None
+    theirs = next((d for d in debtors(today) if d["customer_id"] == customer_id), None)
+    balance = theirs["balance"] if theirs else 0.0
+    after = balance + float(amount or 0)
+    return {"limit": cust["credit_limit"], "balance": balance, "after": after, "over": after > cust["credit_limit"],
+            "name": cust["name"]}
+
+
 def customer_risk(name, today=None, customer_id=None):
     """Should I give this customer more credit? Transparent rules over their own history."""
     today = today or dt.date.today()
@@ -500,7 +517,7 @@ EXPENSE_TYPES = [
     ("Transport", ("transport", "motor", "bus", "okada", "keke", "fare", "owo oko", "kudin mota", "ugbo ala")),
     ("Staff", ("salary", "apprentice", "wage", "worker", "boy", "girl", "help")),
     ("Restock (goods to sell)", ("restock", "stock", "goods", "bag", "carton", "crate", "paint", "rice", "beans",
-                                 "garri", "indomie", "oil", "tomato", "pepper", "yam")),
+                                 "garri", "indomie", "oil", "tomato", "pepper", "yam", "egg", "cement", "shoe")),
 ]
 
 

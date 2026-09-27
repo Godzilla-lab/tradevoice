@@ -17,6 +17,7 @@ import hmac
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -148,25 +149,49 @@ def send_list(to, body, button, rows):
         "action": {"button": button[:20], "sections": [{"title": "TradeVoice", "rows": items}]}}})
 
 
-def send_voice(to, text, lang):
-    """Speak `text` and send it as a WhatsApp voice note. Quietly does nothing if voice is off."""
-    out = tts.speak(text, lang if lang in tts.REPLY_LANGS else "Pidgin", fmt="ogg_opus")
+def voice_file(text, lang):
+    """Speak `text` as an OGG/Opus file (what WhatsApp voice notes must be). Spitch makes OGG directly; if that
+    fails, make WAV and convert it with ffmpeg. Returns the path, or None if voice is off."""
+    lang = lang if lang in tts.REPLY_LANGS else "Pidgin"
+    try:
+        out = tts.speak(text, lang, fmt="ogg_opus")
+    except Exception as e:  # noqa: BLE001 - some voices refuse ogg: try wav + convert
+        print(f"whatsapp voice: ogg failed ({type(e).__name__}: {e}); trying wav + ffmpeg")
+        out = tts.speak(text, lang, fmt="wav")
     if not out:
         return None
     path = out["path"]
-    if not path.endswith(".ogg"):  # MMS gives wav: WhatsApp voice notes must be ogg/opus
+    if not path.endswith(".ogg"):
+        if not shutil.which("ffmpeg"):
+            os.remove(path)
+            raise RuntimeError("the voice came as WAV and ffmpeg is not installed (sudo apt-get install -y ffmpeg)")
         ogg = path.rsplit(".", 1)[0] + ".ogg"
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", path, "-c:a", "libopus", "-ac", "1", ogg],
-                       check=True)
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", path, "-c:a", "libopus", "-b:a", "24k", "-ac", "1",
+                        "-ar", "48000", ogg], check=True)
         os.remove(path)
         path = ogg
+    return path
+
+
+def send_voice(to, text, lang):
+    """Speak `text` and send it as a WhatsApp voice note (plays inline, like a voice note from a person)."""
+    path = voice_file(text, lang)
+    if not path:
+        return None
     try:
         with open(path, "rb") as f:
             r = requests.post(f"{GRAPH}/{os.environ['WHATSAPP_PHONE_ID']}/media", headers=_headers(),
                               data={"messaging_product": "whatsapp", "type": "audio/ogg"},
                               files={"file": ("reply.ogg", f, "audio/ogg")}, timeout=60)
-        r.raise_for_status()
-        return graph_post({"to": to, "type": "audio", "audio": {"id": r.json()["id"]}})
+        if r.status_code >= 400:
+            raise RuntimeError(f"voice upload refused {r.status_code}: {r.text[:300]}")
+        media = r.json()["id"]
+        try:
+            out = graph_post({"to": to, "type": "audio", "audio": {"id": media, "voice": True}})
+        except RuntimeError:  # older Graph versions don't know "voice": send it as plain audio
+            out = graph_post({"to": to, "type": "audio", "audio": {"id": media}})
+        STATS["voice_sent"] = STATS.get("voice_sent", 0) + 1
+        return out
     finally:
         os.remove(path)
 
@@ -213,7 +238,9 @@ def _reply(phone, r, u):
         send_list(phone, body, "Choose", rows)
     elif st.get("pending"):
         lang = r["lang"] if r["lang"] in ui_text.LANGS else "English"
-        send_buttons(phone, body, [("yes", ui_text.t("yes_save", lang)), ("no", ui_text.t("no", lang))])
+        lim = converse.draft_limit(st["pending"])
+        yes = ui_text.t("sell_anyway" if lim and lim["over"] else "yes_save", lang)[:20]
+        send_buttons(phone, body, [("yes", yes), ("no", ui_text.t("no", lang))])
     else:
         send_text(phone, body)
     if r.get("message"):  # the reminder itself, as its own message: long-press → Forward to the customer
@@ -222,7 +249,8 @@ def _reply(phone, r, u):
     if u.get("voice"):
         try:
             send_voice(phone, r["spoken"], r["lang"])
-        except Exception as e:  # noqa: BLE001 - voice is a bonus
+        except Exception as e:  # noqa: BLE001 - voice is a bonus, but say why it's missing (check_whatsapp.py shows it)
+            STATS["last_voice_error"] = f"{type(e).__name__}: {e}"[:400]
             print(f"whatsapp voice failed: {type(e).__name__}: {e}")
 
 

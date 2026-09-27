@@ -528,3 +528,24 @@ ul.trust .ic { color: var(--in); }
 }
 .figures .s { overflow-wrap: anywhere; }
 @media (max-width: 340px) { .tabs button { font-size: 10.5px; } .tabs button span { padding: 0 1px; } .tabs button b { width: 46px; } }
+
+/* credit limit */
+.overlim { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--out-soft); color: var(--out); font-size: 14.5px; }
+.overlim b { display: block; }
+.cf-btns .cf-save.risky { background: var(--out); border-color: var(--out); }
+.cstat.overlim { color: var(--out); background: var(--out-soft); border-radius: 6px; padding: 1px 7px; margin: 0; }
+
+/* margins + suppliers */
+.mrow { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.mrow:last-child { border-bottom: 0; }
+.mtop { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.mtop b { font-size: 16px; text-transform: capitalize; }
+.mtop .amt { font-weight: 800; font-size: 17px; white-space: nowrap; }
+.mtop .amt small, .offer small { font-size: 12px; color: var(--muted); font-weight: 600; }
+.mrow .s { font-size: 13.5px; color: var(--muted); }
+.save-tag { font-size: 12.5px; font-weight: 800; color: var(--in); background: var(--in-soft); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.offer { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 15px; }
+.offer.best { font-weight: 800; color: var(--in); }
+.offer .amt { white-space: nowrap; }
+.textbtn.small { min-height: 0; padding: 6px 4px 0; font-size: 14px; }
+.msg.tv .rtext { white-space: pre-wrap; }

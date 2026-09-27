@@ -68,6 +68,127 @@ def forecast(today=None, days_ahead=7):
             "due_soon": due_soon, "overdue": overdue, "cash_share": cash_share}
 
 
+# ---------------------------------------------------------------- 🏷️ margin per item + 🏪 cheapest supplier
+# Only rows where the trader said HOW MANY (quantity) count: a price per unit is never guessed.
+
+_NOT_GOODS = {"transport", "rent", "levy", "market levy", "fuel", "diesel", "salary", "shop rent", "loan", "restock", "tax"}
+
+
+def _key(item, unit):
+    """'Bags' / 'bag', 'Eggs' / 'egg': the same thing."""
+    def one(w):
+        w = " ".join((w or "").lower().split())
+        return w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w
+    return one(item), one(unit)
+
+
+def _per_unit(rows):
+    """{(item, unit): {"qty", "amount", "rows": [...]}} for rows with an item and a quantity."""
+    out = {}
+    for r in rows:
+        if not r.get("item") or not r.get("quantity") or float(r["quantity"]) <= 0:
+            continue
+        k = _key(r["item"], r.get("unit"))
+        if k[0] in _NOT_GOODS:
+            continue
+        g = out.setdefault(k, {"qty": 0.0, "amount": 0.0, "rows": [], "name": r["item"].strip().lower(),
+                               "unit_name": (r.get("unit") or "").strip().lower()})
+        g["qty"] += float(r["quantity"])
+        g["amount"] += float(r["amount"])
+        g["rows"].append(r)
+    return out
+
+
+def _bought(rows):
+    return [r for r in rows if r["type"] in ("expense", "credit_purchase") and ledger.kind(r) != "loan_taken"]
+
+
+def margins(days=60, today=None):
+    """Per item: average selling price per unit vs average buying price per unit, from the trader's own records.
+    'Rice: sell ₦15,000, buy ₦12,000 = ₦3,000 per bag (20%)'. Best total margin first."""
+    rows = _rows(days, today)
+    sold = _per_unit([r for r in rows if r["type"] in ("sale", "credit_sale")])
+    bought = _per_unit(_bought(rows))
+    out = []
+    for (item, unit), s in sold.items():
+        b = bought.get((item, unit))
+        if not b:
+            continue
+        sell, buy = s["amount"] / s["qty"], b["amount"] / b["qty"]
+        per = sell - buy
+        out.append({"item": s["name"], "unit": s["unit_name"] or unit or "", "sell": round(sell), "buy": round(buy), "margin": round(per),
+                    "pct": round(per / sell * 100) if sell else 0, "sold_qty": s["qty"], "total": round(per * s["qty"])})
+    return sorted(out, key=lambda x: -x["total"])
+
+
+def suppliers(days=120, today=None):
+    """Per item: each supplier's average price per unit, cheapest first. Needs the supplier's name on the purchase."""
+    rows = [r for r in _bought(_rows(days, today)) if r.get("customer")]
+    by_item, names = {}, {}
+    for r in rows:
+        if not r.get("item") or not r.get("quantity"):
+            continue
+        k = _key(r["item"], r.get("unit"))
+        if k[0] in _NOT_GOODS:
+            continue
+        names.setdefault(k, (r["item"].strip().lower(), (r.get("unit") or "").strip().lower()))
+        who = by_item.setdefault(k, {})
+        g = who.setdefault(r["customer"], {"qty": 0.0, "amount": 0.0, "last": ""})
+        g["qty"] += float(r["quantity"])
+        g["amount"] += float(r["amount"])
+        g["last"] = max(g["last"], r["created_at"][:10])
+    out = []
+    for (item, unit), who in by_item.items():
+        offers = sorted(({"supplier": name, "price": round(g["amount"] / g["qty"]), "qty": g["qty"], "last": g["last"]}
+                         for name, g in who.items() if g["qty"] > 0), key=lambda x: x["price"])
+        if offers:
+            out.append({"item": names[(item, unit)][0], "unit": names[(item, unit)][1] or unit or "", "offers": offers,
+                        "saving": offers[-1]["price"] - offers[0]["price"] if len(offers) > 1 else 0})
+    return sorted(out, key=lambda x: (-len(x["offers"]), -x["saving"]))
+
+
+# ---------------------------------------------------------------- 🔁 repeat orders ("Mama Tunde buys 4 crates of egg every Friday")
+
+def repeat_orders(today=None, weeks=8, min_times=3, only_today=True):
+    """Same customer + same item, bought on the same weekday at least `min_times` times in the last `weeks` weeks,
+    the last time within 2 weeks. only_today: just the ones whose day is today and that aren't recorded yet today.
+    Suggestions only: the trader confirms before anything is saved."""
+    from statistics import median
+
+    today = today or dt.date.today()
+    rows = [r for r in _rows(weeks * 7, today) if r["type"] in ("sale", "credit_sale") and r.get("customer_id")
+            and r.get("item") and r["created_at"][:10] < today.isoformat()]
+    groups = {}
+    for r in rows:
+        d = dt.date.fromisoformat(r["created_at"][:10])
+        groups.setdefault((r["customer_id"], _key(r["item"], r.get("unit"))[0], d.weekday()), []).append(r)
+    done_today = set()
+    with ledger.conn() as c:
+        for r in c.execute("SELECT customer_id, item FROM entries WHERE substr(created_at,1,10)=?", (today.isoformat(),)):
+            if r["customer_id"] and r["item"]:
+                done_today.add((r["customer_id"], _key(r["item"], None)[0]))
+    out = []
+    for (cid, item, wday), rs in groups.items():
+        days = sorted({r["created_at"][:10] for r in rs})
+        if len(days) < min_times or (today - dt.date.fromisoformat(days[-1])).days > 14:
+            continue
+        if only_today and (wday != today.weekday() or (cid, item) in done_today):
+            continue
+        qtys = [float(r["quantity"]) for r in rs if r.get("quantity")]
+        qty = median(qtys) if qtys else None
+        per = [r["amount"] / float(r["quantity"]) for r in rs if r.get("quantity")]
+        amount = round(median(per) * qty, -1) if qty and per else round(median([r["amount"] for r in rs]), -1)
+        kinds = [r["type"] for r in rs]
+        last = rs[-1]
+        out.append({"customer_id": cid, "customer": last["customer"], "item": last["item"], "unit": last.get("unit") or "",
+                    "quantity": qty, "amount": amount, "type": max(set(kinds), key=kinds.count),
+                    "weekday": WEEKDAYS[wday], "times": len(days), "last": days[-1]})
+    return sorted(out, key=lambda x: -x["times"])
+
+
+WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
 def top_items(days=14, today=None, n=5):
     rows = [r for r in _rows(days, today) if r["type"] in ("sale", "credit_sale") and r["item"]]
     agg = defaultdict(lambda: {"revenue": 0.0, "qty": 0.0, "unit": None, "count": 0})

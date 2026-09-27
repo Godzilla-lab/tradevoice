@@ -12,13 +12,16 @@ page, so the WhatsApp bot can use it as it is.
 ⚠️ Yoruba / Hausa / Igbo sentences need a native-speaker check.
 """
 import datetime as dt
+import os
 import re
+import urllib.parse
 
 import askbook
 import insights
 import ledger
 import tts
 from extract import extract, fold, parse_amount, parse_due, rule_extract, type_is_explicit
+from extract import parse_customer as extract_customer
 
 LANGS = askbook.LANGS
 
@@ -50,6 +53,33 @@ SAY = {
               "Yoruba": "Ohun tí mo gbọ́: {s} Sọ *bẹ́ẹ̀ni* kí n kọ ọ́ sílẹ̀, tàbí sọ ohun tí kò tọ̀nà.",
               "Hausa": "Abin da na ji: {s} Ka ce *eh* in adana, ko ka faɗi abin da za a gyara.",
               "Igbo": "Ihe m nụrụ: {s} Kwuo *ee* ka m chekwaa ya, ma ọ bụ gwa m ihe m ga-agbanwe."},
+    "over_limit": {"English": "⛔ {who} already owes {bal}. This sale takes it to {after}, above the limit of {lim}. Sell anyway?",
+                   "Pidgin": "⛔ {who} don already owe {bal}. This sale go make am {after}, e pass the limit wey be {lim}. You still wan sell?",
+                   "Yoruba": "⛔ {who} ti jẹ ọ́ {bal} tẹ́lẹ̀. Ọjà yìí yóò mú un dé {after}, ó ju òpin {lim} lọ. Ṣé o ṣì fẹ́ tà?",
+                   "Hausa": "⛔ {who} yana da bashinka {bal} tun da farko. Wannan sayarwar za ta kai {after}, ta wuce iyakar {lim}. Har yanzu ka sayar?",
+                   "Igbo": "⛔ {who} ji gị {bal} ugbu a. Ahịa a ga-eme ya {after}, karịa oke {lim}. Ị ka ga-ere?"},
+    "limit_set": {"English": "OK: {who} can owe you up to {lim}. I'll warn you before a sale goes over it.",
+                  "Pidgin": "OK: {who} fit owe you reach {lim}. I go warn you before any sale pass am.",
+                  "Yoruba": "Ó dáa: {who} lè jẹ ọ́ tó {lim}. Màá kìlọ̀ fún ọ kí ọjà tó kọjá rẹ̀.",
+                  "Hausa": "To: {who} zai iya ɗaukar bashinka har {lim}. Zan faɗakar da kai kafin sayarwa ta wuce.",
+                  "Igbo": "Ọ dị mma: {who} nwere ike iji gị ruo {lim}. M ga-adọ gị aka ná ntị tupu ahịa agafee ya."},
+    "limit_off": {"English": "OK, no limit for {who} now.", "Pidgin": "OK, {who} no get limit again.",
+                  "Yoruba": "Ó dáa, kò sí òpin fún {who} mọ́.", "Hausa": "To, babu iyaka ga {who} yanzu.",
+                  "Igbo": "Ọ dị mma, {who} enweghị oke ugbu a."},
+    "limit_who": {"English": "Whose limit? Say it like: Iya Bisi limit 30k.", "Pidgin": "Limit for who? Talk am like: Iya Bisi limit 30k.",
+                  "Yoruba": "Òpin ta ni? Sọ ọ́ báyìí: Iya Bisi limit 30k.", "Hausa": "Iyakar wa? Faɗa kamar haka: Iya Bisi limit 30k.",
+                  "Igbo": "Oke onye? Kwuo ya dị ka: Iya Bisi limit 30k."},
+    "statement_ready": {"English": "Here is {who}'s statement. Check it, then forward it.",
+                        "Pidgin": "See {who} statement. Check am, then forward am.",
+                        "Yoruba": "Àkọsílẹ̀ {who} nìyí. Ṣàyẹ̀wò rẹ̀, kí o sì fi ránṣẹ́.",
+                        "Hausa": "Ga bayanin asusun {who}. Ka duba, sannan ka tura.",
+                        "Igbo": "Nke a bụ nkọwa akaụntụ {who}. Lelee ya, wee zipu ya."},
+    "repeat": {"English": "{who} usually buys {what} on {day}.", "Pidgin": "{who} dey usually buy {what} every {day}.",
+               "Yoruba": "{who} máa ń ra {what} ní ọjọ́ {day}.", "Hausa": "{who} yakan sayi {what} a ranar {day}.",
+               "Igbo": "{who} na-azụkarị {what} n'ụbọchị {day}."},
+    "repeat_none": {"English": "I don't see a usual order for {who} yet.", "Pidgin": "I never see usual order for {who}.",
+                    "Yoruba": "Mi ò tíì rí ọjà tí {who} máa ń rà déédéé.", "Hausa": "Ban ga odar da {who} ya saba ba tukuna.",
+                    "Igbo": "Ahụbeghị m ihe {who} na-azụkarị."},
     "updated": {"English": "OK, I changed it.", "Pidgin": "OK, I don change am.", "Yoruba": "Ó dáa, mo ti yí i padà.",
                 "Hausa": "To, na canza shi.", "Igbo": "Ọ dị mma, agbanweela m ya."},
     "dropped": {"English": "(The one before was not saved.)", "Pidgin": "(The one wey dey before, I no save am.)",
@@ -314,6 +344,76 @@ def _record(text, lang, state, vocab, today):
     return _heard(rec, lang, note=rec.get("note"), dropped=had_draft)
 
 
+def _say_amounts(text):
+    import assistant
+
+    return assistant.spoken(text)
+
+
+def over_limit_text(lim, lang):
+    return SAY["over_limit"].get(lang, SAY["over_limit"]["English"]).format(
+        who=lim["name"], bal=_money(lim["balance"]), after=_money(lim["after"]), lim=_money(lim["limit"]))
+
+
+def draft_limit(rec):
+    """Limit check for a draft credit sale (by id, or by the exact name already in the book)."""
+    if rec.get("type") != "credit_sale" or rec.get("amount") in (None, "") or not rec.get("customer"):
+        return None
+    cid = rec.get("customer_id")
+    if not cid:
+        same = [c for c in ledger.find_customers(rec["customer"])
+                if ledger.customer_key(c["name"]) == ledger.customer_key(rec["customer"])]
+        cid = same[0]["id"] if len(same) == 1 else None
+    return ledger.limit_check(cid, rec["amount"]) if cid else None
+
+
+LIMIT = re.compile(r"\blimit\b|\bno give .{1,40}? pass\b|\bowe (?:me )?more than\b|\bnot (?:owe )?more than\b")
+
+
+def _set_limit(text, lang, state, vocab):
+    who = _known_name(text, state, vocab) or extract_customer(text)
+    if not who:
+        return _out(SAY["limit_who"][lang], lang, english=SAY["limit_who"]["English"])
+    same = [c for c in ledger.find_customers(who) if ledger.customer_key(c["name"]) == ledger.customer_key(who)]
+    cid = same[0]["id"] if same else ledger.create_customer(who)
+    amount = parse_amount(text)
+    off = amount is None and re.search(r"\b(no limit|remove|comot|off)\b", fold(text))
+    if amount is None and not off:
+        return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
+    ledger.update_customer(cid, credit_limit=None if off else float(amount))
+    _mention(state, who)
+    if off:
+        return _out(SAY["limit_off"][lang].format(who=who), lang, english=SAY["limit_off"]["English"].format(who=who))
+    said = SAY["limit_set"][lang].format(who=who, lim=_money(amount))
+    return _out(said, lang, spoken=_say_amounts(said), english=SAY["limit_set"]["English"].format(who=who, lim=_money(amount)))
+
+
+STATEMENT_RX = re.compile(r"\bstatement\b|\bsend .{1,30} (?:account|record)\b|\bakosile\b|\bbayanin asusu\b")
+
+
+def _statement(text, lang, state, vocab, shop):
+    """"Send Mama Tunde her statement": the statement to forward (also drafted in her conversation)."""
+    import extras
+
+    who = _known_name(text, state, vocab) or state.get("last_customer")
+    same = [c for c in ledger.find_customers(who or "") if ledger.customer_key(c["name"]) == ledger.customer_key(who or "")]
+    if not same:
+        return _out(SAY["remind_who"][lang], lang, english=SAY["remind_who"]["English"])
+    cust = same[0]
+    book = os.path.basename(ledger.book_path())[:-3] if ledger.book_path().endswith(".db") else ""
+    trader = state.get("phone") or (book if book.isdigit() else None)   # books/<trader number>.db
+    msg = extras.customer_statement(cust["id"], shop, lang, os.getenv("PUBLIC_URL", ""), trader)
+    ledger.add_message(cust["id"], msg, sender="tradevoice", kind="statement", status="draft")
+    phone = "".join(ch for ch in (cust.get("phone") or "") if ch.isdigit())
+    if phone.startswith("0") and len(phone) == 11:
+        phone = "234" + phone[1:]
+    _mention(state, cust["name"])
+    out = _out(SAY["statement_ready"][lang].format(who=cust["name"]), lang,
+               english=SAY["statement_ready"]["English"].format(who=cust["name"]))
+    out["message"], out["link"] = msg, f"https://wa.me/{phone}?text=" + urllib.parse.quote(msg)
+    return out
+
+
 def friendly_note(note, lang):
     """The guards' technical reason goes to the log; the trader gets one short line in their language, and only
     when something really needs a second look (an amount the rules fixed for sure needs none)."""
@@ -334,12 +434,20 @@ def _heard(rec, lang, note=None, updated=False, dropped=False):
         written += "\n⚠️ " + friendly
     if dropped:
         written += "\n" + SAY["dropped"][lang]
+    spoken = tts.confirmation_text(rec, lang, saved=False)
+    lim = draft_limit(rec)
+    if lim and lim["over"]:  # stop over-lending: said before anything is saved, in writing and out loud
+        warn = over_limit_text(lim, lang)
+        written += "\n" + warn
+        spoken = _say_amounts(warn.lstrip("⛔ ")) + " " + spoken
     english = SAY["heard"]["English"].format(s=tts.entry_sentence(rec, "English", money=_money))
     if updated:
         english = SAY["updated"]["English"] + " " + english
     if dropped:
         english += "\n" + SAY["dropped"]["English"]
-    return _out(written, lang, spoken=tts.confirmation_text(rec, lang, saved=False), english=english)
+    if lim and lim["over"]:
+        english += "\n" + over_limit_text(lim, "English")
+    return _out(written, lang, spoken=spoken, english=english)
 
 
 def _when(text, today):
@@ -455,6 +563,12 @@ def reply(text, state=None, today=None, shop="your shop"):
         return _correct(text, lang, state, today)
     if REMIND.search(t):
         return _remind(text, lang, state, vocab, today, shop)
+    if LIMIT.search(t):
+        return _set_limit(text, lang, state, vocab)
+    if USUAL.search(t):
+        return _usual(text, lang, state, vocab, today)
+    if STATEMENT_RX.search(t):
+        return _statement(text, lang, state, vocab, shop)
     amount = parse_amount(text)
     if THANKS.match(t):
         return _out(SAY_THANKS.get(lang, SAY_THANKS["English"]), lang, english=SAY_THANKS["English"])
@@ -496,10 +610,54 @@ def reply(text, state=None, today=None, shop="your shop"):
 
 
 def due_today(lang="English", today=None):
-    """"📌 Today: collect ₦63,600 from Mama Tunde." for every reminder that is due."""
+    """"📌 Today: collect ₦63,600 from Mama Tunde." for every reminder that is due, then today's usual orders."""
     lang = lang if lang in LANGS else "English"
     return [SAY["due"][lang].format(m=_money(r["balance"]), who=r["customer"])
-            for r in ledger.reminders(today, due_only=True)]
+            for r in ledger.reminders(today, due_only=True)] + [
+            "🔁 " + repeat_line(p, lang) + " " + {"English": "Say \"{who} usual\" to record it.",
+                                                  "Pidgin": "Talk \"{who} usual\" make I write am."}.get(lang, "").format(who=p["customer"])
+            for p in insights.repeat_orders(today)]
+
+
+def _what(p):
+    unit = p.get("unit") or ""
+    if p.get("quantity") and unit and p["quantity"] != 1 and not unit.endswith("s"):
+        unit += "s"
+    q = f"{p['quantity']:g} " if p.get("quantity") else ""
+    return f"{q}{unit + ' of ' if unit else ''}{p['item']}".strip()
+
+
+def repeat_line(p, lang):
+    import ui_text
+
+    day = ui_text.t("wd_" + str(insights.WEEKDAYS.index(p["weekday"])), lang) or p["weekday"]
+    return SAY["repeat"][lang].format(who=p["customer"], what=_what(p), day=day)
+
+
+def draft_repeat(state, p, lang):
+    """Put the usual order in as a DRAFT: the trader still confirms (Save / Change / Cancel, or yes/no)."""
+    state["pending"] = {"type": p["type"], "amount": p["amount"], "customer": p["customer"],
+                        "customer_id": p["customer_id"], "item": p["item"], "quantity": p["quantity"],
+                        "unit": p["unit"] or None, "due_date": None, "confidence": 0.9, "note": None, "_engine": "repeat"}
+    state["pending_text"] = f"(usual order: {_what(p)})"
+    _mention(state, p["customer"])
+    out = _heard(state["pending"], lang)
+    out["text"] = repeat_line(p, lang) + "\n" + out["text"]
+    return out
+
+
+USUAL = re.compile(r"\busual\b|same as last (week|time)|as (he|she|dem) (dey )?(always|usually)|the regular")
+
+
+def _usual(text, lang, state, vocab, today):
+    who = _known_name(text, state, vocab) or state.get("last_customer")
+    pats = [p for p in insights.repeat_orders(today, only_today=False)
+            if who and ledger.customer_key(p["customer"]) == ledger.customer_key(who)]
+    if not pats:
+        return _out(SAY["repeat_none"][lang].format(who=who or "…"), lang,
+                    english=SAY["repeat_none"]["English"].format(who=who or "…"))
+    today_first = sorted(pats, key=lambda p: (p["weekday"] != insights.WEEKDAYS[today.weekday()], -p["times"]))
+    return draft_repeat(state, today_first[0], lang)
 
 
 if __name__ == "__main__":

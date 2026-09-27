@@ -384,6 +384,69 @@ def receipt(cid, rec_type, amount, item, due, shop, lang="English"):
     return "🧾 " + re.sub(r"\s{2,}", " ", txt)
 
 
+# ---------------------------------------------------------------- 📄 per-customer statement (the trader sends it)
+
+STATEMENT = {
+    "English": {"head": "{shop}: your account", "owed": "You owe: {m}", "due": "please pay by {d}", "clear": "Nothing owed. Thank you!",
+                "credit_sale": "took {what} on credit", "payment_received": "paid", "sale": "bought {what}, paid",
+                "bal": "balance {m}", "thanks": "Thank you."},
+    "Pidgin": {"head": "{shop}: your account", "owed": "You dey owe: {m}", "due": "abeg pay by {d}", "clear": "You no owe anything. Thank you!",
+               "credit_sale": "carry {what} for credit", "payment_received": "pay", "sale": "buy {what}, pay",
+               "bal": "balance {m}", "thanks": "Thank you."},
+    "Yoruba": {"head": "{shop}: àkọsílẹ̀ yín", "owed": "Ẹ jẹ: {m}", "due": "ẹ jọ̀wọ́ ẹ san ní {d}", "clear": "Ẹ kò jẹ nǹkankan. Ẹ ṣé!",
+               "credit_sale": "mú {what} ní àwìn", "payment_received": "san", "sale": "ra {what}, ẹ sanwó",
+               "bal": "èyí tó kù {m}", "thanks": "Ẹ ṣé o."},
+    "Hausa": {"head": "{shop}: asusunka", "owed": "Bashinka: {m}", "due": "da fatan ka biya kafin {d}", "clear": "Ba ka da bashi. Mun gode!",
+              "credit_sale": "ka ɗauki {what} bashi", "payment_received": "ka biya", "sale": "ka sayi {what}, ka biya",
+              "bal": "saura {m}", "thanks": "Mun gode."},
+    "Igbo": {"head": "{shop}: akaụntụ gị", "owed": "Ị ji: {m}", "due": "biko kwụọ tupu {d}", "clear": "Ị jighị ihe ọ bụla. Daalụ!",
+             "credit_sale": "were {what} n'ụgwọ", "payment_received": "kwụrụ", "sale": "zụtara {what}, kwụọ",
+             "bal": "ihe fọdụrụ {m}", "thanks": "Daalụ."},
+}
+
+
+def customer_statement(cid, shop, lang="English", base="", phone=None, today=None, last=8):
+    """A short account for ONE customer: what they took, what they paid, the running balance, when to pay, a pay link.
+    Plain text so it can go on WhatsApp as it is (the trader checks it and sends it themselves)."""
+    w = STATEMENT.get(lang) or STATEMENT["English"]
+    cust = ledger.get_customer(cid)
+    s = ledger.customer_summary(cid, today) or {}
+    rows = [e for e in ledger.thread(cid) if e.get("event") == "record"
+            and e["type"] in ("credit_sale", "payment_received", "sale")]
+    bal, lines, start, bals = 0.0, [], 0, []
+    for e in rows:
+        if e["type"] == "credit_sale":
+            bal += e["amount"]
+        elif e["type"] == "payment_received":
+            bal -= e["amount"]
+        if bal <= 0 and e["type"] == "payment_received":
+            start = len(lines) + 1   # everything up to here was settled: the statement starts after it
+        q, unit = e.get("quantity"), (e.get("unit") or "")
+        if q and unit and q != 1 and not unit.endswith("s"):
+            unit += "s"
+        what = " ".join(x for x in [f"{q:g} {unit}".strip() if q else "", e.get("item") or ""] if x) or "goods"
+        day = dt.date.fromisoformat(e["created_at"][:10]).strftime("%-d %b")
+        bals.append(bal)
+        lines.append(f"• {day}: {w[e['type']].format(what=what)} ₦{e['amount']:,.0f}"
+                     + (f" ({w['bal'].format(m=f'₦{max(bal, 0):,.0f}')})" if e["type"] != "sale" else ""))
+    owed = s.get("owes_me") or 0
+    shown = lines[start:] if start < len(lines) else lines[-3:]   # open items (or the last few if all is paid)
+    if len(shown) > last:   # a long account: say what was owed before the lines we show
+        first = len(lines) - last
+        shown = [f"• …  {w['bal'].format(m=f'₦{max(bals[first - 1], 0):,.0f}')}"] + lines[first:]
+    out = [w["head"].format(shop=shop) + f" · {cust['name'] if cust else ''}", ""] + (shown + [""] if shown else [])
+    if owed > 0:
+        due = s.get("due_date")
+        due_txt = f", {w['due'].format(d=dt.date.fromisoformat(due).strftime('%-d %b'))}" if due else ""
+        out.append(f"*{w['owed'].format(m=f'₦{owed:,.0f}')}*{due_txt}.")
+        if base and phone:
+            out.append(f"💳 {pay_link(base, phone, cid, owed)}")
+        out.append(w["thanks"])
+    else:
+        out.append(w["clear"])
+    return "📄 " + "\n".join(out)
+
+
 # ---------------------------------------------------------------- ⏰ automatic reminders on the promised day
 
 def run_due_reminders(base=None, today=None, send=True):
@@ -414,13 +477,22 @@ def run_due_reminders(base=None, today=None, send=True):
                     msg = reminder_with_paylink(base, phone, d["customer_id"], msg)
                 ledger.add_message(d["customer_id"], msg, sender="tradevoice", kind="reminder", status="draft")
                 due.append(d)
-        if due and send and os.getenv("WHATSAPP_TOKEN"):
+        with _in_book(phone):
+            usual = insights.repeat_orders(today)
+        if (due or usual) and send and os.getenv("WHATSAPP_TOKEN"):
             try:
+                import converse
                 import whatsapp
 
-                lines = "\n".join(f"• {d['customer']}: ₦{d['balance']:,.0f}" for d in due[:8])
-                whatsapp.send_text(phone, f"📌 {len(due)} customer(s) promised to pay today:\n{lines}\n\n"
-                                          f"Your reminders are ready (with a pay link). Open: {base}/app")
+                parts = []
+                if due:
+                    lines = "\n".join(f"• {d['customer']}: ₦{d['balance']:,.0f}" for d in due[:8])
+                    parts.append(f"📌 {len(due)} customer(s) promised to pay today:\n{lines}\n"
+                                 "Your reminders are ready (with a pay link).")
+                if usual:
+                    parts.append("🔁 " + "\n🔁 ".join(converse.repeat_line(p, lang if lang in converse.LANGS else "English")
+                                                       + f' Say "{p["customer"]} usual" to record it.' for p in usual[:5]))
+                whatsapp.send_text(phone, "\n\n".join(parts) + f"\n\nOpen: {base}/app")
             except Exception as e:  # noqa: BLE001 - WhatsApp may not reach them (24 h rule); drafts are still there
                 print(f"daily summary not sent: {e}")
         done += len(due)
@@ -500,6 +572,19 @@ def pin_check(b: Pin, request: Request):
 
 
 # ---------------------------------------------------------------- 📤 CSV export
+
+@router.post("/api/customers/{cid}/statement")
+def statement_draft(cid: int, request: Request):
+    """Draft this customer's statement in their conversation, ready for Send on WhatsApp / Edit / Cancel."""
+    if not ledger.get_customer(cid):
+        raise HTTPException(404)
+    phone = request.scope.get("state", {}).get("phone")
+    prof = accounts.profile(phone) if phone else {}
+    text = customer_statement(cid, prof.get("shop") or os.getenv("SHOP_NAME", "My shop"), prof.get("lang") or "English",
+                              _base(request), phone)
+    ledger.add_message(cid, text, sender="tradevoice", kind="statement", status="draft")
+    return {"customer": ledger.customer_summary(cid), "thread": ledger.thread(cid)}
+
 
 @router.get("/api/export.csv")
 def export_csv(request: Request):
