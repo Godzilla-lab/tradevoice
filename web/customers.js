@@ -58,18 +58,28 @@ function renderRows() {
   const rows = C.list.filter((c) => (!q || c.name.toLowerCase().includes(q) || (c.phone || "").includes(q)) &&
     (C.filter === "all" || (C.filter === "owe" && c.owes_me > 0) || (C.filter === "mine" && c.i_owe > 0) ||
      (C.filter === "late" && c.overdue)));
-  $("#crows").innerHTML = rows.length ? rows.map((c) => `
+  $("#crows").innerHTML = rows.length ? rows.map((c) => {
+    const st = c.owes_me > 0 ? "owes" : c.i_owe > 0 ? "mine" : "clear";
+    const amt = c.owes_me > 0 ? c.owes_me : c.i_owe;
+    const status = c.overdue ? t("days_late", "{n} days late").replace("{n}", c.days_late)
+      : st === "owes" ? t("owes_you_short", "owes you") : st === "mine" ? t("you_owe_short", "you owe") : t("paid_up", "Paid up");
+    return `
     <button class="crow ${C.open === c.id ? "sel" : ""}" data-cid="${c.id}">
       <span class="cav">${esc(initials(c.name))}</span>
       <span class="cmain">
-        <span class="cline"><span class="cname">${esc(c.name)}</span><span class="ctime">${esc(when(c.last_at))}</span></span>
-        <span class="cline"><span class="cprev">${esc(preview(c))}</span>
-          ${c.unread ? `<span class="unread">${c.unread}</span>` : ""}</span>
-        ${c.same_name || c.owes_me || c.i_owe ? `<span class="cbal ${c.overdue ? "late-amt" : c.owes_me > 0 ? "owes" : ""}">${esc(balanceLine(c))}${
-          c.overdue ? " · " + esc(t("days_late", "{n} days late").replace("{n}", c.days_late)) : ""}${
-          c.same_name && c.phone ? " · " + esc(c.phone) : ""}</span>` : ""}
+        <span class="cline"><span class="cname">${esc(c.name)}</span>${c.unread ? `<span class="unread">${c.unread}</span>` : ""}</span>
+        <span class="cprev">${esc(preview(c))}${c.last_at ? " · " + esc(when(c.last_at)) : ""}</span>
+        ${c.same_name && c.phone ? `<span class="cprev">${esc(c.phone)}</span>` : ""}
       </span>
-    </button>`).join("") : `<div class="empty">${esc(C.list.length ? "…" : t("no_customers", "No customers yet."))}</div>`;
+      <span class="cright">
+        ${amt > 0 ? `<span class="cbig ${st}"><span class="money">${naira(amt)}</span></span>` : ""}
+        <span class="cstat ${c.overdue ? "late" : st}">${esc(status)}</span>
+      </span>
+    </button>`;
+  }).join("") : C.list.length ? `<div class="empty">${esc(t("no_match", "Nobody matches."))}</div>`
+    : `<section class="welcome-empty"><h2>${esc(t("no_customers", "No customers yet"))}</h2>
+        <p>${esc(t("no_customers_hint", "Your customers appear here when you record a sale."))}</p>
+        <button class="tell" data-go="talk">${svg("mic", 24)}<span>${esc(t("record_sale", "Record a sale"))}</span></button></section>`;
 }
 
 $("#crows").addEventListener("click", (e) => { const b = e.target.closest(".crow"); if (b) openThread(+b.dataset.cid); });
@@ -104,48 +114,58 @@ function closeThread() {
 }
 
 function renderThread() {
-  const c = C.data.customer, ev = C.data.thread;
-  const context = [c.due_date ? t("due", "Due {d}").replace("{d}", day(c.due_date)) : "",
-                   c.last && c.last.item ? t("last_item", "Last: {x}").replace("{x}", c.last.item + (c.last.quantity ? ` (${c.last.quantity} ${c.last.unit || ""})`.replace(" )", ")") : "")) : ""]
-    .filter(Boolean).map(esc).join(" · ");
-  let lastDay = "", html = "";
+  const c = C.data.customer, ev = C.data.thread.filter((e) => e.status !== "cancelled");
+  // running balance, oldest first: what they owe me (credit_sale − payment_received) and what I owe them
+  let theirs = 0, mine = 0, lastDay = "", html = "";
   for (const e of ev) {
+    if (e.event === "record") {
+      if (e.type === "credit_sale") theirs += e.amount; else if (e.type === "payment_received") theirs -= e.amount;
+      else if (e.type === "credit_purchase") mine += e.amount; else if (e.type === "payment_made") mine -= e.amount;
+    }
     const d = e.created_at.slice(0, 10);
-    if (d !== lastDay) { html += `<div class="day">${esc(dayLabel(e.created_at))}</div>`; lastDay = d; }
-    html += e.event === "record" ? recordCard(e) : ["reminder", "receipt"].includes(e.kind) ? reminderBubble(e, c)
-      : e.kind === "payclaim" ? claimBubble(e) : noteBubble(e);
+    if (d !== lastDay) { html += `<div class="tday">${esc(dayLabel(e.created_at))}</div>`; lastDay = d; }
+    html += e.event === "record" ? recordCard(e, { theirs: Math.max(0, theirs), mine: Math.max(0, mine) })
+      : ["reminder", "receipt"].includes(e.kind) ? reminderBubble(e, c) : e.kind === "payclaim" ? claimBubble(e) : noteBubble(e);
   }
   if (!ev.length) html = `<div class="empty">${esc(t("empty_thread", "Nothing here yet.").replace("{n}", c.name))}</div>`;
+  const st = c.owes_me > 0 ? "owes" : c.i_owe > 0 ? "mine" : "clear";
+  const big = c.owes_me > 0 ? c.owes_me : c.i_owe;
+  const label = st === "owes" ? t("you_are_owed", "You are owed") : st === "mine" ? t("you_owe_them", "You owe them") : t("paid_up", "Paid up");
+  const sub = [c.overdue ? t("days_overdue", "{n} days overdue").replace("{n}", c.days_late) : "",
+               c.due_date && !c.overdue ? t("due", "Due {d}").replace("{d}", day(c.due_date)) : ""].filter(Boolean).join(" · ");
   $("#cthread").innerHTML = `
     <div class="thead">
       <button class="icon back" aria-label="${esc(t("back", "Back"))}">${svg("back")}</button>
       <span class="cav">${esc(initials(c.name))}</span>
       <div class="tinfo"><div class="tname">${esc(c.name)}</div>
-        <div class="tsub ${c.overdue ? "late-amt" : c.owes_me > 0 ? "owes" : ""}">${esc(balanceLine(c))}${c.overdue ? " · " + esc(t("days_late", "{n} days late").replace("{n}", c.days_late)) : ""}</div></div>
+        <div class="tsub">${c.phone ? esc(c.phone) : `<button class="linkbtn" data-act="contact">${esc(t("add_phone", "Add phone"))}</button>`}</div></div>
       <button class="icon" data-act="contact" aria-label="${esc(t("edit_contact", "Edit contact"))}">${svg("more")}</button>
     </div>
-    <div class="tcontext">${context ? `<span>${context}</span>` : ""}
-      ${c.phone ? `<span>${esc(c.phone)}</span>` : `<button class="linkbtn" data-act="contact">${esc(t("add_phone", "Add phone"))}</button>`}</div>
+    <div class="tbal ${st}"><div class="tbal-v"><span class="money">${big > 0 ? naira(big) : "₦0"}</span></div>
+        <div class="tbal-k">${esc(label)}</div>${sub ? `<div class="tbal-s ${c.overdue ? "late" : ""}">${esc(sub)}</div>` : ""}</div>
     <div class="tmsgs" id="tmsgs">${html}${C.draft ? draftCard() : ""}</div>
     <div class="tactions">
       <button class="gave" data-act="sale">↑ ${esc(t("you_gave", "You gave"))}</button>
       <button class="got" data-act="pay">↓ ${esc(t("you_got", "You got"))}</button>
-      ${c.owes_me > 0 ? `<button class="remind" data-act="remind">${esc(t("prepare_reminder", "Prepare reminder"))}</button>` : ""}
+      ${c.owes_me > 0 ? `<button class="remind" data-act="remind">${svg("bell", 20)} ${esc(t("prepare_reminder", "Prepare reminder"))}</button>` : ""}
     </div>
     <form class="tcomposer" id="tform"><input id="tinput" autocomplete="off" placeholder="${esc(t("note_hint", "Write a note"))}">
       <button class="round small-round" aria-label="${esc(t("save", "Save"))}">${svg("send", 20)}</button></form>`;
   const m = $("#tmsgs"); requestAnimationFrame(() => (m.scrollTop = m.scrollHeight));
 }
 
-function recordCard(e) {
-  const bits = [e.item && (e.quantity ? `${e.item} (${e.quantity} ${e.unit || ""})`.replace(" )", ")") : e.item),
-                e.due_date ? t("due", "Due {d}").replace("{d}", day(e.due_date)) : ""].filter(Boolean);
+function recordCard(e, bal = {}) {
+  const what = e.item ? (e.quantity ? `${e.item} × ${e.quantity}${e.unit ? " " + e.unit : ""}` : e.item) : "";
+  const bits = [what, e.due_date ? t("due", "Due {d}").replace("{d}", day(e.due_date)) : ""].filter(Boolean);
   const IN = ["sale", "payment_received"], sign = IN.includes(e.type) ? "+" : e.type === "credit_sale" ? "" : "−";
-  const side = ["sale", "payment_received", "credit_purchase"].includes(e.type) ? "got" : "gave";  // khata style: gave | got
-  return `<div class="rec ${side}">
-    <span class="rmain"><b>${esc(typeLabel(e.type))}</b>${bits.length ? `<br><small>${esc(bits.join(" · "))}</small>` : ""}</span>
-    <span class="amt ${IN.includes(e.type) ? "in" : e.type === "credit_sale" ? "credit" : "out"}"><span class="money">${sign}${naira(e.amount)}</span></span>
-    <span class="rtime">${esc(when(e.created_at))}</span></div>`;
+  const cls = IN.includes(e.type) ? "in" : e.type === "credit_sale" ? "credit" : "out";
+  const after = ["credit_sale", "payment_received"].includes(e.type) ? t("balance_after", "Balance {m}").replace("{m}", naira(bal.theirs || 0))
+    : ["credit_purchase", "payment_made"].includes(e.type) ? t("you_owe_after", "You owe {m}").replace("{m}", naira(bal.mine || 0)) : "";
+  return `<div class="trow">
+    <span class="ricon ${cls}">${cls === "in" ? "↓" : cls === "out" ? "↑" : "⏳"}</span>
+    <span class="tmain"><b>${esc(typeLabel(e.type))}</b>${bits.length ? `<small>${esc(bits.join(" · "))}</small>` : ""}</span>
+    <span class="tamt"><span class="amt ${cls}"><span class="money">${sign}${naira(e.amount)}</span></span>
+      ${after ? `<small class="money">${esc(after)}</small>` : ""}<small>${esc(e.created_at.slice(11, 16))}</small></span></div>`;
 }
 
 function noteBubble(e) {
@@ -155,18 +175,19 @@ function noteBubble(e) {
 function reminderBubble(e, c) {
   const opened = e.status === "opened";
   return `<div class="msg in tv" data-mid="${e.id}">
-    <div class="tvlabel">${esc(e.kind === "receipt" ? "🧾 " + t("receipt", "Receipt") : "TradeVoice")} · ${esc(opened ? t("opened_note", "Opened in WhatsApp") : t("draft_note", "TradeVoice prepared this."))}</div>
+    <div class="tvlabel">${esc(e.kind === "receipt" ? t("receipt", "Receipt") : t("reminder", "Reminder"))} · ${esc(opened ? t("opened_note", "Opened in WhatsApp") : t("you_send", "Check it, then send it yourself"))}</div>
     <div class="rtext">${fmt(e.content)}</div>
     ${c.phone ? "" : `<div class="en">${esc(t("no_phone", "No phone saved."))}</div>`}
-    <div class="rbtns"><button data-act="editmsg">${esc(t("edit_message", "Edit message"))}</button>
-      <button class="wa-btn" data-act="openwa">${esc(t("open_whatsapp", "Open WhatsApp"))}</button></div>
+    <div class="rbtns"><button class="wa-btn" data-act="openwa">${esc(opened ? t("send_again", "Send again") : t("send_whatsapp", "Send on WhatsApp"))}</button>
+      <button data-act="editmsg">${esc(t("edit_message", "Edit"))}</button>
+      ${opened ? "" : `<button data-act="cancelmsg">${esc(t("cancel", "Cancel"))}</button>`}</div>
     <span class="meta">${esc(when(e.created_at))}</span></div>`;
 }
 
 // the customer tapped "I have paid" on the pay link: the trader checks the bank app, then confirms
 function claimBubble(e) {
   const open = (e.status || "").startsWith("claim:");
-  return `<div class="msg in claim" data-mid="${e.id}"><div class="tvlabel">💸 ${esc(t("pay_link", "Pay link"))}</div>
+  return `<div class="msg in claim" data-mid="${e.id}"><div class="tvlabel">${esc(t("pay_link", "Pay link"))}</div>
     <div class="rtext">${fmt(e.content)}</div>
     <div class="rbtns">${open ? `<button class="primary-sm" data-act="confirmpaid">✓ ${esc(t("confirm_paid", "Money arrived: record it"))}</button>`
       : `<span class="muted">✓ ${esc(t("recorded", "Recorded"))}</span>`}</div>
@@ -220,6 +241,11 @@ $("#cthread").addEventListener("click", async (e) => {
         refreshThread();
       }
       return;
+    }
+    if (act === "cancelmsg" && bub) {
+      await api(`/api/messages/${bub.dataset.mid}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
+                                                      body: JSON.stringify({ status: "cancelled" }) });
+      return refreshThread();
     }
     if (act === "openwa" && bub) {
       const txt = $(".rtext", bub), msg = txt.value ?? txt.innerText;
@@ -308,7 +334,8 @@ function contactSheet(c) {
           $("#sheet").hidden = true; await loadCustomers(); openThread(n.id);
         }
       }
-      if (b.id === "kDel" && confirm(t("confirm_delete_customer", "Delete this customer?"))) {
+      if (b.id === "kDel" && await askSheet({ title: t("confirm_delete_customer", "Delete this customer?"),
+          body: t("delete_customer_why", "Their records stay in your totals; the customer and conversation are removed."), ok: t("delete", "Delete"), danger: true })) {
         await api(`/api/customers/${c.id}`, { method: "DELETE" });
         $("#sheet").hidden = true; closeThread(); loadCustomers();
       }

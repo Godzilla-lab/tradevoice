@@ -33,3 +33,22 @@
 9. Staff accounts (L), not for the hackathon
 
 Sources: Medhi et al. CHI'09 (microsoft.com/en-us/research/wp-content/uploads/2016/02/medhi_chi2009.pdf); CGAP on illiteracy and innumeracy; Khatabook and OkCredit product pages; Material touch targets (48dp); NDPA 2023 text (cert.gov.ng). The full list is in the research notes from 27 Sep.
+
+## Refinement round (team plan "TRADEVOICE UI/UX CHANGES" + taste-skill redesign audit)
+Principle: **You talk. TradeVoice keeps the book.** Speak → AI understands → trader confirms → book updates.
+
+| Plan item | Done |
+|---|---|
+| Voice → confirmation → ledger (P0) | Every draft shows a card: amount, what happened (↓ in / ↑ out / ⏳ credit), customer ("New customer" tag), item ("2 bags of rice"), pay-by date. **Save / Change / Cancel**. "Nothing is saved until you confirm." Change edits every field (`POST /api/draft`). "✓ Saved to your book" |
+| AI uncertainty (P0) | Unsure fields get a "?" and a plain reason: no amount heard (then "Add amount" replaces Save, never guessed), no customer on a debt, no pay-by date, unclear type. Invented amounts are still dropped by the extract guards |
+| Home hierarchy (P0) | Today card = **Money in − money out** (real cash: sales paid now + payments in, minus spending + paying suppliers; credit sales shown on their own line, never called profit) → Money to collect (big red, "2 late", "See who owes you →") → big **Tell TradeVoice** button → Scan book · Collect · Lender report → Next 7 days → Recent. Fewer cards |
+| Customers (P0/P1) | Rows lead with the balance ("₦16,800" + "2 days late"); detail = balance pinned on top ("You are owed", "18 days overdue"), a dated timeline with running balance, notes and receipts; reminder = **Send on WhatsApp / Edit / Cancel**, never sent automatically |
+| Contextual Ask (P0) | Example questions per screen (Home, Customers, Insights, Me) in 5 languages, tappable (a visible alternative to speaking); answered exactly from the book (`assistant.book_answer`), no AI needed |
+| Empty states (P1) | Empty home ("Your book is empty. Tell me your first sale." + example sentence + sample records), customers, insights, chat ("Don't know where to start? Just talk.") |
+| Rename (P1) | "For lender" → **Lender report**; "Say it / Snap book" → **Tell TradeVoice / Scan book / Collect** |
+| Tax UX | **Tax records** (your numbers) + **Tax information** ("General information… confirm with a qualified tax professional") |
+| Trust | Sign-up shows: nothing is saved until you confirm · voice notes are deleted after reading · delete your records any time |
+
+**Taste-skill audit applied:** no em/en dashes anywhere visible · sentence-case section titles (no all-caps eyebrows) · no emoji in buttons/labels/toasts (kept only inside chat messages, where they help low-literacy users recognise mic/camera) · toasts say what happened ("Copied", "Link stopped", "PIN set") instead of a bare ✓ · browser `prompt()/confirm()` replaced by in-app sheets (type DELETE to delete an account) · press feedback (scale .98), calm 120-200 ms transitions, hover only on hover devices · `text-wrap: pretty/balance` · tabular numbers · one accent colour (marigold) with semantic green/red only. Kept Noto Sans on purpose: it renders Yoruba tone marks and Hausa hooked letters (ɓ ɗ ƙ) correctly, which most "characterful" fonts don't.
+
+**Also fixed while testing the demo sentence:** amounts said in words followed by a full stop ("…forty-five thousand.") were missed, and quantities said in words ("two bags of rice") were not read. Both fixed; 470 rule cases still pass.

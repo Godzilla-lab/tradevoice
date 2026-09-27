@@ -17,9 +17,11 @@ Nigerian market traders sell on credit and keep records in their heads or in a n
 don't know their real profit, and without records they can't get a loan from a microfinance bank or cooperative.
 
 ## What TradeVoice does
-**📱 The app looks and works like WhatsApp** (`python web.py`): chat with your book, hold 🎤 to talk, 📎 to snap your
-notebook, voice-note replies in your language, and Book / Debts / Insights / Profile tabs. The same chat code
-(`converse.py`) runs the WhatsApp bot.
+**You talk. TradeVoice keeps the book.** (`python web.py`) A trader logs in with their phone number, taps the big
+mic and says what happened. TradeVoice shows what it understood (customer, amount, item, credit or paid, pay-by date,
+with a "?" on anything it isn't sure of), the trader taps **Save**, and the book updates. Home shows money in and out
+today and the money to collect; Customers is a ledger per person ("You gave / You got"); Ask answers questions from
+the book by voice. The same brain (`converse.py`) runs the WhatsApp bot, on the same book for the same number.
 
 | Feature | What the trader does | What happens |
 |---|---|---|
@@ -67,17 +69,22 @@ deterministic and explainable, so the AI can never invent a number in your books
 ## Code map
 | File | What it does |
 |---|---|
-| `web.py` + `web/` | 📱 **The app**: WhatsApp-style web app (chat home screen, hold 🎤 to talk, 📎 snap your book, voice-note replies, Book / Debts / Insights / Profile tabs, 5 languages, dark mode). `web.py` is a small API over the same modules |
+| `web.py` + `web/` | 📱 **The app**: phone-number login, Home · Customers · big mic (Talk) · Insights · Me, confirmation card before anything is saved, 5 languages, dark mode, offline voice-note queue (`web/sw.js`), WhatsApp view. `web.py` is a small API over the same modules. Design: `docs/UI_RESEARCH.md` |
+| `accounts.py` | 🔐 Log in with your phone number (code on WhatsApp, or "Confirm with WhatsApp" = send `LOGIN <word>` from that phone, or demo code); one book per number (`books/<number>.db`); hashed codes and sessions; `eval/test_auth.py` |
+| `extras.py` | 🏦 Lender link (consent, 1/7/30 days, revoke, view count) · 💳 pay link in reminders (Paystack checkout + signed webhook settles the debt; or bank details + "I have paid") · ⏰ reminder drafts on the promised day · 🧾 receipts · 🔒 server-checked PIN · 📤 CSV export; `eval/test_extras.py` |
+| `assistant.py` | 🎙️ Ask TradeVoice: explains each screen, answers spoken questions; the example questions are answered exactly from the book (`book_answer`), AI answers are checked against the book's numbers |
+| `tax.py` | Tax records + general tax information (9 sourced facts, 5 languages); never says what anyone owes |
+| `eval/test_demo_flow.py` | The 90-second demo end to end: speak → card → change → save → who owes most → reminder with pay link → Yoruba question on the same book |
 | `app.py` | Gradio screens (all features, used as the admin/backup view at `/admin`) |
 | `llm.py` | Every NVIDIA API call, with automatic fallback to the next model if one is deprecated |
 | `check_models.py` | Lists the models your key can see and tests ours. **Run this first** |
 | `eval/lang_check.py` | Scoreboard: which model reads/understands Yoruba, Hausa, Igbo, Pidgin best |
-| `asr.py` | Speech-to-text: Whisper for English/Pidgin, Meta omniASR for Yoruba/Hausa/Igbo (Whisper has no Igbo); or calls `asr_server/` |
+| `asr.py` | Speech-to-text: **Intron Sahara** (default, Nigerian languages), Spitch as backup, local Whisper/omniASR offline; `transcribe_auto` hears the language the trader actually spoke |
 | `requirements-omni.txt` | Extra install for Yoruba/Hausa/Igbo voice (Brev GPU only) |
 | `asr_server/server.py` | Optional standalone speech API (FastAPI) for a Brev GPU, same engines as `asr.py` |
 | `vision.py` | Book photo → text lines (shrinks the image to fit NVIDIA's inline-image limit) |
 | `extract.py` | Text → entries. LLM first; rules as fallback and amount cross-check. `extract()` for one, `extract_many()` for many lines |
-| `web/customers.js` | 👥 **Customers**: one WhatsApp-style conversation per customer on live book data (records, notes, reminder drafts TradeVoice prepares and the trader sends), record payment/sale, edit contact; list + thread on phones, two columns on desktop |
+| `web/customers.js` | 👥 **Customers**: balance-first list; each customer is a money timeline (running balance, notes, receipts, reminder drafts with Send / Edit / Cancel, "customer says they paid" to confirm); "You gave / You got"; two columns on desktop |
 | `ui_text.py` | **All screen words in one place** (English, Pidgin, Yorùbá, Hausa, Igbo; English fallback, never a raw key); used by the web app, the website and WhatsApp. Native-speaker check pending |
 | `whatsapp.py` | 📲 WhatsApp bot (Meta Cloud API webhook at `/whatsapp/webhook`, inside `web.py`): sign-up in chat, voice notes, photos, buttons, voice-note replies; `eval/test_whatsapp.py` |
 | `photo.py` | Notebook photo → draft rows → tick/fix → save (shared by web and WhatsApp) |
@@ -179,6 +186,14 @@ Stretch: package the setup as a **Brev Launchable** (one-click template) so anyo
 | `DB_PATH` | `tradevoice.db` | SQLite file |
 | `SHOP_NAME` | `Chioma Stores` | Default shop name on reminders and statement |
 | `GRADIO_SHARE` | – | `1` = public link |
+| `AUTH_REQUIRED` | `1` | Phone-number login. `0` = no login, one shared book (old demo) |
+| `AUTH_DEMO` | – | `1` = show the login code on screen (use until WhatsApp works; also on when WhatsApp isn't set up) |
+| `BOOKS_DIR` / `ACCOUNTS_DB` | `books` / `accounts.db` | One book file per phone number / logins, sessions, PIN, bank details, lender links, pay links |
+| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_VERIFY_TOKEN` | – | WhatsApp bot + login codes (`check_whatsapp.py` tests the whole chain) |
+| `WHATSAPP_APP_SECRET` | – | Optional: checks messages really come from Meta (leave empty if unsure) |
+| `PUBLIC_URL` | request address | Link used in pay links and in the daily reminder summary |
+| `PAYSTACK_SECRET_KEY` / `PAYSTACK_EMAIL` | – | Pay links open a Paystack checkout; point Paystack's webhook at `/paystack/webhook` |
+| `AUTO_REMINDERS` | `1` | Draft reminders on the promised day (every 30 min check) and WhatsApp the trader a summary |
 
 ## Honesty notes
 - The starter code was prepared before the event with an AI coding assistant (Claude) and open-source parts. It is disclosed

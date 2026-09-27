@@ -108,10 +108,73 @@ def _upload(file: UploadFile, suffix):
     return path
 
 
+def _draft(state):
+    """What is waiting for "yes", as fields for the confirmation card. `unsure` names the fields TradeVoice is not
+    sure about (so the card shows a "?" and asks), `new_customer` says the name isn't in the book yet."""
+    rec = state.get("pending")
+    if not rec or state.get("choose"):
+        return None
+    unsure = []
+    if rec.get("amount") in (None, ""):
+        unsure.append("amount")
+    if (rec.get("confidence") or 0) < 0.5 and rec.get("amount") not in (None, ""):
+        unsure.append("type")
+    if rec.get("type") in ("credit_sale", "payment_received", "credit_purchase", "payment_made") and not rec.get("customer"):
+        unsure.append("customer")  # a debt needs a person
+    if rec.get("type") in ("credit_sale", "credit_purchase") and not rec.get("due_date"):
+        unsure.append("due_date")
+    known = bool(rec.get("customer_id")) or bool(rec.get("customer") and ledger.find_customers(rec["customer"]))
+    return {"type": rec.get("type"), "amount": rec.get("amount"), "customer": rec.get("customer"),
+            "new_customer": bool(rec.get("customer")) and not known, "item": rec.get("item"),
+            "quantity": rec.get("quantity"), "unit": rec.get("unit"), "due_date": rec.get("due_date"),
+            "note": rec.get("note"), "unsure": unsure}
+
+
 def _reply_json(r, state, heard=None):
     return {"text": r["text"], "english": r.get("english"), "lang": r["lang"], "heard": heard,
             "message": r.get("message"), "link": r.get("link"), "choices": r.get("choices"),
-            "pending": bool(state.get("pending")), "speak": _speak_id(r.get("spoken"), r["lang"])}
+            "pending": bool(state.get("pending")), "draft": _draft(state),
+            "speak": _speak_id(r.get("spoken"), r["lang"])}
+
+
+class DraftEdit(BaseModel):
+    session: str = "anon"
+    lang: str | None = None
+    type: str | None = None
+    amount: float | None = None
+    customer: str | None = None
+    item: str | None = None
+    quantity: float | None = None
+    unit: str | None = None
+    due_date: str | None = None
+
+
+@app.post("/api/draft")
+def draft_edit(b: DraftEdit):
+    """"Change" on the confirmation card: the trader fixes what TradeVoice understood, then saves with Yes."""
+    state = _state(b.session, b.lang)
+    rec = state.get("pending")
+    if not rec:
+        raise HTTPException(400, "There is nothing waiting to be saved.")
+    if b.type is not None and b.type not in TYPES:
+        raise HTTPException(400, "Unknown record type.")
+    if b.amount is not None and b.amount <= 0:
+        raise HTTPException(400, "The amount must be more than ₦0.")
+    if b.due_date:
+        try:
+            dt.date.fromisoformat(b.due_date)
+        except ValueError:
+            raise HTTPException(400, "Use a date like 2026-10-02.")
+    for k in ("type", "amount", "item", "quantity", "unit", "due_date"):
+        v = getattr(b, k)
+        if v is not None:
+            rec[k] = (v.strip() or None) if isinstance(v, str) else v
+    if b.customer is not None and (b.customer.strip() or None) != rec.get("customer"):
+        rec["customer"], rec["customer_id"] = b.customer.strip() or None, None
+    rec["confidence"], rec["note"] = 1.0, None  # the trader checked it
+    lang = state.get("lang") or "English"
+    heard = converse._heard(rec, lang)
+    return _reply_json(heard, state)
 
 
 # ---------------------------------------------------------------- talk

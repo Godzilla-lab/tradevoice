@@ -394,6 +394,12 @@ def reply(text, state=None, today=None, shop="your shop"):
 
         return _out(tax.chat_answer(lang, insights.year_record(today=today)[0]), lang,
                     english=tax.chat_answer("English") if lang != "English" else None)
+    if amount is None:
+        import assistant
+
+        fixed = assistant.book_answer(text, lang, today)  # "who owes me the most?" etc.: exact, from the book
+        if fixed:
+            return _out(fixed, lang)
     if QUESTION.search(t) or (amount is None and not EVENT.search(t)):
         out = _question(text, lang, state, vocab, today)
         if out:

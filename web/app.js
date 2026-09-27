@@ -144,9 +144,9 @@ function bubble(side, html, { ticks = false } = {}) {
   return el;
 }
 
-function typing() {
+function typing(label = "") {
   const el = document.createElement("div");
-  el.className = "msg in"; el.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+  el.className = "msg in"; el.innerHTML = `<span class="typing"><i></i><i></i><i></i></span>${label ? `<span class="tlabel">${esc(label)}</span>` : ""}`;
   chat.appendChild(el); scrollDown();
   return el;
 }
@@ -227,32 +227,102 @@ function choiceReplies(choices) {
 function followLanguage(r) {
   const local = ["Yoruba", "Hausa", "Igbo"];
   const next = local.includes(r.detected) ? r.detected : local.includes(r.lang) ? r.lang : null;
-  if (next && next !== S.lang) { setLang(next); toast(`🗣️ ${LANG_NAMES[next]}`, 1800); }
+  if (next && next !== S.lang) { setLang(next); toast(LANG_NAMES[next], 1800); }
+}
+
+// ✅ the confirmation card: what TradeVoice understood, field by field. Nothing is saved until the trader taps Save.
+const UNSURE = {
+  amount: ["unsure_amount", "I didn't hear an amount. How much was it?"],
+  customer: ["unsure_customer", "Who is this for?"],
+  due_date: ["unsure_due", "No payment date was said. Add one, or save without it."],
+  type: ["unsure_type", "I wasn't sure what kind of record this is. Please check."],
+};
+function confirmCard(d) {
+  const cls = IN_TYPES.includes(d.type) ? "in" : d.type === "credit_sale" ? "credit" : "out";
+  const q = (f) => (d.unsure.includes(f) ? ' <b class="q" aria-label="not sure">?</b>' : "");
+  const unit = d.unit ? (d.quantity && d.quantity !== 1 && !/s$/.test(d.unit) ? d.unit + "s" : d.unit) : "";
+  const item = d.quantity ? `${d.quantity} ${unit}${d.item ? (unit ? " of " : " ") + d.item : ""}`.trim() : (d.item || "");
+  const rows = [
+    ["customer", t("customer", "Customer"), d.customer ? esc(d.customer) + (d.new_customer ? ` <span class="tag">${esc(t("new_customer", "New customer"))}</span>` : "") : "-"],
+    ["item", t("item", "Item"), esc(item)],
+    ["due_date", t("due_label", "Pay by"), d.due_date ? esc(dueDay(d.due_date)) : `<span class="muted">${esc(t("not_said", "Not said"))}</span>`],
+  ].filter(([f]) => f !== "due_date" || ["credit_sale", "credit_purchase"].includes(d.type))
+   .filter(([f]) => f !== "customer" || d.customer || d.unsure.includes("customer"))
+   .filter(([f]) => f !== "item" || item);
+  const why = d.unsure.map((f) => UNSURE[f] && `<li>${esc(t(...UNSURE[f]))}</li>`).filter(Boolean).join("");
+  const noAmount = d.unsure.includes("amount");
+  return `<div class="confirm">
+    <div class="ck">${esc(t("understood", "I understood"))}</div>
+    <div class="cf-amt ${noAmount ? "missing" : ""}">${noAmount ? "₦ ?" : naira(d.amount)}</div>
+    <div class="cf-type"><span class="ricon ${cls}">${cls === "in" ? "↓" : cls === "out" ? "↑" : "⏳"}</span>${esc(TYPES[d.type]?.[1] || d.type)}${q("type")}</div>
+    <dl class="cf">${rows.map(([f, k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}${q(f)}</dd></div>`).join("")}</dl>
+    ${why ? `<ul class="why">${why}</ul>` : ""}${d.note && !why ? `<ul class="why"><li>${esc(d.note)}</li></ul>` : ""}
+    <div class="cf-btns ${noAmount ? "two" : ""}">${noAmount
+      ? `<button class="cf-add" data-cf="change">${esc(t("add_amount", "Add amount"))}</button>`
+      : `<button class="cf-save" data-cf="save">${esc(t("save", "Save"))}</button><button data-cf="change">${esc(t("change", "Change"))}</button>`}
+      <button data-cf="cancel">${esc(t("cancel", "Cancel"))}</button></div>
+    <p class="cf-note">${esc(t("nothing_saved", "Nothing is saved until you confirm."))}</p></div>`;
+}
+const dueDay = (iso) => { const d = new Date(iso + "T12:00:00"); return isNaN(d) ? iso : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); };
+function lockCards() { document.querySelectorAll(".confirm button, .quick button").forEach((b) => (b.disabled = true)); }
+chat.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-cf]"); if (!b || b.disabled) return;
+  const card = b.closest(".confirm"), d = JSON.parse(card.dataset.draft || "{}");
+  if (b.dataset.cf === "change") return changeSheet(d);
+  lockCards();
+  const r = await sendText(b.dataset.cf === "save" ? "yes" : "no", b.textContent);
+  if (r && b.dataset.cf === "save" && !r.pending) toast(`✓ ${t("saved_book", "Saved to your book")}`, 2500);
+});
+function changeSheet(d) {
+  const opts = Object.entries(TYPES).map(([k, [, lb]]) => `<option value="${k}" ${k === d.type ? "selected" : ""}>${esc(lb)}</option>`).join("");
+  sheet(`<h3>${esc(t("change", "Change"))}</h3>
+    <label>${esc(t("type_label", "What happened"))}<select id="dType">${opts}</select></label>
+    <label>${esc(t("amount", "Amount (₦)"))}<input id="dAmt" inputmode="numeric" value="${d.amount ?? ""}" placeholder="45000"></label>
+    <label>${esc(t("customer", "Customer"))}<input id="dCust" value="${esc(d.customer || "")}" autocomplete="off"></label>
+    <label>${esc(t("item", "Item"))}<input id="dItem" value="${esc(d.item || "")}" autocomplete="off"></label>
+    <div class="two"><label>${esc(t("quantity", "How many"))}<input id="dQty" inputmode="decimal" value="${d.quantity ?? ""}"></label>
+      <label>${esc(t("unit", "Unit"))}<input id="dUnit" value="${esc(d.unit || "")}" placeholder="bag"></label></div>
+    <label>${esc(t("due_label", "Pay by"))}<input id="dDue" type="date" value="${esc(d.due_date || "")}"></label>
+    <button class="primary" id="dOk">${esc(t("done", "Done"))}</button>`);
+  $("#dOk").onclick = async () => {
+    const amt = parseFloat(($("#dAmt").value || "").replace(/[₦,\s]/g, "").replace(/k$/i, "000"));
+    if (!(amt > 0)) return toast(t("unsure_amount", "How much was it?"));
+    const qty = parseFloat($("#dQty").value);
+    try {
+      const r = await post("/api/draft", { session: S.session, lang: S.lang, type: $("#dType").value, amount: amt,
+        customer: $("#dCust").value, item: $("#dItem").value, quantity: isNaN(qty) ? null : qty, unit: $("#dUnit").value,
+        due_date: $("#dDue").value || null });
+      $("#sheet").hidden = true; lockCards(); showReply(r);
+    } catch (err) { toast(err.message); }
+  };
 }
 
 function showReply(r, { autoplay = false } = {}) {
   followLanguage(r);
-  let html = fmt(r.text);
-  if (r.english) html += `<div class="en">🇬🇧 ${fmt(r.english)}</div>`;
+  let html = r.draft ? "" : fmt(r.text);
+  if (r.english) html += `<div class="en"><span class="enl">EN</span> ${fmt(r.english)}</div>`;
   if (r.message) {
-    html += `<div class="quote">${fmt(r.message)}</div><a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">📲 ${esc(t("open_whatsapp", "Open WhatsApp"))}</a><div class="en">${esc(t("draft_note", ""))}</div>`;
+    html += `<div class="quote">${fmt(r.message)}</div><a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">${esc(t("open_whatsapp", "Open WhatsApp"))}</a><div class="en">${esc(t("draft_note", ""))}</div>`;
   }
+  lockCards();
+  if (r.draft) html = confirmCard(r.draft);
   const el = bubble("in", html);
+  if (r.draft) { el.classList.add("has-card"); el.querySelector(".confirm").dataset.draft = JSON.stringify(r.draft); }
   if (r.speak && S.voice) el.insertBefore(voiceNote(null, { speakId: r.speak, autoplay }), el.querySelector(".meta"));
-  document.querySelectorAll(".quick").forEach((q) => q.querySelectorAll("button").forEach((b) => (b.disabled = true)));
   if (r.choices && r.choices.length) choiceReplies(r.choices);
-  else if (r.pending) quickReplies();
+  else if (r.pending && !r.draft) quickReplies();
   scrollDown();
 }
 
 async function sendText(text, shown) {
   text = text.trim(); if (!text) return;
   bubble("out", fmt(shown || text), { ticks: true });
-  const wait = typing();
+  const wait = typing(t("understanding", "Understanding…"));
   try {
     const r = await post("/api/message", { session: S.session, text, shop: S.shop || null, lang: S.lang });
     wait.remove(); showReply(r);
-  } catch (e) { wait.remove(); bubble("in err", esc(e.message)); }
+    return r;
+  } catch (e) { wait.remove(); bubble("in err", esc(e.message)); return null; }
 }
 
 // ------------------------------------------------------------------ hold to talk
@@ -317,7 +387,7 @@ async function finishRec() {
   const ext = (rec.mimeType || "").includes("mp4") ? ".m4a" : (rec.mimeType || "").includes("ogg") ? ".ogg" : ".webm";
   const mine = bubble("out", "", { ticks: true });
   mine.insertBefore(voiceNote(URL.createObjectURL(blob), { seconds: ms / 1000 }), mine.querySelector(".meta"));
-  const wait = typing();
+  const wait = typing(t("understanding", "Understanding…"));
   const fd = new FormData();
   fd.append("file", blob, "note" + ext); fd.append("session", S.session); fd.append("lang", S.lang);
   fd.append("consent", "yes"); fd.append("shop", S.shop || "");
@@ -357,7 +427,7 @@ async function flushQueue() {
   flushing = true;
   try {
     const items = await Q.all().catch(() => []);
-    if (items.length) toast(`⏳ ${items.length} × 🎤 → ✓`, 2500);
+    if (items.length) toast(t("sending_saved", "Sending your saved voice notes…"), 2500);
     for (const it of items) {
       const fd = new FormData();
       fd.append("file", it.blob, "note" + it.ext); fd.append("session", S.session); fd.append("lang", it.lang);
@@ -365,7 +435,7 @@ async function flushQueue() {
       try {
         const r = await api("/api/voice", { method: "POST", body: fd, timeout: 90000 });
         await Q.del(it.id);
-        bubble("out", `<div class="heard">🎤 “${esc(r.heard)}”</div>`, { ticks: true }); showReply(r);
+        bubble("out", `<div class="heard">“${esc(r.heard)}”</div>`, { ticks: true }); showReply(r);
       } catch (e) { if (e.offline) break; await Q.del(it.id); bubble("in err", esc(e.message)); }
     }
   } finally { flushing = false; }
@@ -425,9 +495,9 @@ function photoRows(r) {
         <input class="f who" value="${esc(x.customer)}" placeholder="name">
       </div>
       ${x.line ? `<div class="from">“${esc(x.line)}”${x.meaning ? `<br><span class="mean">${esc(x.meaning)}</span>` : ""}</div>` : ""}
-      ${x.checks.length ? `<div class="chk">⚠️ ${esc(x.checks.join(" · "))}</div>` : ""}
+      ${x.checks.length ? `<div class="chk">${esc(t("check", "Check"))}: ${esc(x.checks.join(" · "))}</div>` : ""}
     </div>`).join("");
-  const el = bubble("in", `📸 ${esc(t("photo_read", "I read {n} lines.").replace("{n}", r.rows.length))}
+  const el = bubble("in", `${esc(t("photo_read", "I read {n} lines.").replace("{n}", r.rows.length))}
     <div class="rows">${rows}</div><button class="save">${esc(t("save_ticked", "✅ Save ticked"))}</button>`);
   $(".save", el).onclick = async (ev) => {
     const out = [...el.querySelectorAll(".row")].map((row) => {
@@ -478,45 +548,57 @@ function recordRow(e, today) {
 
 async function loadHome() {
   const [d, debts, ins] = await Promise.all([api("/api/today"), api("/api/debts"), api("/api/insights").catch(() => ({}))]);
-  const s = d.summary, profit = s.sales - s.expenses;
+  const s = d.summary, net = s.money_in - s.money_out;
   const owed = debts.owed_to_me.reduce((a, x) => a + x.balance, 0), mine = debts.i_owe.reduce((a, x) => a + x.balance, 0);
   const late = debts.owed_to_me.filter((x) => x.overdue).length;
   const f = ins && ins.forecast;
+  if (!d.entries.length && !owed && !mine) {   // a new book: teach the one thing to do
+    $("#homeBody").innerHTML = `<section class="welcome-empty">
+      <h2>${esc(t("empty_home_title", "Your book is empty"))}</h2>
+      <p>${esc(t("empty_home", "Tell me your first sale."))}</p>
+      <button class="tell" data-go="talk">${svg("mic", 26)}<span>${esc(t("record_first", "Record your first sale"))}</span></button>
+      <p class="try">${esc(t("try_saying", "Try saying:"))}<br><b>“${esc(t("try_example", "I sold three bags of rice to Mama Tunde for 45,000 naira."))}”</b></p>
+      <button class="textbtn" data-sample>${esc(t("sample_data", "Try with sample records"))}</button></section>`;
+    return;
+  }
   $("#homeBody").innerHTML = `
     <div class="hero">
       <div class="hrow"><span class="hlabel">${esc(t("today", "Today"))} · ${esc(day(s.date))}</span>
         <button class="read ask" data-screen="today">${svg("mic", 18)}<span>${esc(t("ask", "Ask"))}</span></button></div>
-      <div class="main-fig ${profit < 0 ? "neg" : ""}">${nm(profit)}</div>
-      <div class="cap">${esc(t("profit_today", "Sold minus spent"))}</div>
+      <div class="main-fig ${net < 0 ? "neg" : ""}">${nm(net)}</div>
+      <div class="cap">${esc(t("money_net", "Money in − money out"))}</div>
       <div class="pair">
-        <div><div class="k"><span class="arrow in">↓</span>${esc(t("sold", "Sold"))}</div><div class="v">${nm(s.sales)}</div></div>
-        <div><div class="k"><span class="arrow out">↑</span>${esc(t("spent", "Spent"))}</div><div class="v">${nm(s.expenses)}</div></div>
+        <div><div class="k"><span class="arrow in">↓</span>${esc(t("money_in", "Money in"))}</div><div class="v">${nm(s.money_in)}</div></div>
+        <div><div class="k"><span class="arrow out">↑</span>${esc(t("money_out", "Money out"))}</div><div class="v">${nm(s.money_out)}</div></div>
       </div>
+      ${s.credit_sales ? `<div class="cap credit-line">${esc(t("sold_credit_today", "Sold on credit today: {m}").replace("{m}", naira(s.credit_sales)))}</div>` : ""}
     </div>
-    <div class="debts">
-      <button class="debt owed" data-go="customers"><span class="k">${esc(t("people_owe", "People owe you"))}</span>
-        <span class="v">${nm(owed)}</span>${late ? `<span class="s">${esc(t("days_late", "{n} days late").replace("{n} days", late + " ×").replace("{n}", late))}</span>` : ""}</button>
-      <button class="debt mine" data-go="customers"><span class="k">${esc(t("you_owe_people", "You owe"))}</span>
-        <span class="v">${nm(mine)}</span></button>
+    ${owed ? `<button class="collect" data-go="customers">
+      <span class="k">${esc(t("to_collect", "Money to collect"))}</span>
+      <span class="v money">${naira(owed)}</span>
+      ${late ? `<span class="late">${esc(t("late_n", "{n} late").replace("{n}", late))}</span>` : ""}
+      <span class="go">${esc(t("see_who", "See who owes you"))} →</span></button>` : ""}
+    ${mine ? `<p class="iowe">${esc(t("you_owe_people", "You owe"))} <b class="money">${naira(mine)}</b></p>` : ""}
+    <button class="tell" data-go="talk">${svg("mic", 26)}<span>${esc(t("tell_tv", "Tell TradeVoice"))}</span></button>
+    <div class="mini">
+      <label class="minib">${svg("camera", 20)}<span>${esc(t("scan_book", "Scan book"))}</span><input type="file" accept="image/*" capture="environment" data-snap hidden></label>
+      <button class="minib" data-go="customers">${svg("bell", 20)}<span>${esc(t("collect", "Collect"))}</span></button>
+      <button class="minib" data-share>${svg("doc", 20)}<span>${esc(t("lender_report", "Lender report"))}</span></button>
     </div>
-    <div class="actions">
-      <button class="act main" data-go="talk"><span class="tile">${svg("mic", 26)}</span><span>${esc(t("act_voice", "Say it"))}</span></button>
-      <label class="act"><span class="tile">${svg("camera", 26)}</span><span>${esc(t("act_snap", "Snap book"))}</span>
-        <input type="file" accept="image/*" capture="environment" data-snap></label>
-      <button class="act" data-go="customers"><span class="tile">${svg("bell", 26)}</span><span>${esc(t("act_remind", "Remind"))}</span></button>
-      <button class="act" data-go="profile"><span class="tile">${svg("doc", 26)}</span><span>${esc(t("act_share", "For lender"))}</span></button>
-    </div>
-    ${f ? `<div class="card"><h2>${esc(t("next_week", "Next 7 days"))}<button data-go="insights">${esc(t("see_all", "See all"))}</button></h2>
-      <div class="insight"><span class="ico">${svg("bulb", 24)}</span><span><span class="big">${nm(f.week_sales)}</span>
-        <span class="s" style="display:block">${esc(t("busiest", "Busiest day"))}: <b>${esc(wd(f.busiest_day))}</b></span></span></div></div>` : ""}
-    ${d.due.length ? `<div class="card"><h2>${esc(t("remind", "Remind"))}</h2>${d.due.map((r) => `<div class="lrow"><span class="ricon credit">⏳</span>
-      <span class="main"><span class="t">${esc(r.customer)}</span><span class="s">${esc(t("owes_you", "owes you {m}").replace("{m}", naira(r.balance)))}</span></span>
-      <button class="textbtn" data-remind="${esc(r.customer)}">${esc(t("remind", "Remind"))}</button></div>`).join("")}</div>` : ""}
-    <div class="card"><h2>${esc(t("recent", "Recent"))}</h2>
-      ${d.entries.slice(0, 8).map((e) => recordRow(e, s.date)).join("") || `<p class="empty">${esc(t("empty_book", "Nothing yet."))}</p>`}</div>`;
+    ${f ? `<section class="sect"><h2>${esc(t("next_week", "Next 7 days"))}</h2>
+      <p class="plain"><b class="money">${naira(f.week_sales)}</b> ${esc(t("expected", "expected"))} · ${esc(t("busiest", "Busiest day"))}: <b>${esc(wd(f.busiest_day))}</b>
+      <button class="textbtn inline" data-go="insights">${esc(t("see_all", "See all"))}</button></p></section>` : ""}
+    <section class="sect"><h2>${esc(t("recent", "Recent"))}</h2>
+      ${d.entries.slice(0, 6).map((e) => recordRow(e, s.date)).join("") || `<p class="empty">${esc(t("empty_book", "Nothing yet today."))}</p>`}</section>`;
   $("#homeBody").querySelector(".ask").onclick = () => openAssist("today");
   $("#homeBody").querySelector("[data-snap]").onchange = (e) => { const f2 = e.target.files[0]; e.target.value = ""; if (f2) { showTab("talk"); sendPhoto(f2); } };
 }
+document.addEventListener("click", async (e) => {
+  if (e.target.closest("[data-share]")) return shareSheet();
+  if (e.target.closest("[data-sample]")) {
+    try { await post("/api/demo_data", {}); toast(`✓ ${t("sample_added", "Sample records added")}`); loadHome(); } catch (err) { toast(err.message); }
+  }
+});
 document.addEventListener("click", (e) => { const g = e.target.closest("[data-go]"); if (g && g.tagName === "BUTTON" && !g.closest(".msg")) showTab(g.dataset.go); });
 
 // tap a record: details + delete, kept apart from the list so a stray tap can't delete money
@@ -530,7 +612,8 @@ document.addEventListener("click", (ev) => {
     <button class="danger" id="eDel">${esc(t("delete", "Delete"))}</button>`);
   $("#sheetBody").onclick = async (x) => {
     if (x.target.id === "eClose") $("#sheet").hidden = true;
-    if (x.target.id === "eDel" && confirm(t("delete", "Delete") + "?")) {
+    if (x.target.id === "eDel" && await askSheet({ title: t("delete_record", "Delete this record?"),
+        body: t("delete_record_why", "It will be removed from your book and your totals."), ok: t("delete", "Delete"), danger: true })) {
       await api(`/api/entry/${e.id}`, { method: "DELETE" }); $("#sheet").hidden = true; loadHome();
     }
   };
@@ -538,7 +621,9 @@ document.addEventListener("click", (ev) => {
 
 async function loadInsights() {
   const { forecast: f, top } = await api("/api/insights");
-  if (!f) { $("#insightsBody").innerHTML = `<p class="empty">${esc(t("empty_insights", "Record a few more days."))}</p>`; return; }
+  if (!f) { $("#insightsBody").innerHTML = `<section class="welcome-empty"><h2>${esc(t("empty_insights_title", "Not enough records yet"))}</h2>
+    <p>${esc(t("empty_insights", "Record a few days of sales and TradeVoice will show your trends."))}</p>
+    <button class="tell" data-go="talk">${svg("mic", 24)}<span>${esc(t("tell_tv", "Tell TradeVoice"))}</span></button></section>`; return; }
   const max = Math.max(...f.plan.map((p) => p.sales), 1);
   const short = S.lang === "English" || S.lang === "Pidgin";
   const bars = f.plan.map((p) => `<div class="${p.weekday === f.busiest_day ? "peak" : ""}"><span style="height:${Math.round((p.sales / max) * 100)}%"></span><em>${esc(short ? p.weekday.slice(0, 3) : wd(p.weekday))}</em></div>`).join("");
@@ -584,16 +669,18 @@ $("#profileBody").addEventListener("click", async (e) => {
     if (k === "lang") return $("#speakLang").click();
     if (k === "view") return setView(S.view === "wa" ? "app" : "wa");
     if (k === "shop") {
-      const v = prompt(t("shop_name", "Shop name"), S.shop || ""); if (v === null) return;
+      const v = await askSheet({ title: t("shop_name", "Shop name"), input: "Chioma Stores", value: S.shop || "" }); if (v === null) return;
       S.shop = v.trim(); store.set("tv_shop", S.shop); S.me = await post("/api/auth/me", { shop: S.shop }); loadWords(); return loadProfile();
     }
     if (k === "share") return shareSheet();
     if (k === "bank") return bankSheet();
     if (k === "pin") return pinSheet();
-    if (k === "sample") { await post("/api/demo_data", {}); toast("✓"); return loadProfile(); }
+    if (k === "sample") { await post("/api/demo_data", {}); toast(t("sample_added", "Sample records added")); return loadProfile(); }
     if (k === "logout") { await post("/api/auth/logout", {}); S.me = null; return showLogin(); }
-    if (k === "delete" && prompt(t("delete_account", "Delete my account") + " — DELETE") === "DELETE") {
-      await post("/api/auth/delete", { login_id: "-", code: "DELETE" }); S.me = null; toast("✓"); return showLogin();
+    if (k === "delete" && await askSheet({ title: t("delete_account", "Delete my account and book"),
+        body: t("delete_account_why", "Your records, customers and settings are deleted for good. Type DELETE to confirm."),
+        ok: t("delete", "Delete"), danger: true, mustType: "DELETE" })) {
+      await post("/api/auth/delete", { login_id: "-", code: "DELETE" }); S.me = null; toast(t("account_deleted", "Account deleted")); return showLogin();
     }
   } catch (err) { toast(err.message); }
 });
@@ -634,8 +721,8 @@ async function shareSheet() {
   $("#sheetBody").onclick = async (e) => {
     const b = e.target.closest("button"); if (!b) return;
     if (b.dataset.d) { days = +b.dataset.d; $("#sDays").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }
-    if (b.dataset.stop) { await api(`/api/shares/${b.dataset.stop}`, { method: "DELETE" }); toast("✓"); list(); }
-    if (b.id === "sCopy") { navigator.clipboard?.writeText($("#sUrl").value).then(() => toast("✓")).catch(() => $("#sUrl").select()); }
+    if (b.dataset.stop) { await api(`/api/shares/${b.dataset.stop}`, { method: "DELETE" }); toast(t("link_stopped", "Link stopped")); list(); }
+    if (b.id === "sCopy") { navigator.clipboard?.writeText($("#sUrl").value).then(() => toast(t("copied", "Copied"))).catch(() => $("#sUrl").select()); }
     if (b.id === "sGo") {
       try {
         const r = await post("/api/share", { days, consent: $("#sOk").checked });
@@ -662,7 +749,7 @@ async function bankSheet() {
   $("#bSave").onclick = async () => {
     try {
       await post("/api/bank", { bank_name: $("#bName").value, account_number: $("#bNum").value, account_name: $("#bAcc").value });
-      $("#sheet").hidden = true; toast("✓"); loadProfile();
+      $("#sheet").hidden = true; toast(t("saved", "Saved")); loadProfile();
     } catch (err) { toast(err.message); }
   };
 }
@@ -680,11 +767,11 @@ function pinSheet() {
     const a = $("#pNew").value, b = $("#pRep").value;
     if (!/^\d{4}$/.test(a)) return toast(t("pin_4", "The PIN is 4 numbers."));
     if (a !== b) return toast(t("pin_mismatch", "The two PINs are not the same."));
-    try { const r = await post("/api/auth/pin", { pin: a }); setUnlock(r.unlock); S.me.has_pin = true; $("#sheet").hidden = true; toast("🔒 ✓"); loadProfile(); }
+    try { const r = await post("/api/auth/pin", { pin: a }); setUnlock(r.unlock); S.me.has_pin = true; $("#sheet").hidden = true; toast(t("pin_set", "PIN set")); loadProfile(); }
     catch (err) { toast(err.message); }
   };
   if ($("#pOff")) $("#pOff").onclick = async () => {
-    try { await api("/api/auth/pin", { method: "DELETE" }); S.me.has_pin = false; $("#sheet").hidden = true; toast("✓"); loadProfile(); }
+    try { await api("/api/auth/pin", { method: "DELETE" }); S.me.has_pin = false; $("#sheet").hidden = true; toast(t("pin_removed", "PIN turned off")); loadProfile(); }
     catch (err) { toast(err.message); }
   };
 }
@@ -738,7 +825,8 @@ function taxHtml(y, tax) {
   return `<section class="sect" id="taxSect"><h2>${esc(t("tax_title", "Tax and your records"))}</h2>
     ${you}${rent}
     <button class="primary ghost" data-dl="/api/statement?shop=${encodeURIComponent(S.shop)}" data-name="tradevoice-year-record.html">${esc(t("tax_record", "Year record for the tax office"))}</button>
-    <h3 class="sub">${esc(t("tax_facts", "What the new tax law means for you"))}</h3>
+    <h3 class="sub">${esc(t("tax_facts", "Tax information"))}</h3>
+    <p class="note">${esc(t("tax_info_note", "General information based on available guidance. Confirm your obligations with a qualified tax professional."))}</p>
     <ol class="facts">${tax.facts.map((f) => `<li><span>${esc(f.text)}</span> <a href="${esc(f.source)}" target="_blank" rel="noopener">${esc(t("source", "Source"))}</a></li>`).join("")}</ol>
     <p class="callout warn">${esc(tax.check)}</p>
   </section>`;
@@ -751,11 +839,11 @@ document.addEventListener("click", async (e) => {
     const lang = ["English", "Pidgin", "Yoruba"].includes(S.lang) ? S.lang : "Pidgin";
     const r = await api(`/api/reminder?customer=${encodeURIComponent(who)}&lang=${lang}&shop=${encodeURIComponent(S.shop)}`);
     if (!r.message) return toast(t("remind_none", "{n} doesn't owe you anything").replace("{n}", who));
-    sheet(`<h3>📲 ${esc(t("remind", "Remind"))} ${esc(who)}</h3><div class="quote">${fmt(r.message)}</div>
+    sheet(`<h3>${esc(t("remind", "Remind"))} ${esc(who)}</h3><div class="quote">${fmt(r.message)}</div>
       <a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">${esc(t("open_whatsapp", "Open WhatsApp"))}</a>
       <p>${esc(t("draft_note", "TradeVoice prepared this. You send it yourself."))}</p>`);
   }
-  if (del && confirm("Delete this record?")) { await api(`/api/entry/${del}`, { method: "DELETE" }); loadHome(); }
+  if (del && await askSheet({ title: t("delete_record", "Delete this record?"), ok: t("delete", "Delete"), danger: true })) { await api(`/api/entry/${del}`, { method: "DELETE" }); loadHome(); }
 });
 
 // 🎙️ Ask TradeVoice: explains the screen out loud, then answers spoken questions about the trader's own book
@@ -781,6 +869,12 @@ function openAssist(screen) {
   sheet(`<div class="assist">
     <div class="ahead"><h3>${esc(t("assist_title", "Ask TradeVoice"))}</h3><button class="icon" id="aClose" aria-label="Close">✕</button></div>
     <div class="alog" id="alog"></div>
+    <div class="aex"><span>${esc(t("try_asking", "Try asking"))}</span><div class="chips" id="aex">${[1, 2, 3].map((i) => {
+      const key = `ex_${screen === "today" || screen === "talk" ? "today" : screen}_${i}`;
+      const who = (typeof C !== "undefined" && (C.list.find((c) => c.owes_me > 0) || C.list[0])?.name) || "Mama Tunde";
+      const q = t(key).replace("Mama Tunde", who);  // the trader's own customer, not a stranger
+      return S.T[key] ? `<button data-q="${esc(q)}">${esc(q)}</button>` : "";
+    }).join("")}</div></div>
     <div class="call" id="call">
       <button class="orb" id="orb" aria-label="Talk">${svg("mic", 30)}</button>
       <div class="cstate" id="cstate">${esc(t("assist_hint", "Tap and talk"))}</div>
@@ -792,6 +886,11 @@ function openAssist(screen) {
     .then((r) => { wait.innerHTML = fmt(r.text); })
     .catch((e) => { wait.innerHTML = esc(e.message); });
   $("#aClose").onclick = closeAssist;
+  $("#aex").onclick = (e) => {   // tap an example = ask it (a visible alternative to speaking)
+    const q = e.target.closest("[data-q]"); if (!q) return;
+    if (VC.on) endCall();
+    askAssist({ text: q.dataset.q });
+  };
   $("#orb").onclick = () => (VC.on ? (VC.phase === "speaking" ? interrupt() : null) : startCall());
   $("#cend").onclick = endCall;
   startCall();  // hands-free from the first tap: it explains the screen, then listens
@@ -896,7 +995,7 @@ async function askAssist({ text = "", blob = null, ext = ".webm", silent = false
     const r = await api("/api/assist", { method: "POST", body: fd, timeout: 90000 });
     if (blob) mine.innerHTML = fmt(r.heard);
     followLanguage(r);
-    let html = fmt(r.text) + (r.english ? `<div class="en">🇬🇧 ${fmt(r.english)}</div>` : "");
+    let html = fmt(r.text) + (r.english ? `<div class="en"><span class="enl">EN</span> ${fmt(r.english)}</div>` : "");
     if (r.message) html += `<div class="quote">${fmt(r.message)}</div><a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">${esc(t("open_whatsapp", "Open WhatsApp"))}</a>`;
     if (r.choices && r.choices.length) html += `<div class="quick choices">${r.choices.map(([id, lb]) => `<button data-say="${esc(id)}">${esc(lb)}</button>`).join("")}</div>`;
     else if (r.pending) html += `<div class="quick"><button data-say="yes">${esc(t("yes_save", "Yes, save"))}</button><button data-say="no">${esc(t("no", "No"))}</button></div>`;
@@ -904,24 +1003,42 @@ async function askAssist({ text = "", blob = null, ext = ".webm", silent = false
     if (r.speak && !silent) sayUrl(`/api/speak/${r.speak}`);
     $("#alog").scrollTop = $("#alog").scrollHeight;
     return r;
-  } catch (e) { mine.innerHTML = mine.innerHTML.includes("typing") ? "🎙️" : mine.innerHTML; wait.innerHTML = esc(e.message); return null; }
+  } catch (e) { mine.innerHTML = mine.innerHTML.includes("typing") ? svg("mic", 18) : mine.innerHTML; wait.innerHTML = esc(e.message); return null; }
 }
 
 document.querySelectorAll(".read").forEach((b) => (b.onclick = () => openAssist(b.dataset.screen)));
 
 // ------------------------------------------------------------------ sheets: speaking language, menu, welcome
 
+// in-app confirm / input (no browser pop-ups): resolves true / the typed value, or false / null if cancelled
+function askSheet({ title, body = "", ok = t("save", "Save"), danger = false, input = null, value = "", mustType = "" }) {
+  return new Promise((resolve) => {
+    sheet(`<h3>${esc(title)}</h3>${body ? `<p>${esc(body)}</p>` : ""}
+      ${input !== null || mustType ? `<input id="askIn" value="${esc(value)}" autocomplete="off" placeholder="${esc(mustType || input || "")}">` : ""}
+      <button class="${danger ? "danger solid" : "primary"}" id="askOk">${esc(ok)}</button>
+      <button class="textbtn block" id="askNo">${esc(t("cancel", "Cancel"))}</button>`);
+    const inp = $("#askIn"), okB = $("#askOk");
+    if (mustType) { okB.disabled = true; inp.oninput = () => (okB.disabled = inp.value.trim().toUpperCase() !== mustType); }
+    setTimeout(() => inp?.focus(), 50);
+    const done = (v) => { $("#sheet").hidden = true; $("#sheet").onclick = closeOnBackdrop; resolve(v); };
+    okB.onclick = () => done(input !== null && !mustType ? inp.value : true);
+    $("#askNo").onclick = () => done(input !== null && !mustType ? null : false);
+    $("#sheet").onclick = (e) => { if (e.target.id === "sheet") done(input !== null && !mustType ? null : false); };
+  });
+}
+const closeOnBackdrop = (e) => { if (e.target.id === "sheet") $("#sheet").hidden = true; };
+
 function sheet(html) {
   $("#sheetBody").innerHTML = html; $("#sheet").hidden = false;
 }
-$("#sheet").onclick = (e) => { if (e.target.id === "sheet") $("#sheet").hidden = true; };
+$("#sheet").onclick = closeOnBackdrop;
 
 $("#speakLang").onclick = () => {   // one choice changes everything: screens, replies, voice and hearing
-  sheet(`<h3>🌍 ${esc(t("language", "Language"))}</h3><div class="opts">${LANGS.map((k) =>
+  sheet(`<h3>${esc(t("language", "Language"))}</h3><div class="opts">${LANGS.map((k) =>
     `<button data-speak="${k}" class="${k === S.lang ? "on" : ""}">${LANG_NAMES[k]}</button>`).join("")}</div>`);
   $("#sheetBody").onclick = async (e) => {
     const k = e.target.dataset.speak; if (!k) return;
-    $("#sheet").hidden = true; await setLang(k); toast(`🌍 ${LANG_NAMES[k]}`);
+    $("#sheet").hidden = true; await setLang(k); toast(LANG_NAMES[k]);
   };
 };
 
@@ -964,7 +1081,7 @@ function loginCode(r, err = "") {
     ${r.demo_code ? `<div class="demo">${esc(t("demo_code", "Demo: your code is {c}").replace("{c}", r.demo_code))}</div>` : ""}
     <form id="lf2"><input id="lcode" class="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••">
       <div class="lerr">${esc(err)}</div><button class="primary">${esc(t("continue", "Continue"))}</button></form>
-    ${r.verify_link ? `<div class="or">— or —</div><a class="primary wa-go" id="lwa" href="${esc(r.verify_link)}" target="_blank" rel="noopener">${esc(t("verify_wa", "Confirm with WhatsApp"))}</a>
+    ${r.verify_link ? `<div class="or">${esc(t("or", "or"))}</div><a class="primary wa-go" id="lwa" href="${esc(r.verify_link)}" target="_blank" rel="noopener">${esc(t("verify_wa", "Confirm with WhatsApp"))}</a>
       <p class="consent">${esc(t("verify_wa_hint", ""))}</p>` : ""}
     <button class="textbtn" id="lback">${esc(t("change_number", "Change number"))}</button>`;
   $("#lf2").onsubmit = async (e) => {
@@ -1023,6 +1140,9 @@ function loginShop() {
   L.step = "shop";
   $("#loginStep").innerHTML = `<h1>${esc(t("shop_q", "What is your shop called?"))}</h1>
     <form id="lf3"><input id="lshop" autocomplete="organization" placeholder="Chioma Stores" value="${esc(S.shop || "")}">
+    <ul class="trust"><li>${svg("lock", 18)}${esc(t("trust_1", "Nothing is saved until you confirm."))}</li>
+      <li>${svg("mic", 18)}${esc(t("trust_2", "Your voice note is processed and then deleted."))}</li>
+      <li>${svg("trash", 18)}${esc(t("trust_3", "You can delete your records at any time."))}</li></ul>
     <p class="consent">${esc(t("consent", ""))}</p><button class="primary">${esc(t("start_book", "Open my book"))}</button></form>`;
   $("#lf3").onsubmit = async (e) => {
     e.preventDefault();
@@ -1043,7 +1163,8 @@ async function finishLogin() {
 
 async function greet() {
   chat.innerHTML = `<div class="day">${esc(t("today", "Today"))}</div>`;
-  bubble("in", fmt(t("hello", "Hello 👋 I'm your book. Tell me what you sold, who owes you, or ask me anything.")));
+  bubble("in", fmt(t("hello", "Hello 👋 I'm your book. Tell me what you sold, who owes you, or ask me anything.")) +
+    `<div class="en">${esc(t("just_talk", "Don't know where to start? Just talk."))}</div>`);
   const ex = document.createElement("div");
   ex.className = "chips";
   ["Mama Tunde dey owe me forty-five thousand", "Ṣé mo ní gbèsè lọ́wọ́ Alhaji?", "Who owes me?", "Wetin sell pass this week?"]
@@ -1051,8 +1172,8 @@ async function greet() {
   chat.appendChild(ex);
   try {
     const d = await api("/api/today");
-    d.due.forEach((r) => bubble("in", `📌 ${esc(t("remind", "Remind"))}: <b>${esc(r.customer)}</b> · ${naira(r.balance)}
-      <div class="quick" style="margin-top:6px"><button data-remind="${esc(r.customer)}">📲 ${esc(t("remind", "Remind"))}</button></div>`));
+    d.due.forEach((r) => bubble("in", `${esc(t("due_today", "Promised today"))}: <b>${esc(r.customer)}</b> · ${naira(r.balance)}
+      <div class="quick" style="margin-top:6px"><button data-remind="${esc(r.customer)}">${esc(t("prepare_reminder", "Prepare reminder"))}</button></div>`));
   } catch {}
 }
 

@@ -103,7 +103,10 @@ def reminder(customer, language="Pidgin", shop="your trader", today=None, custom
         d = next((x for x in owing if ledger.customer_key(x["customer"]) == ledger.customer_key(customer)), None)
     if not d:
         return None, None
-    since = d["due_date"] or "last time"
+    try:
+        since = dt.date.fromisoformat(d["due_date"]).strftime("%-d %b") if d["due_date"] else "last time"
+    except ValueError:
+        since = d["due_date"]
     msg = TEMPLATES.get(language, TEMPLATES["English"]).format(
         name=d["customer"], amount=naira(d["balance"]), items=", ".join(d["items"]) or "goods",
         since=since, shop=shop)

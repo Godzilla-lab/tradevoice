@@ -109,6 +109,82 @@ def explain(screen, lang="English", today=None):
         return out
 
 
+# Questions the book answers exactly (no AI): the example questions on each screen, in the five languages.
+INTENTS = [
+    ("owe_most", r"owes? (me )?(the )?most|owe (me )?pass|biggest debt|highest debt|who (dey )?owe me pass|ju lo|fi yawa|kacha"),
+    ("late", r"\b(who|which).{0,20}\b(late|overdue)\b|\blate (people|customers)|don pass (date|time)|ti pe|jinkiri|egbu oge"),
+    ("i_owe", r"what do i (need to |have to )?pay|who do i owe|wetin i (go |dey )?pay|i owe who|my debts?\b|mo je|ana bina|a m ji"),
+    ("best", r"(sell|sold|sale).{0,12}(most|pass)|best.?sell|wetin sell pass|what sold most|ta ju|fi sayarwa|kacha ere"),
+    ("busy", r"busiest|busy day|which day.{0,20}(busy|best|most)|day wey (market|sell) (dey )?(move|pass)|ojo wo|wace rana|ubochi ole"),
+    ("raise", r"(raise|improve|increase|better|go up|boost).{0,15}score|score.{0,15}(higher|up|better)"),
+    ("score", r"(my|record|credit) score|score (be|am)|ami mi|makina|akara m"),
+]
+SAYS = {
+    "owe_most": {"English": "{name} owes you the most: {m}.", "Pidgin": "{name} dey owe you pass: {m}.",
+                 "Yoruba": "{name} ló jẹ ọ́ jù: {m}.", "Hausa": "{name} ne ke da bashinka mafi yawa: {m}.",
+                 "Igbo": "{name} ji gị ụgwọ kacha: {m}."},
+    "late": {"English": "Late: {list}.", "Pidgin": "Dem wey don pass date: {list}.", "Yoruba": "Àwọn tó ti pẹ́: {list}.",
+             "Hausa": "Waɗanda suka makara: {list}.", "Igbo": "Ndị egbuola oge: {list}."},
+    "late_none": {"English": "Nobody is late. Well done.", "Pidgin": "Nobody late. Well done.", "Yoruba": "Kò sí ẹni tó pẹ́.",
+                  "Hausa": "Babu wanda ya makara.", "Igbo": "Ọ dịghị onye egbuola oge."},
+    "i_owe": {"English": "You owe: {list}.", "Pidgin": "You dey owe: {list}.", "Yoruba": "O jẹ: {list}.",
+              "Hausa": "Ana binka bashi: {list}.", "Igbo": "Ị ji ụgwọ: {list}."},
+    "i_owe_none": {"English": "You don't owe anybody.", "Pidgin": "You no owe anybody.", "Yoruba": "O kò jẹ ẹnikẹ́ni.",
+                   "Hausa": "Ba ka bin kowa bashi.", "Igbo": "Ị jighị onye ọ bụla ụgwọ."},
+    "best": {"English": "Your best seller in the last 7 days is {item} ({m}).", "Pidgin": "Wetin sell pass for last 7 days na {item} ({m}).",
+             "Yoruba": "Ohun tó tà jù ní ọjọ́ méje sẹ́yìn ni {item} ({m}).", "Hausa": "Abin da ya fi sayuwa a kwanaki 7 shi ne {item} ({m}).",
+             "Igbo": "Ihe kacha ree n'ụbọchị 7 gara aga bụ {item} ({m})."},
+    "busy": {"English": "Your busiest day is usually {d}.", "Pidgin": "Your market dey move pass on {d}.",
+             "Yoruba": "Ọjọ́ tí ọjà rẹ ń tà jù ni {d}.", "Hausa": "Ranar da kasuwarka ta fi ci ita ce {d}.",
+             "Igbo": "Ụbọchị ahịa gị na-aga nke ọma bụ {d}."},
+    "score": {"English": "Your record score is {s} out of 100 ({band}).", "Pidgin": "Your record score na {s} over 100 ({band}).",
+              "Yoruba": "Àmì àkọsílẹ̀ rẹ jẹ́ {s} nínú 100 ({band}).", "Hausa": "Makin bayananka {s} ne cikin 100 ({band}).",
+              "Igbo": "Akara ndekọ gị bụ {s} n'ime 100 ({band})."},
+    "raise": {"English": "To raise your score: {tip}", "Pidgin": "To make your score go up: {tip}",
+              "Yoruba": "Láti gbé àmì rẹ sókè: {tip}", "Hausa": "Don ka ƙara makinka: {tip}", "Igbo": "Iji bulie akara gị: {tip}"},
+    "empty": {"English": "Your book doesn't have that yet.", "Pidgin": "Your book never get am yet.",
+              "Yoruba": "Ìwé rẹ kò tíì ní èyí.", "Hausa": "Littafinka bai da wannan tukuna.", "Igbo": "Akwụkwọ gị enwebeghị nke a."},
+}
+TIPS = {"Record-keeping consistency": "record every day you open, even small sales.",
+        "Profitability": "write down every cost too, so your real profit shows.",
+        "Debt collection": "collect what customers owe on the promised day (use the reminder with the pay link).",
+        "History length": "keep recording: a longer history counts."}
+
+
+def book_answer(question, lang="English", today=None):
+    """The exact answer from the book for the example questions, or None."""
+    from extract import fold
+
+    t = fold(question)
+    intent = next((k for k, rx in INTENTS if re.search(rx, t)), None)
+    if not intent:
+        return None
+    say = lambda k, **kw: SAYS[k].get(lang, SAYS[k]["English"]).format(**kw)  # noqa: E731
+    money = lambda x: f"₦{x:,.0f}"  # noqa: E731
+    if intent == "owe_most":
+        d = sorted(ledger.debtors(today), key=lambda x: -x["balance"])
+        return say("owe_most", name=d[0]["customer"], m=money(d[0]["balance"])) if d else say("empty")
+    if intent == "late":
+        d = [x for x in ledger.debtors(today) if x.get("overdue")]
+        return say("late", list=", ".join(f"{x['customer']} {money(x['balance'])}" for x in d)) if d else say("late_none")
+    if intent == "i_owe":
+        d = ledger.creditors(today)
+        return say("i_owe", list=", ".join(f"{x['customer']} {money(x['balance'])}" for x in d)) if d else say("i_owe_none")
+    if intent == "best":
+        top = insights.top_items(days=7, today=today, n=1)
+        return say("best", item=top[0]["item"], m=money(top[0]["revenue"])) if top else say("empty")
+    if intent == "busy":
+        f = insights.forecast(today)
+        return say("busy", d=f["busiest_day"]) if f else say("empty")
+    p = ledger.credit_profile(today)
+    if not p:
+        return say("empty")
+    if intent == "score":
+        return say("score", s=p["score"], band=p["band"])
+    weakest = min(p["parts"].items(), key=lambda kv: kv[1][0] / kv[1][1])[0]
+    return say("raise", tip=TIPS.get(weakest, "keep recording every day."))
+
+
 def answer(question, screen, lang="English", state=None, today=None, shop="my shop"):
     """A spoken question -> {text, lang, engine[, pending, choices, message, link]}."""
     import converse
@@ -122,6 +198,9 @@ def answer(question, screen, lang="English", state=None, today=None, shop="my sh
             state = dict(converse.new_state(), prefer=lang)
         r = converse.reply(question, state, today=today, shop=shop)
         return dict(r, engine="chat", pending=bool((state or {}).get("pending")))
+    fixed = book_answer(question, lang, today)
+    if fixed:  # the example questions: answered straight from the book
+        return {"text": fixed, "spoken": spoken(fixed), "lang": lang, "engine": "book:exact"}
     exact = askbook.ask_book(question, today, language=lang)
     if exact:  # counts and totals: added up from the book, not guessed
         return {"text": exact[0], "spoken": exact[1], "lang": lang, "engine": f"book:{exact[4]}"}

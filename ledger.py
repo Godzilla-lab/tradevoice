@@ -347,6 +347,9 @@ def day_summary(day=None):
         "profit": sales - tot["spent"],
         "cash_in_hand_change": (tot["sale"] + tot["payment_received"] + tot["loan_taken"] - tot["expense"]
                                 - tot["payment_made"]),
+        # cash that really moved today (credit sales and goods taken on credit are not cash): Home shows these
+        "money_in": tot["sale"] + tot["payment_received"] + tot["loan_taken"],
+        "money_out": tot["expense"] + tot["payment_made"],
     }
 
 

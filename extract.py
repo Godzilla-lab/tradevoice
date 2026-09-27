@@ -54,6 +54,10 @@ _UNITS = (r"bags?|cartons?|crates?|pieces?|pcs|tins?|packs?|packets?|paints?|der
           r"kg|kilos?|litres?|liters?|yards?|dozens?|sachets?|bottles?|tubers?|baskets?|rolls?|tubes?")
 _QTY_RE = re.compile(rf"\b(\d+(?:\.\d+)?)\s*({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b)[a-z]+)?)",
                      re.IGNORECASE)
+_QTY_WORDS = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+              "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "half": 0.5}
+_QTY_WORD_RE = re.compile(rf"\b({'|'.join(_QTY_WORDS)})\s+({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b)[a-z]+)?)",
+                          re.IGNORECASE)  # speech says "two bags of rice", not "2 bags"
 _HONORIFIC = (r"mama|papa|iya|baba|alhaji|alhaja|madam|oga|aunty|auntie|uncle|mr\.?|mrs\.?|"
               r"chief|brother|sister|bros|mallam|mallama|iyawo|hajiya|hajia|dr\.?|customer")
 _NOT_NAMES = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
@@ -138,7 +142,8 @@ def fold(text):
 
 def _words_amount(text):
     """Money said in words: 'sixty thousand naira', Hausa 'dubu biyar', Igbo 'puku ise', Yoruba 'ẹgbẹ̀rún márùn-ún'."""
-    toks = fold(text).replace(",", " ").split()
+    clean = re.sub(r"[^\w\s-]", " ", fold(text))  # "thousand." / "thousand," / "(thousand)" -> thousand
+    toks = clean.split()
     for i, w in enumerate(toks):
         if w == "dubu":                                   # ha: dubu (da/sha) <n>
             n, j = 0, i + 1
@@ -161,7 +166,7 @@ def _words_amount(text):
         if w == "egberun":                                # yo: egberun <n>
             return 1000 * (_YO_NUM.get(toks[i + 1], 1) if i + 1 < len(toks) else 1)
     # English: longest run of number words that has a scale word or is followed by "naira"
-    words = fold(text).replace("-", " ").replace(",", " ").split()
+    words = clean.replace("-", " ").split()
     i = 0
     while i < len(words):
         if words[i] not in _EN_NUM and words[i] not in _EN_SCALE:
@@ -338,9 +343,10 @@ def rule_extract(text, today=None):
            "amount": unit_total(text) or part_payment_amount(text) or parse_amount(text),
            "customer": parse_customer(text), "due_date": None,
            "confidence": 0.3, "note": None}
-    m = _QTY_RE.search(text or "")
+    m = _QTY_RE.search(text or "") or _QTY_WORD_RE.search(text or "")
     if m:
-        rec["quantity"] = float(m.group(1)) if "." in m.group(1) else int(m.group(1))
+        q = m.group(1).lower()
+        rec["quantity"] = _QTY_WORDS[q] if q in _QTY_WORDS else (float(q) if "." in q else int(q))
         unit = m.group(2).lower()
         rec["unit"] = unit[:-1] if unit.endswith("s") and unit not in ("pcs",) else unit
         rec["item"] = m.group(3).lower()
