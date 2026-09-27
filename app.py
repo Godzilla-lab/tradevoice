@@ -1,4 +1,4 @@
-"""TradeVoice — voice & photo bookkeeping, debt tracking and money insights for Nigerian market traders.
+"""TradeVoice: voice & photo bookkeeping, debt tracking and money insights for Nigerian market traders.
 
 python app.py            (GRADIO_SHARE=1 for a public link, e.g. when running on Brev)
 """
@@ -122,9 +122,9 @@ def process(consent, audio_path, typed_text, voice_lang="English / Pidgin", repl
     rec, meta = extract(text, vocab=ledger.known_words())
     warn = []
     if rec["amount"] is None:
-        warn.append("No amount heard — please fill it in.")
+        warn.append("No amount heard. Please fill it in.")
     if rec["confidence"] < 0.6:
-        warn.append("Low confidence — check every field before saving.")
+        warn.append("Low confidence. Check every field before saving.")
     if rec["type"] == "credit_sale" and not rec["customer"]:
         warn.append("Credit sale without a customer name.")
     if rec["type"] in ("credit_purchase", "payment_made") and not rec["customer"]:
@@ -200,7 +200,7 @@ def save(text, type_label, item, qty, unit, amount, customer, due, engine_note, 
         theirs, mine = ledger.balance_with(rec["customer"])
         balance = mine if i_owe else theirs
     msg = f"✅ Saved entry #{eid}: {type_label}, {naira(rec['amount'])}" + (
-        f" — {rec['customer']}" if rec["customer"] else "")
+        f" for {rec['customer']}" if rec["customer"] else "")
     if balance and i_owe:
         msg += f"  \n🧾 You now owe {rec['customer']} {naira(balance)} in total."
     elif balance and rec["type"] in ("credit_sale", "payment_received"):
@@ -263,7 +263,7 @@ def lines_to_table(lines_text):
     if not recs:
         return "No lines with money found.", pd.DataFrame(columns=PHOTO_COLS)
     rows = _table_rows(recs)
-    msg = (f"🧠 {len(rows)} entries found ({meta['engine']}, {meta['latency_ms']} ms). Edit the table — "
+    msg = (f"🧠 {len(rows)} entries found ({meta['engine']}, {meta['latency_ms']} ms). Edit the table. "
            f"`type` must be one of {', '.join(TYPES)}. Untick `save` to skip a row. Then press **Save all ticked**.")
     if meta["error"]:
         msg += f"  \n⚠️ AI unavailable, used offline rules ({meta['error'][:80]})."
@@ -315,7 +315,7 @@ def save_table(df, engine="photo"):
 
 def today_view():
     s = ledger.day_summary()
-    md = (reminders_md() + "\n\n" if reminders_md() else "") + (f"### Today ({s['date']}) — {s['count']} entries\n"
+    md = (reminders_md() + "\n\n" if reminders_md() else "") + (f"### Today ({s['date']}): {s['count']} entries\n"
           f"| | |\n|---|---|\n"
           f"| Sales | **{naira(s['sales'])}** (cash {naira(s['cash_sales'])}, credit {naira(s['credit_sales'])}) |\n"
           f"| Debts collected | {naira(s['payments_received'])} |\n"
@@ -340,9 +340,9 @@ def debtors_view():
     total = sum(d["balance"] for d in ds)
     overdue = sum(d["balance"] for d in ds if d["overdue"])
     md = f"### {len(ds)} customers owe you **{naira(total)}**" + (
-        f" — **{naira(overdue)} overdue** 🔴" if overdue else "")
+        f", **{naira(overdue)} overdue** 🔴" if overdue else "")
     df = pd.DataFrame([{"customer": d["customer"], "balance": naira(d["balance"]), "took": naira(d["owed"]),
-                        "paid back": naira(d["paid"]), "promised by": d["due_date"] or "—",
+                        "paid back": naira(d["paid"]), "promised by": d["due_date"] or "-",
                         "status": f"🔴 {d['days_late']} days late" if d["overdue"] else "🟢 on time",
                         "credit check": ledger.customer_risk(d["customer"])["level"]} for d in ds])
     return md, df, gr.update(choices=names, value=names[0])
@@ -355,9 +355,9 @@ def creditors_view():
     total = sum(c["balance"] for c in cs)
     late = [c for c in cs if c["overdue"]]
     md = f"### 🧾 You owe {len(cs)} supplier(s) **{naira(total)}**" + (
-        f" — **{naira(sum(c['balance'] for c in late))} past the day you promised** 🔴" if late else "")
+        f", **{naira(sum(c['balance'] for c in late))} past the day you promised** 🔴" if late else "")
     df = pd.DataFrame([{"supplier": c["customer"], "you still owe": naira(c["balance"]), "took": naira(c["owed"]),
-                        "paid back": naira(c["paid"]), "you promised by": c["due_date"] or "—",
+                        "paid back": naira(c["paid"]), "you promised by": c["due_date"] or "-",
                         "status": f"🔴 {c['days_late']} days late" if c["overdue"] else "🟢 on time"} for c in cs])
     return md, df
 
@@ -368,7 +368,7 @@ def make_reminder(customer, language, shop):
     msg, link = insights.reminder(customer, language, shop or SHOP_NAME)
     if not msg:
         return f"{customer} doesn't owe you anything. 🎉", ""
-    return msg, (f"### [📲 Open in WhatsApp]({link})\nWhatsApp opens with the message ready — you choose the "
+    return msg, (f"### [📲 Open in WhatsApp]({link})\nWhatsApp opens with the message ready. You choose the "
                  f"contact and press send yourself.")
 
 
@@ -380,16 +380,16 @@ def insights_view():
     md = [f"### Next 7 days: expect about **{naira(f['week_sales'])}** in sales",
           f"- 💵 Cash you should have left after normal expenses: **{naira(f['expected_cash'])}** "
           f"(about {f['cash_share']:.0%} of your sales are paid on the spot).",
-          f"- 📅 **{f['busiest_day']}** is your busiest day — stock up the day before."]
+          f"- 📅 **{f['busiest_day']}** is your busiest day. Stock up the day before."]
     if f["due_soon"]:
         md.append("- 📥 Debts promised this week: " + ", ".join(
             f"{d['customer']} {naira(d['balance'])} ({d['due_date']})" for d in f["due_soon"]))
     if f["overdue"]:
-        md.append(f"- 🔴 Overdue: {naira(sum(d['balance'] for d in f['overdue']))} — send reminders from "
+        md.append(f"- 🔴 Overdue: {naira(sum(d['balance'] for d in f['overdue']))}. Send reminders from "
                   f"the **Who owes me** tab.")
     if top:
         md.append("\n### Best sellers (last 14 days)")
-        md += [f"{i}. **{t['item']}** — {naira(t['revenue'])}" + (
+        md += [f"{i}. **{t['item']}**: {naira(t['revenue'])}" + (
             f" ({t['qty']:.0f} {t['unit']}{'s' if t['qty'] != 1 else ''})" if t["qty"] and t["unit"] else "")
             for i, t in enumerate(top, 1)]
         md.append(f"\n💡 Restock tip: make sure **{top[0]['item']}** and **{top[1]['item'] if len(top) > 1 else ''}** "
@@ -405,14 +405,14 @@ def profile_view():
     p = ledger.credit_profile()
     if not p:
         return "No records yet. Record a few days of sales to build your profile."
-    lines = [f"## Business record score: {p['score']}/100 — {p['band']}",
+    lines = [f"## Business record score: {p['score']}/100 ({p['band']})",
              f"Based on **{p['span_days']} days** of records. Average daily sales **{naira(p['avg_daily_sales'])}**, "
              f"sales minus expenses **{naira(p['profit'])}**, money owed to you **{naira(p['outstanding'])}**"
              + (f" ({naira(p['overdue'])} overdue)." if p["overdue"] else "."),
              "", "| Factor | Points | Why |", "|---|---|---|"]
     for name, (pts, mx, why) in p["parts"].items():
         lines.append(f"| {name} | {pts:.0f} / {mx} | {why} |")
-    lines += ["", "> ℹ️ **How this works:** a simple, published formula over your own records — no hidden AI "
+    lines += ["", "> ℹ️ **How this works:** a simple, published formula over your own records, no hidden AI "
                   "judgement. It is an *indicator* to help you talk to a lender, cooperative or ajo group. "
                   "It is **not** a credit decision; a person must review any loan."]
     if p["has_demo_data"]:
@@ -558,7 +558,7 @@ def switch_language(lang):
 
 def chat(question, history):
     answer, engine = insights.ask(question)
-    return answer + (f"\n\n_— {engine}_" if engine != "rules" else "")
+    return answer + (f"\n\n_({engine})_" if engine != "rules" else "")
 
 
 def do_delete(entry_id):
@@ -579,7 +579,7 @@ THEME = gr.themes.Soft(primary_hue="green")
 GRADIO6 = int(gr.__version__.split(".")[0]) >= 6  # Gradio 6 moved `theme` from Blocks() to launch()
 
 with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as demo:
-    gr.Markdown("# 🗣️💰 TradeVoice\nSpeak it or snap your book — we keep your records, chase who owes you, "
+    gr.Markdown("# 🗣️💰 TradeVoice\nSpeak it or snap your book. We keep your records, chase who owes you, "
                 "and show where your money is going.")
     app_lang = gr.Radio(ui_text.LANGS, value="English", label="🌍 App language (the 🔊 buttons speak it too)")
     consent = gr.Checkbox(label=CONSENT, value=False)
@@ -719,7 +719,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         y_md = gr.Markdown()
         y_btn.click(lambda: "```\n" + insights.year_record_text() + "\n```", None, y_md)
         st_btn = gr.Button("⬇️ Download statement for lender / cooperative")
-        st_file = gr.File(label="Business record statement (HTML — open and print to PDF)")
+        st_file = gr.File(label="Business record statement (HTML: open and print to PDF)")
         st_btn.click(download_statement, shop, st_file)
 
     with gr.Tab("🔒 My data") as t_data:

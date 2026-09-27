@@ -79,7 +79,7 @@ _PAYMENT_KW = ("don pay", "don bring", "ti pay", "has paid", "have paid", "paid 
 _CREDIT_KW = ("owe", "owes", "owing", "go pay", "will pay", "on credit", "na credit", "credit", "later", "balance remain",
               "never pay", "no pay", "pay by", "pay on", "pay next",
               "gbese", "je mi", "yoo san", "o ma san",      # yo: debt, owes me, will pay
-              "bashi", "za ta biya", "za ya biya",          # ha: debt, will pay
+              "bashi", "za ta biya", "za ya biya", "zai biya", "za ta pay", "za ya pay", "zai pay",  # ha: debt, will pay
               "ugwo", "ji m", "ga-akwu", "ga akwu")         # ig: debt, owes me, will pay
 _EXPENSE_RE = re.compile(r"\b(i|we)\s+(buy|bought|pay for|paid for|spend|spent|restock|restocked)\b"
                          r"|\b(i|we)\s+(pay|paid)\s+(n|₦)?\d"
@@ -321,6 +321,9 @@ def parse_type(text):
         return "payment_received"
     if any(k in t for k in _PAYMENT_KW):
         return "payment_received"
+    # ha: "ta/ya biya" = she/he paid, but "za ta/ya biya", "zai biya" = will pay (a promise, so credit)
+    if re.search(r"\b(ta|ya) biya\b", t) and not re.search(r"\bza (ta|ya) biya\b", t):
+        return "payment_received"
     if _EXPENSE_RE.search(t) and not _SELL_RE.search(t):
         return "expense"
     if any(re.search(rf"(?<![\w-]){re.escape(k)}(?!\w)", t) for k in _CREDIT_KW):
@@ -421,9 +424,45 @@ def _fix(rec, key, value, why):
     rec["confidence"] = min(rec.get("confidence") or 0.6, 0.6)
 
 
+def type_is_explicit(text):
+    """Did the rules find a clear word for the kind of record ("ta biya", "za ta pay", "kudin mota", "sold"…)?
+    Only when nothing matched do they default to "sale"."""
+    return parse_type(text) != "sale" or bool(_SELL_RE.search(fold(text)))
+
+
+def _name_was_said(name, text):
+    """A customer name from the AI must be said as a name: written with a capital, after a title (Mama, Oga…),
+    or where a person goes ("give X", "ga X", "X don pay"). Voice transcripts are often lower case, so capitals
+    alone are not required. Stops made-up names ("alaa") and ordinary words ("tukuna" = yet) becoming customers."""
+    if not name or not name.split():
+        return True
+    f, first, last = fold(text), fold(name.split()[0]), fold(name.split()[-1])
+    words = set(re.findall(r"[\w']+", f))
+    if first not in words and last not in words:
+        return False
+    raw = re.search(rf"(?<![\w]){re.escape(name.split()[0])}", text or "")
+    if raw and raw.group(0)[:1].isupper():
+        return True
+    if re.search(rf"\b(?:{_HONORIFIC})\s+{re.escape(last)}\b", f):
+        return True
+    if re.search(rf"\b(?:give|gave|to|for|from|by|fun|ga|nye|sell|sold)\s+{re.escape(first)}\b", f):
+        return True
+    return bool(re.match(rf"\s*(?:[\w']+\s+)?{re.escape(first)}\s+(?:[\w']+\s+)?(?:don|has|have|paid|pay|owe|owes|dey|go|will|"
+                         rf"bring|brought|collect|ta|ya|ti|akwu|akwuola)\b", f))
+
+
 def _check_guard(rec, rules, text, today):
-    """Deterministic checks the AI got wrong in our hard test set (docs/RESULTS.md, 25 Sep)."""
+    """Deterministic checks the AI got wrong in our hard test sets (docs/RESULTS.md, 25 + 27 Sep)."""
     t = fold(text)
+    # the type: when the rules found a clear word for it, they decide. The small model on our GPU mixed up
+    # who paid whom in Hausa/Igbo ("ta biya", "akwụọla … ọ ji m") on 27 Sep; the rules got all of those right.
+    if rules.get("type") and rec.get("type") != rules["type"] and type_is_explicit(text):
+        rec["type"] = rules["type"]
+    # the customer: only a name that was actually said as a name; else the rules' one (or none)
+    if rec.get("customer") and not _name_was_said(rec["customer"], text):
+        rec["customer"] = rules.get("customer")
+    if rec.get("type") == "expense" and not rules.get("customer"):
+        rec["customer"] = None  # transport, rent, levy… have no customer
     # the words say "I owe" / "I paid back": the AI sometimes files it as a sale or a customer's debt
     flip = {"credit_purchase": ("credit_sale", "sale"), "payment_made": ("payment_received", "expense")}
     if rec.get("type") in flip.get(rules["type"], ()):
@@ -452,6 +491,12 @@ def _check_guard(rec, rules, text, today):
     digits = _digits_amount(_PHONE_RE.sub(" ", text))
     special = unit_total(text) or (parse_amount(text) if _CORRECT_RE.search(text.lower()) or digits is None else None)
     amt = rec.get("amount")
+    # no amount was said at all (not in digits, not in words): the AI must not make one up, ask instead
+    if amt is not None and rules["amount"] is None and float(amt) not in said:
+        rec["amount"] = None
+        rec["note"] = ((rec.get("note") or "") + " No amount heard. How much?").strip()
+        rec["confidence"] = min(rec.get("confidence") or 0.5, 0.5)
+        amt = None
     if amt is not None and rules["amount"] is not None and float(amt) != float(rules["amount"]):
         if special and float(rules["amount"]) == float(special):
             _fix(rec, "amount", rules["amount"], f"Amount set to {rules['amount']:,} (AI said {amt:,}).")

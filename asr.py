@@ -234,3 +234,26 @@ def omni_languages_ok():
     from omnilingual_asr.models.wav2vec2_llama.lang_ids import supported_langs
 
     return {code: code in supported_langs for eng, code in LANGUAGES.values() if eng == "omni"}
+
+
+LOCAL = {"Yoruba", "Hausa", "Igbo"}
+
+
+def transcribe_auto(path, language=None, vocab=None):
+    """transcribe(), then check which language the words are in. If they look like another of our languages
+    (e.g. the trader spoke Yoruba while "English / Pidgin" was selected), hear it again in that language, so the
+    trader never has to switch by hand. Returns the same dict plus "detected" (the language to use next time)."""
+    import askbook
+
+    out = transcribe(path, language, vocab)
+    detected = askbook.guess_language(out.get("text") or "")
+    if detected in LOCAL and detected != language:
+        try:
+            again = transcribe(path, detected, vocab)
+            if (again.get("text") or "").strip():
+                again["latency_ms"] = again.get("latency_ms", 0) + out.get("latency_ms", 0)
+                out = again
+        except Exception:  # noqa: BLE001 - keep the first result
+            pass
+    out["detected"] = detected if detected in LOCAL else "English / Pidgin"
+    return out

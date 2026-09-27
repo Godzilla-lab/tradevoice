@@ -20,9 +20,10 @@ from pydantic import BaseModel
 import converse
 import insights
 import ledger
+import photo
 import tts
 import ui_text
-from extract import TYPES, extract_many
+from extract import TYPES
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHOP_NAME = os.getenv("SHOP_NAME", "Chioma Stores")
@@ -30,6 +31,9 @@ VOICE_LANGS = {"English": "English / Pidgin", "Pidgin": "English / Pidgin", "Yor
                "Igbo": "Igbo"}
 
 app = FastAPI(title="TradeVoice")
+import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, same book)
+
+app.include_router(whatsapp.router)
 SESSIONS = {}   # browser session id -> conversation state (who "her" is, the draft waiting for "yes")
 SPEAK = {}      # speak id -> (text, language) ; audio is made only when the page asks for it
 AUDIO = {}      # speak id -> audio file path
@@ -57,7 +61,7 @@ def _upload(file: UploadFile, suffix):
 
 def _reply_json(r, state, heard=None):
     return {"text": r["text"], "english": r.get("english"), "lang": r["lang"], "heard": heard,
-            "message": r.get("message"), "link": r.get("link"),
+            "message": r.get("message"), "link": r.get("link"), "choices": r.get("choices"),
             "pending": bool(state.get("pending")), "speak": _speak_id(r.get("spoken"), r["lang"])}
 
 
@@ -83,11 +87,12 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
         raise HTTPException(400, "consent needed")
     path = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm")
     try:
-        from asr import transcribe
+        from asr import transcribe_auto
 
-        heard = transcribe(path, VOICE_LANGS.get(lang, "English / Pidgin"), vocab=ledger.known_words())
+        heard = transcribe_auto(path, VOICE_LANGS.get(lang, "English / Pidgin"), vocab=ledger.known_words())
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": f"Could not hear that ({type(e).__name__}). Please type it."}, 502)
+        print(f"hearing failed: {type(e).__name__}: {e}")
+        return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
     finally:
         os.remove(path)  # the voice note is deleted as soon as it is read
     text = heard["text"].strip()
@@ -96,6 +101,7 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
     state = _state(session)
     out = _reply_json(converse.reply(text, state, shop=shop or SHOP_NAME), state, heard=text)
     out["engine"] = heard.get("engine")
+    out["detected"] = heard.get("detected")
     return out
 
 
@@ -115,42 +121,17 @@ def speak(sid: str):
 
 # ---------------------------------------------------------------- photo of the book
 
-def _row(r):
-    checks = []
-    if r["amount"] is None:
-        checks.append("add amount")
-    if r["confidence"] < 0.6:
-        checks.append("check this")
-    if r.get("note"):
-        checks.append(r["note"])
-    if r["type"] == "credit_sale" and r.get("customer"):
-        risk = ledger.customer_risk(r["customer"])
-        if risk["level"] in ("medium", "high"):
-            checks.append(risk["message"])
-    return {"save": r["amount"] is not None and r["confidence"] >= 0.6, "type": r["type"], "amount": r["amount"],
-            "customer": r.get("customer") or "", "due_date": r.get("due_date") or "", "item": r.get("item") or "",
-            "quantity": r.get("quantity"), "unit": r.get("unit") or "", "line": r.get("line") or "",
-            "checks": checks}
-
-
 @app.post("/api/photo")
-def photo(file: UploadFile = File(...), consent: str = Form("")):
+def photo_api(file: UploadFile = File(...), consent: str = Form("")):
     if consent != "yes":
         raise HTTPException(400, "consent needed")
     path = _upload(file, os.path.splitext(file.filename or "")[1] or ".jpg")
     try:
-        from vision import read_notebook
-
-        res = read_notebook(path)
+        return photo.read(path)
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": f"Could not read the photo ({type(e).__name__}: {str(e)[:100]})."}, 502)
     finally:
         os.remove(path)  # the photo is deleted as soon as it is read
-    if not res["text"]:
-        return {"rows": [], "lines": "", "engine": res["engine"]}
-    recs, meta = extract_many(res["text"])
-    return {"rows": [_row(r) for r in recs], "lines": res["text"], "engine": res["engine"],
-            "brain": meta["engine"], "ms": res["latency_ms"] + meta["latency_ms"]}
 
 
 class Rows(BaseModel):
@@ -159,26 +140,147 @@ class Rows(BaseModel):
 
 @app.post("/api/save_rows")
 def save_rows(body: Rows):
-    saved, problems = 0, []
-    for n, row in enumerate(body.rows, 1):
-        if not row.get("save"):
-            continue
-        try:
-            amount = float(str(row.get("amount") or 0).replace(",", "").replace("₦", ""))
-        except ValueError:
-            amount = 0
-        if row.get("type") not in TYPES or amount <= 0:
-            problems.append(f"line {n}: needs a type and an amount")
-            continue
-        qty = row.get("quantity")
-        ledger.add_entry({"type": row["type"], "amount": amount, "customer": (row.get("customer") or "").strip() or None,
-                          "due_date": (row.get("due_date") or "").strip() or None,
-                          "item": (row.get("item") or "").strip() or None,
-                          "quantity": float(qty) if qty not in (None, "") else None,
-                          "unit": (row.get("unit") or "").strip() or None},
-                         raw_text=row.get("line") or "", engine="photo")
-        saved += 1
-    return {"saved": saved, "problems": problems}
+    return photo.save(body.rows)
+
+
+# ---------------------------------------------------------------- customers + their conversations
+
+def _customer_or_404(cid):
+    c = ledger.customer_summary(cid)
+    if not c:
+        raise HTTPException(404, "customer not found (it may have been deleted)")
+    return c
+
+
+@app.get("/api/customers")
+def customers():
+    rows = ledger.conversations()
+    names = {}
+    for r in rows:
+        names[ledger.customer_key(r["name"])] = names.get(ledger.customer_key(r["name"]), 0) + 1
+    for r in rows:
+        r["same_name"] = names[ledger.customer_key(r["name"])] > 1
+    return {"customers": rows}
+
+
+class NewCustomer(BaseModel):
+    name: str
+    phone: str | None = None
+    notes: str | None = None
+
+
+@app.post("/api/customers")
+def new_customer(c: NewCustomer):
+    if not c.name.strip():
+        raise HTTPException(400, "name needed")
+    return ledger.customer_summary(ledger.create_customer(c.name, c.phone, c.notes))
+
+
+@app.get("/api/customers/{cid}")
+def customer(cid: int):
+    return {"customer": _customer_or_404(cid), "thread": ledger.thread(cid)}
+
+
+class CustomerEdit(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    notes: str | None = None
+
+
+@app.patch("/api/customers/{cid}")
+def edit_customer(cid: int, e: CustomerEdit):
+    _customer_or_404(cid)
+    ledger.update_customer(cid, **{k: v for k, v in e.model_dump().items() if v is not None})
+    return ledger.customer_summary(cid)
+
+
+@app.delete("/api/customers/{cid}")
+def remove_customer(cid: int):
+    return {"deleted": bool(ledger.delete_customer(cid))}
+
+
+@app.post("/api/customers/{cid}/read")
+def mark_read(cid: int):
+    _customer_or_404(cid)
+    ledger.update_customer(cid, last_read_at=ledger._now())
+    return {"ok": True}
+
+
+class CustRecord(BaseModel):
+    type: str
+    amount: float
+    item: str | None = None
+    due_date: str | None = None
+    raw_text: str | None = None
+
+
+@app.post("/api/customers/{cid}/record")
+def customer_record(cid: int, r: CustRecord):
+    """Record a sale / payment for THIS customer (by id). Balances update everywhere at once."""
+    _customer_or_404(cid)
+    if r.type not in TYPES or r.amount <= 0:
+        raise HTTPException(400, "needs a type and an amount")
+    ledger.add_entry({"type": r.type, "amount": r.amount, "item": (r.item or "").strip() or None,
+                      "due_date": r.due_date or None, "customer_id": cid}, raw_text=r.raw_text or "", engine="customer")
+    return {"customer": ledger.customer_summary(cid), "thread": ledger.thread(cid)}
+
+
+class CustSay(BaseModel):
+    text: str
+
+
+@app.post("/api/customers/{cid}/say")
+def customer_say(cid: int, m: CustSay):
+    """Typed in a customer's conversation: something with money ("paid 10k") -> a draft to confirm;
+    anything else -> saved as a note."""
+    cust = _customer_or_404(cid)
+    from extract import extract, parse_amount
+
+    if parse_amount(m.text) is not None:
+        import re
+
+        from extract import fold
+
+        rec, meta = extract(f"{cust['name']} {m.text}")
+        t = fold(m.text)
+        # inside THIS customer's conversation, "paid 5k" means they paid me; "I paid 5k" means I paid them back
+        if re.search(r"\b(i|we)\s+(don\s+|have\s+)?(paid|pay|settle|settled|cleared)\b", t):
+            rec["type"] = "payment_made"
+        elif re.search(r"\b(paid|pay|pays|don pay|settle|settled|cleared|brought|bring|collect|collected|received|receive|ti san|biya|kwuru|kwuola)\b", t):
+            rec["type"] = "payment_received"
+        elif re.search(r"\b(owe|credit|go pay|will pay|later)\b", t) and rec["type"] == "sale":
+            rec["type"] = "credit_sale"
+        return {"draft": {k: rec.get(k) for k in ("type", "amount", "item", "due_date")}, "engine": meta["engine"]}
+    ledger.add_message(cid, m.text.strip(), sender="trader", kind="note")
+    return {"thread": ledger.thread(cid)}
+
+
+class Remind(BaseModel):
+    lang: str = "Pidgin"
+    shop: str | None = None
+
+
+@app.post("/api/customers/{cid}/reminder")
+def customer_reminder(cid: int, b: Remind):
+    """TradeVoice drafts the reminder; the trader edits it and sends it from their own WhatsApp."""
+    cust = _customer_or_404(cid)
+    msg, link = insights.reminder(cust["name"], b.lang if b.lang in insights.TEMPLATES else "Pidgin",
+                                  b.shop or SHOP_NAME, customer_id=cid)
+    if not msg:
+        return {"message": None}
+    mid = ledger.add_message(cid, msg, sender="tradevoice", kind="reminder", status="draft")
+    return {"message": msg, "link": link, "id": mid, "phone": cust.get("phone"), "thread": ledger.thread(cid)}
+
+
+class MsgEdit(BaseModel):
+    content: str | None = None
+    status: str | None = None
+
+
+@app.patch("/api/messages/{mid}")
+def edit_message(mid: int, e: MsgEdit):
+    ledger.set_message(mid, **{k: v for k, v in e.model_dump().items() if v is not None})
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------- screens
@@ -237,6 +339,75 @@ def read(screen: str, lang: str = "English"):
     return {"text": text, "speak": _speak_id(text, lang)}
 
 
+@app.get("/api/read/{screen}/audio")
+def read_audio(screen: str, lang: str = "English"):
+    """The screen as a voice note, as a plain audio URL: the page can start it straight from the tap
+    (phones, iPhone Safari especially, block sound that starts after a wait)."""
+    import readaloud
+
+    if screen not in readaloud.SCREENS:
+        raise HTTPException(404)
+    lang = lang if lang in readaloud.LANGS else "English"
+    out = tts.speak(readaloud.text(screen, lang), lang if lang in tts.REPLY_LANGS else "Pidgin")
+    if not out:
+        raise HTTPException(404, "voice is off")
+    return FileResponse(out["path"], media_type="audio/wav")
+
+
+# ---------------------------------------------------------------- 🎙️ Ask TradeVoice (voice assistant on every screen)
+
+@app.get("/api/explain/{screen}")
+def explain(screen: str, lang: str = "English"):
+    import assistant
+
+    e = assistant.explain(screen, lang)
+    return {"text": e["text"], "engine": e["engine"], "speak": _speak_id(e.get("spoken") or e["text"], lang)}
+
+
+@app.get("/api/explain/{screen}/audio")
+def explain_audio(screen: str, lang: str = "English"):
+    """The explanation as a plain audio URL, so the sound can start inside the tap that opened the assistant."""
+    import assistant
+
+    e = assistant.explain(screen, lang)
+    out = tts.speak(e.get("spoken") or e["text"], lang if lang in tts.REPLY_LANGS else "Pidgin")
+    if not out:
+        raise HTTPException(404, "voice is off")
+    return FileResponse(out["path"], media_type="audio/wav")
+
+
+@app.post("/api/assist")
+def assist(screen: str = Form("today"), lang: str = Form("English"), session: str = Form("anon"),
+           text: str = Form(""), speak_lang: str = Form("English"), consent: str = Form(""),
+           shop: str = Form(""), file: UploadFile | None = File(None)):
+    """A question by voice (file) or typed (text) about the screen the trader is on; answered in their language."""
+    import assistant
+
+    heard, detected = text.strip(), None
+    if file is not None:
+        if consent != "yes":
+            raise HTTPException(400, "consent needed")
+        path = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm")
+        try:
+            from asr import transcribe_auto
+
+            h = transcribe_auto(path, VOICE_LANGS.get(speak_lang, "English / Pidgin"), vocab=ledger.known_words())
+            heard, detected = h["text"].strip(), h.get("detected")
+        except Exception as e:  # noqa: BLE001
+            print(f"hearing failed: {type(e).__name__}: {e}")
+            return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
+        finally:
+            os.remove(path)  # the voice note is deleted as soon as it is read
+    if not heard:
+        return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
+    state = _state(session)
+    r = assistant.answer(heard, screen, lang, state=state, shop=shop or SHOP_NAME)
+    return {"heard": heard, "detected": detected, "text": r["text"], "english": r.get("english"),
+            "lang": r.get("lang", lang), "engine": r.get("engine"), "message": r.get("message"), "link": r.get("link"),
+            "pending": bool(state.get("pending")), "choices": r.get("choices"),
+            "speak": _speak_id(r.get("spoken") or r["text"], r.get("lang", lang))}
+
+
 @app.delete("/api/entry/{entry_id}")
 def delete(entry_id: int):
     return {"deleted": bool(ledger.delete_entry(entry_id))}
@@ -256,7 +427,9 @@ def wipe(w: Wipe):
 
 @app.get("/api/ui")
 def ui(lang: str = "English"):
-    return {k: ui_text.t(k, lang) for k in ui_text.UI} | {"_langs": ui_text.LANGS}
+    return {k: ui_text.t(k, lang) for k in ui_text.UI} | {"_langs": ui_text.LANGS,
+                                                          "_dir": ui_text.DIRECTION.get(lang, "ltr"),
+                                                          "_code": ui_text.CODES.get(lang, "en")}
 
 
 @app.get("/api/status")
@@ -267,7 +440,8 @@ def status():
     return {"hearing": hearing, "voice": tts.backend(),
             "brain": "brev" if os.getenv("LOCAL_LLM_URL") else ("nvidia" if os.getenv("NVIDIA_API_KEY") else "offline"),
             "photos": "brev" if os.getenv("LOCAL_VISION_URL") else ("nvidia" if llm.available("vision") else "off"),
-            "shop": SHOP_NAME}
+            "shop": SHOP_NAME, "whatsapp": bool(os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID")
+                                                               or os.getenv("WHATSAPP_PHONE_NUMBER_ID")))}
 
 
 # ---------------------------------------------------------------- pages
@@ -276,6 +450,11 @@ app.mount("/static", StaticFiles(directory=os.path.join(HERE, "web")), name="sta
 
 
 @app.get("/")
+def landing():
+    return FileResponse(os.path.join(HERE, "web", "landing.html"))
+
+
+@app.get("/app")
 def index():
     return FileResponse(os.path.join(HERE, "web", "index.html"))
 

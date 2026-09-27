@@ -54,7 +54,7 @@ WHAT_WORDS = [
     ("profit", [r"\bere (melo+|elo+)\b", r"\bje ere\b", r"\bjere\b"]),
     ("i_owe", [r"\b(i|we) (still )?(dey )?owe\b", r"\bwho i owe\b", r"\bmo je\b", r"\bmo ni gbese\b",
                r"\bina da bashi", r"\bana m ji\b", r"\ba m ji\b"]),
-    ("owed_to_me", [r"\bowe me\b", r"\bwho owe\b", r"\bdey owe me\b", r"\bje mi\b", r"\bgbese\b", r"\bbashi\b",
+    ("owed_to_me", [r"\bowes? me\b", r"\bwho (dey )?owes?\b", r"\bowing me\b", r"\bdey owe me\b", r"\bje mi\b", r"\bgbese\b", r"\bbashi\b",
                     r"\bugwo\b", r"\bji m\b"]),
     ("profit", [r"\bprofit\b", r"\bgain\b", r"\b(make|made|making)\b", r"\bremain for me\b", r"\bjere\b",
                 r"\bere mi\b", r"\briba\b", r"\buru\b"]),
