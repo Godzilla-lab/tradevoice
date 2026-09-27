@@ -27,6 +27,8 @@ const naira = (x) => (x < 0 ? "-₦" : "₦") + Math.round(Math.abs(x || 0)).toL
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (s) => esc(s).replace(/\*(.+?)\*/g, "<b>$1</b>").replace(/_(.+?)_/g, "<i>$1</i>").replace(/\n/g, "<br>");
 const day = (iso) => { if (!iso) return ""; const d = new Date(iso + "T12:00:00"); return isNaN(d) ? iso : d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
+const WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const wd = (en) => { const i = WEEK.indexOf(en); return i < 0 ? en : t("wd_" + i, en); };
 const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 function toast(msg, ms = 2500) {
@@ -396,13 +398,13 @@ async function loadDebts() {
 
 async function loadInsights() {
   const { forecast: f, top } = await api("/api/insights");
-  if (!f) { $("#insightsBody").innerHTML = '<div class="empty">Record a few days of sales, then I can see what is coming.</div>'; return; }
+  if (!f) { $("#insightsBody").innerHTML = `<div class="empty">${esc(t("empty_insights", "Record a few more days."))}</div>`; return; }
   const max = Math.max(...f.plan.map((p) => p.sales), 1);
-  const bars = f.plan.map((p) => `<div class="${p.weekday === f.busiest_day ? "peak" : ""}"><span style="height:${Math.round((p.sales / max) * 100)}%"></span>${esc(p.weekday.slice(0, 3))}</div>`).join("");
+  const bars = f.plan.map((p) => `<div class="${p.weekday === f.busiest_day ? "peak" : ""}"><span style="height:${Math.round((p.sales / max) * 100)}%"></span><em>${esc(S.lang === "English" || S.lang === "Pidgin" ? p.weekday.slice(0, 3) : wd(p.weekday))}</em></div>`).join("");
   $("#insightsBody").innerHTML = `
     <div class="card"><h2>${esc(t("next_week", "Next 7 days"))}</h2><div class="big">${naira(f.week_sales)}</div>
       <div class="note">${esc(t("cash_left", "Cash left after normal spending"))}: <b>${naira(f.expected_cash)}</b></div><div class="bars">${bars}</div></div>
-    <div class="card"><h2>${esc(t("busiest", "Busiest day"))}</h2><div class="big">${esc(f.busiest_day)}</div>
+    <div class="card"><h2>${esc(t("busiest", "Busiest day"))}</h2><div class="big">${esc(wd(f.busiest_day))}</div>
       <div class="note">${esc(t("stock_tip", "Stock up the day before."))}</div></div>
     ${f.due_soon.length ? `<div class="card"><h2>📥 ${esc(t("promised_week", "Promised this week"))}</h2>${f.due_soon.map((d) => `<div class="item"><div class="ic">📅</div><div class="main"><div class="t">${esc(d.customer)}</div><div class="s">${esc(day(d.due_date))}</div></div><div class="amt">${naira(d.balance)}</div></div>`).join("")}</div>` : ""}
     <div class="card"><h2>${esc(t("best_sellers", "Best sellers"))} <small>· 14 days</small></h2>
@@ -413,13 +415,13 @@ async function loadInsights() {
 
 async function loadProfile() {
   const { profile: p, year } = await api("/api/profile");
-  if (!p) { $("#profileBody").innerHTML = '<div class="empty">Your book is empty. Start by telling me a sale.</div>'; return; }
+  if (!p) { $("#profileBody").innerHTML = `<div class="empty">${esc(t("empty_profile", "Your book is empty."))}</div>`; return; }
   const deg = Math.round((p.score / 100) * 360);
   $("#profileBody").innerHTML = `
     <div class="card" style="text-align:center"><h2>${esc(t("score", "Record score"))}</h2>
-      <div class="ring" style="background:conic-gradient(var(--accent) ${deg}deg, var(--line) 0)"><div>${p.score}<small>/100 · ${esc(p.band)}</small></div></div>
-      <div class="note">${p.span_days} days of records · average daily sales ${naira(p.avg_daily_sales)}</div></div>
-    <div class="card"><h2>${esc(t("why_score", "Why this score"))}</h2>${p.parts.map((x) => `<div class="part"><b>${esc(x.name)}</b> · ${Math.round(x.points)}/${x.max}
+      <div class="ring" style="background:conic-gradient(var(--accent) ${deg}deg, var(--line) 0)"><div>${p.score}<small>/100 · ${esc(t("band_" + p.band, p.band))}</small></div></div>
+      <div class="note">${esc(t("days_avg", "{d} days of records · average daily sales {m}").replace("{d}", p.span_days).replace("{m}", naira(p.avg_daily_sales)))}</div></div>
+    <div class="card"><h2>${esc(t("why_score", "Why this score"))}</h2>${p.parts.map((x) => `<div class="part"><b>${esc(t("sp_" + x.name, x.name))}</b> · ${Math.round(x.points)}/${x.max}
       <div class="bar"><i style="width:${Math.round((x.points / x.max) * 100)}%"></i></div><div class="why">${esc(x.why)}</div></div>`).join("")}
       <p class="note">${esc(t("score_note", ""))}${p.has_demo_data ? " (demo data)" : ""}</p>
       <a class="btn" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${esc(t("statement", "⬇️ Statement for lender / cooperative"))}</a></div>

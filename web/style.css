@@ -308,3 +308,4 @@ textarea.rtext { width: 100%; font: inherit; font-size: 15px; border: 1px solid 
 }
 [dir="rtl"] .msg.in { border-top-left-radius: 8px; border-top-right-radius: 0; }
 [dir="rtl"] .msg.out { border-top-right-radius: 8px; border-top-left-radius: 0; }
+.bars em { font-style: normal; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; }

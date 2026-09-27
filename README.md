@@ -40,6 +40,10 @@ notebook, voice-note replies in your language, and Book / Debts / Insights / Pro
 | 📒 **My year so far** | One button | Sales, money spent **by type** (restock, rent, levies, transport, power, staff), monthly totals, rent & levy payments to keep receipts for. Also in the statement. Facts from the book only, no tax advice (tax research in progress: `docs/FINANCE_RESEARCH.md`) |
 | 🔒 **My data** | - | Consent first, audio and photos deleted after reading, nothing saved without confirmation, delete-everything button |
 
+**Data model (ledger.py, SQLite):** `customers(id, name, phone, notes, language, last_read_at)` · `entries(…, customer_id)` ·
+`messages(id, customer_id, sender, kind, content, status)` (notes and reminder drafts) · `reminders(…, customer_id)`.
+Customers are never identified by name alone: two "Feranmi"s stay two customers, and the chat asks "Which Feranmi?".
+
 ## How it works
 ```
  Voice note ─► Intron Sahara speech-to-text (Spitch backup) ─────────────────────┐
@@ -73,6 +77,8 @@ deterministic and explainable, so the AI can never invent a number in your books
 | `asr_server/server.py` | Optional standalone speech API (FastAPI) for a Brev GPU, same engines as `asr.py` |
 | `vision.py` | Book photo → text lines (shrinks the image to fit NVIDIA's inline-image limit) |
 | `extract.py` | Text → entries. LLM first; rules as fallback and amount cross-check. `extract()` for one, `extract_many()` for many lines |
+| `web/customers.js` | 👥 **Customers**: one WhatsApp-style conversation per customer on live book data (records, notes, reminder drafts TradeVoice prepares and the trader sends), record payment/sale, edit contact; list + thread on phones, two columns on desktop |
+| `ui_text.py` | **All screen words in one place** (English, Pidgin, Yorùbá, Hausa, Igbo; English fallback, never a raw key); used by the web app, the website and WhatsApp. Native-speaker check pending |
 | `whatsapp.py` | 📲 WhatsApp bot (Meta Cloud API webhook at `/whatsapp/webhook`, inside `web.py`): sign-up in chat, voice notes, photos, buttons, voice-note replies; `eval/test_whatsapp.py` |
 | `photo.py` | Notebook photo → draft rows → tick/fix → save (shared by web and WhatsApp) |
 | `converse.py` | 💬 One conversation over one book: routes each message (record, yes/no, question, reminder), follows the language per message, remembers who "her/him" is. Channel-free: the WhatsApp bot can call `reply()` as it is |
