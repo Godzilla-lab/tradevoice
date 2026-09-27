@@ -143,6 +143,9 @@ python app.py
    That trycloudflare link is the demo link for judges' phones (no login). Backup: `GRADIO_SHARE=1 python app.py`
    prints a public `….gradio.live` link for the old Gradio screens. Brev's own tunnels sit behind a Cloudflare
    login, so judges' phones can't open them directly.
+**After a stop/start, one command brings everything back:** `bash start_brev.sh` (both models, web app, public
+link, model check); `bash start_brev.sh stop` before stopping the machine. For a link that stays the same across
+restarts, put `NGROK_AUTHTOKEN` and `NGROK_DOMAIN` (the free static domain from dashboard.ngrok.com) in `.env`.
 5. **Stop the instance whenever you're not using it.** Screenshot the Brev console (GPU type, runtime, cost) and
    `nvidia-smi` showing both models for the submission.
 
