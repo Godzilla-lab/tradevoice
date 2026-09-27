@@ -9,22 +9,23 @@
 - Live prototype (Brev): ______
 - 90-second video: ______
 - Code: https://github.com/Godzilla-lab/tradevoice
+- Pitch deck text + demo script: [`PITCH_DECK.md`](PITCH_DECK.md)
 
 ## AI / tools disclosure
 | Component | What we used | Where it runs | Why |
 |---|---|---|---|
-| Speech-to-text (English/Pidgin) | Whisper large-v3-turbo via faster-whisper (open source, MIT) | **NVIDIA Brev GPU** (______ GPU) | Traders' voice + financial data stay on our own server; handles Nigerian English/Pidgin; fast on GPU |
-| Speech-to-text (Yoruba/Hausa/Igbo) | Meta Omnilingual ASR `omniASR_LLM_3B_v2` (Apache-2.0) | **NVIDIA Brev GPU** (same instance) | Whisper has no Igbo and is weak at Yoruba/Hausa; omniASR covers all three |
-| Understanding entries + Ask-my-book | ______ (model shown in app, e.g. `nvidia/nemotron-3-super-120b-a12b`), with automatic fallback models | NVIDIA API (build.nvidia.com) | Turns Pidgin/English into structured JSON; fallback keeps working if a model is retired |
-| Reading book photos | ______ (e.g. `nvidia/nemotron-nano-12b-v2-vl`, built for documents) | NVIDIA API (or Brev) | Reads handwriting into lines the trader can check |
-| Offline fallback + amount check | Our own rule-based parser | Brev | Works when AI is down; catches wrong amounts |
-| App / storage | Gradio, SQLite, pandas | Brev | Simple and mobile-friendly |
-| Coding assistant | Claude (Anthropic) | – | Helped write starter code, tests and docs before and during the event |
-| Data | Synthetic demo history (`seed_demo.py`); test phrases, voice notes and notebook photos made by our team | – | No real customer data used |
-| Generated assets | ______ (e.g. none / thumbnail) | – | – |
+| Speech-to-text (all 5 languages) | **Intron Sahara** API | Intron (Nigerian speech-AI company) | Best we found for Nigerian English, Pidgin, Yorùbá, Hausa, Igbo and mixed sentences |
+| Understanding entries + questions | **Qwen2.5-Instruct (AWQ)** served with vLLM ([7B / 14B: confirm from `LOCAL_LLM_MODEL` on Brev]) | **NVIDIA Brev GPU** | Our own model, no cloud queue; NVIDIA cloud models (Nemotron, Gemma via build.nvidia.com) as backup |
+| Reading notebook photos | **Qwen2.5-VL-7B-Instruct (AWQ)**, vLLM | **NVIDIA Brev GPU** (same instance) | Reads handwritten lines for the trader to check |
+| Spoken replies (text-to-speech) | **Intron Sahara TTS**; Spitch and Meta MMS-TTS (CC-BY-NC, demo only) as backups | Intron / Spitch / Brev | Native Yorùbá, Hausa, Igbo voices |
+| Safety checks + offline fallback | Our own rule-based parser and guards | Brev | Amounts must have been said; works when the AI is down |
+| App, storage, messaging | FastAPI, SQLite, Meta WhatsApp Cloud API, Paystack (pay links) | Brev | – |
+| Coding assistant | Claude (Anthropic) | – | Helped write code, tests and docs before and during the event |
+| Data | Synthetic demo history (`seed_demo.py`, made-up names); test sentences written by our team | – | No real customer data |
+| Generated assets | [none / list them] | – | – |
 
 ## How we used our NVIDIA Brev credits
-We ran our two AI models on a Brev ______ GPU instance for ______ hours (≈ $______ of credits), served with vLLM:
+We ran our two AI models on a Brev [GPU type] instance for ______ hours (≈ $______ of credits), served with vLLM:
 the **AI brain** (______, turns each note into a bookkeeping entry and answers "Ask my book") and the **photo reader**
 (______ vision model, reads handwritten notebook pages), plus the TradeVoice app and WhatsApp webhook.
 Running them on our own GPU means no queue behind other users (the free cloud API timed out on ~25% of our test notes)
@@ -39,33 +40,35 @@ Screenshots: ______
   evaluation runs, UI polish, video). See commit history from 27 Sep.
 
 ## Testing + reliability results
+Run everything with `python eval/run_all.py` (no keys needed).
 | Test | Result |
 |---|---|
-| Text → entry, all fields correct (15 **new** team phrases) | __ / 15 |
-| Voice note → entry, amount correct | __ / __ |
-| Voice note → entry, all fields correct | __ / __ |
-| Notebook photo → lines, amounts correct | __ / __ lines |
-| Speech-to-text latency on Brev GPU (median) | __ s |
-| LLM understanding latency (median) | __ s |
-| Noisy-market voice notes, amount correct | __ / 5 |
-| Yoruba / Hausa / Igbo voice notes (omniASR), amount correct | __ / __ · __ / __ · __ / __ |
-| Same notes through Whisper (for comparison) | __ / __ · __ / __ · __ / __ |
+| Automated feature checks (11 suites: demo flow, corrections, WhatsApp bot, wholesale, lender/pay links, login, Intron voice…) | **252 / 252** |
+| Sentence → entry, all fields correct, offline rules alone, 5 languages (464 sentences incl. 208 trap phrases) | **464 / 464** |
+| Same sentences through the AI on Brev | [__ / __] (`python eval/run_eval.py --cases eval/cases_hard.jsonl`) |
+| Voice note → entry, amount correct | [__ / __] |
+| Notebook photo → lines, amounts correct | [__ / __] |
+| LLM understanding latency on Brev (median) | [__ s] |
 
-**Failure modes and fallbacks:** NVIDIA API down or slow → offline rules (tested) · LLM amount disagrees with the words
-→ flagged and confidence lowered · unreadable handwriting → marked [?] and not saved until fixed · no amount → cannot
-save · credit to a late customer → warning · every entry needs the trader's confirmation.
-**Known limits:** Yoruba/Hausa/Igbo voice uses omniASR (not yet tested on many real traders; notes cut at 39 s); heavy noise lowers accuracy; the forecast is a simple
-weekday average; the score is not validated against real loan outcomes.
+**Failure modes and fallbacks:** Brev model down or slow → NVIDIA cloud models → offline rules · AI amount not in the
+words → rejected and flagged · a correction ("no be 20k, na 2k") → updates the waiting record, never a second one ·
+unreadable handwriting → marked and not saved until fixed · no amount → can't save · credit over a customer's limit or
+to a late payer → warning first · speech voice fails → next voice engine, then text only · every entry needs the
+trader's confirmation.
+**Known limits:** test sentences were written by our team (optimistic); Yorùbá/Hausa/Igbo wording needs a
+native-speaker check; heavy market noise lowers speech accuracy; the record score is not validated against real
+loan outcomes.
 
 ## Responsible AI + data
-- Consent checkbox before any voice note or photo is processed.
+- No sign-up: each phone gets its own private book. Consent is asked before any voice note or photo is processed (web and WhatsApp).
 - Audio and photos deleted immediately after reading; only confirmed text entries are stored; "erase all my data" button.
 - Voice notes go to Intron (Nigerian speech-AI company) for speech-to-text, then are deleted; understanding and
-  photo reading run on our own Brev GPU (NVIDIA cloud models as backup). On WhatsApp, messages travel over
+  photo reading run on our own Brev GPU (NVIDIA cloud models as backup). Spoken replies are made by Intron from text only. On WhatsApp, messages travel over
   Meta's WhatsApp Business Platform before reaching our server; media is deleted after reading.
 - WhatsApp: the trader opts in first, the bot is task-specific (bookkeeping only), and we never ask for card, bank account or ID numbers.
 - The AI reads and phrases; all money maths is deterministic code, so the AI can't invent numbers in the books.
 - Record score = published formula, no demographic data, labelled "indicator, not a credit decision; a person decides".
-- Reminders are never auto-sent: the trader reviews and presses send.
-- Bias: accents and Nigerian languages under-represented in speech models → confidence shown, editing always possible,
-  local-language speech on the roadmap.
+- Reminders, statements and receipts are never auto-sent: the trader reviews and presses send.
+- The lender link is opt-in, read-only, time-limited (1, 7 or 30 days) and can be stopped at any time.
+- Bias: accents and Nigerian languages are under-represented in speech models → we use a Nigerian speech provider,
+  show what was heard, and editing is always possible.

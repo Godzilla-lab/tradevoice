@@ -1,5 +1,7 @@
 # 🎬 Pitch: 90-second video + project card
 
+> ⚠️ **Old draft (before the event).** The current slides and 90-second demo script are in [`PITCH_DECK.md`](PITCH_DECK.md). This file still mentions Whisper/omniASR/Nemotron, which we replaced with Intron and Qwen on Brev.
+
 The jury picks the country top 3 **from the submitted video and materials**. Only the top 3 demo live. The video is our pitch.
 
 ## Recording tips

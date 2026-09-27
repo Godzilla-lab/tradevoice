@@ -189,7 +189,7 @@ reliable borrowers, from payments collected through pay links, and from bigger w
 **On the slide**
 > **Built and tested, not a mock-up**
 > - Working web app + WhatsApp bot on NVIDIA Brev
-> - 470 test sentences understood correctly; about 250 automated feature checks passing
+> - 464 test sentences understood correctly; about 250 automated feature checks passing
 > - Tested with real traders' WhatsApp messages, and improved from their corrections
 >
 > **Team**: [Name, role] · [Name, role] · [Name, AI & Brev lead] · [Name, role]
