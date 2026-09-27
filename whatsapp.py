@@ -116,11 +116,16 @@ def send_buttons(to, body, buttons):
 
 
 def send_list(to, body, button, rows):
-    """rows: [(id, title≤24)] (max 10)."""
+    """rows: [(id, title≤24)] or [(id, title, description≤72)] (max 10)."""
+    items = []
+    for row in rows[:10]:
+        item = {"id": row[0], "title": row[1][:24]}
+        if len(row) > 2 and row[2]:
+            item["description"] = row[2][:72]
+        items.append(item)
     return graph_post({"to": to, "type": "interactive", "interactive": {
         "type": "list", "body": {"text": body[:1024]},
-        "action": {"button": button[:20], "sections": [{"title": "TradeVoice",
-                                                        "rows": [{"id": i, "title": t[:24]} for i, t in rows[:10]]}]}}})
+        "action": {"button": button[:20], "sections": [{"title": "TradeVoice", "rows": items}]}}})
 
 
 def send_voice(to, text, lang):
@@ -178,7 +183,13 @@ def _reply(phone, r, u):
     """Send a converse reply: text (+ English line), the reminder to forward, a voice note, yes/no buttons."""
     body = r["text"] + (f"\n\n_🇬🇧 {r['english']}_" if r.get("english") else "")
     st = STATES.get(phone) or {}
-    if st.get("pending"):
+    if r.get("choices"):  # "Which Feranmi?": each one with balance and last activity
+        rows = []
+        for n, (cid, label) in enumerate(r["choices"], 1):
+            head, _, rest = label.partition(" · ")
+            rows.append((cid, f"{n}. {head}"[:24], rest))
+        send_list(phone, body, "Choose", rows)
+    elif st.get("pending"):
         lang = r["lang"] if r["lang"] in ui_text.LANGS else "English"
         send_buttons(phone, body, [("yes", ui_text.t("yes_save", lang)), ("no", ui_text.t("no", lang))])
     else:

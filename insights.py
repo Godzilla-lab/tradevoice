@@ -93,9 +93,14 @@ TEMPLATES = {
 }
 
 
-def reminder(customer, language="Pidgin", shop="your trader", today=None):
-    d = next((x for x in ledger.debtors(today) if ledger.customer_key(x["customer"]) == ledger.customer_key(customer)),
-             None)
+def reminder(customer, language="Pidgin", shop="your trader", today=None, customer_id=None):
+    """Polite reminder text + a WhatsApp link. The trader sends it; with the customer's phone saved the link opens
+    their chat directly, otherwise WhatsApp asks the trader to pick the contact."""
+    owing = ledger.debtors(today)
+    if customer_id is not None:
+        d = next((x for x in owing if x["customer_id"] == customer_id), None)
+    else:
+        d = next((x for x in owing if ledger.customer_key(x["customer"]) == ledger.customer_key(customer)), None)
     if not d:
         return None, None
     since = d["due_date"] or "last time"
@@ -103,7 +108,11 @@ def reminder(customer, language="Pidgin", shop="your trader", today=None):
         name=d["customer"], amount=naira(d["balance"]), items=", ".join(d["items"]) or "goods",
         since=since, shop=shop)
     # wa.me without a number opens WhatsApp and lets the trader choose the contact and press send themselves
-    return msg, "https://wa.me/?text=" + urllib.parse.quote(msg)
+    cust = ledger.get_customer(d["customer_id"]) if d.get("customer_id") else None
+    phone = "".join(ch for ch in ((cust or {}).get("phone") or "") if ch.isdigit())
+    if phone.startswith("0") and len(phone) == 11:  # 0803… -> 234803…
+        phone = "234" + phone[1:]
+    return msg, f"https://wa.me/{phone}?text=" + urllib.parse.quote(msg)
 
 
 # ---------------------------------------------------------------- ask my book

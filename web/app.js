@@ -159,6 +159,19 @@ function quickReplies() {
   chat.appendChild(q); scrollDown();
 }
 
+// "Which Feranmi?": one button per customer (balance + last activity), plus "new customer"
+function choiceReplies(choices) {
+  const q = document.createElement("div");
+  q.className = "quick choices";
+  q.innerHTML = choices.map(([id, label]) => `<button data-v="${esc(id)}">${esc(label)}</button>`).join("");
+  q.onclick = (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    q.querySelectorAll("button").forEach((x) => (x.disabled = true));
+    sendText(b.dataset.v, b.textContent);
+  };
+  chat.appendChild(q); scrollDown();
+}
+
 function showReply(r, { autoplay = false } = {}) {
   let html = fmt(r.text);
   if (r.english) html += `<div class="en">🇬🇧 ${fmt(r.english)}</div>`;
@@ -168,7 +181,8 @@ function showReply(r, { autoplay = false } = {}) {
   const el = bubble("in", html);
   if (r.speak && S.voice) el.insertBefore(voiceNote(null, { speakId: r.speak, autoplay }), el.querySelector(".meta"));
   document.querySelectorAll(".quick").forEach((q) => q.querySelectorAll("button").forEach((b) => (b.disabled = true)));
-  if (r.pending) quickReplies();
+  if (r.choices && r.choices.length) choiceReplies(r.choices);
+  else if (r.pending) quickReplies();
   scrollDown();
 }
 

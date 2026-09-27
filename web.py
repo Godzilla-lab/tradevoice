@@ -60,7 +60,7 @@ def _upload(file: UploadFile, suffix):
 
 def _reply_json(r, state, heard=None):
     return {"text": r["text"], "english": r.get("english"), "lang": r["lang"], "heard": heard,
-            "message": r.get("message"), "link": r.get("link"),
+            "message": r.get("message"), "link": r.get("link"), "choices": r.get("choices"),
             "pending": bool(state.get("pending")), "speak": _speak_id(r.get("spoken"), r["lang"])}
 
 

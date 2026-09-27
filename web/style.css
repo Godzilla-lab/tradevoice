@@ -219,3 +219,5 @@ pre.year { white-space: pre-wrap; font-size: 12.5px; margin: 0; }
 .item .ic { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .late-amt { color: var(--warn); }
 .top .avatar { background: rgba(255,255,255,.16); }
+.quick.choices { flex-direction: column; align-items: stretch; max-width: 85%; }
+.quick.choices button { text-align: left; font-weight: 500; color: var(--ink); }

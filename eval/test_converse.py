@@ -63,6 +63,26 @@ def main():
         ("due list in Yoruba", converse.due_today("Yoruba", TODAY + dt.timedelta(days=1))
          == ["📌 Lónìí: gba ₦75,000 lọ́wọ́ Mama Tunde."]),
     ]
+    # two different customers called Feranmi: never merged, the chat asks which one
+    import ledger as L
+    f1 = L.create_customer("Feranmi", phone="08031234567")
+    L.add_entry({"type": "credit_sale", "amount": 20000, "customer_id": f1}, created_at=dt.datetime(2026, 9, 27, 9))
+    f2 = L.create_customer("Feranmi")
+    L.add_entry({"type": "sale", "amount": 3000, "customer_id": f2}, created_at=dt.datetime(2026, 9, 12, 9))
+    st2 = converse.new_state()
+    r1 = converse.reply("Feranmi paid me 5k", st2, today=TODAY)
+    r2 = converse.reply("1", st2, today=TODAY)
+    r3 = converse.reply("yes", st2, today=TODAY)
+    checks += [
+        ("same name twice → 'Which Feranmi?' with balances", "Which Feranmi" in r1["text"]
+         and len(r1.get("choices", [])) == 3 and "₦20,000" in r1["choices"][0][1]),
+        ("picked #1 → payment goes to THAT Feranmi only", "₦15,000" in r3["text"]
+         and L.customer_summary(f1, TODAY)["owes_me"] == 15000 and L.customer_summary(f2, TODAY)["owes_me"] == 0),
+        ("reminder link uses the saved phone number", "wa.me/2348031234567" in (
+            converse.reply("remind Feranmi", st2, today=TODAY).get("link") or "")),
+        ("reminder draft appears in her conversation", any(m["event"] == "message" and m["kind"] == "reminder"
+                                                           for m in L.thread(f1))),
+    ]
     for name, ok in checks:
         fails += not ok
         print(f"{'✓' if ok else '✗'} {name}")
