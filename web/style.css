@@ -391,3 +391,5 @@ pre.year { font-size: 12.5px; line-height: 1.5; }
 .rec .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
 .top .logo { width: 36px; height: 36px; flex: none; display: block; }
 .biglogo { display: block; margin: 0 auto 16px; }
+.read.playing { background: var(--accent); color: #fff; border-color: var(--accent); }
+.toast { white-space: pre-line; }

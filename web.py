@@ -337,6 +337,21 @@ def read(screen: str, lang: str = "English"):
     return {"text": text, "speak": _speak_id(text, lang)}
 
 
+@app.get("/api/read/{screen}/audio")
+def read_audio(screen: str, lang: str = "English"):
+    """The screen as a voice note, as a plain audio URL: the page can start it straight from the tap
+    (phones, iPhone Safari especially, block sound that starts after a wait)."""
+    import readaloud
+
+    if screen not in readaloud.SCREENS:
+        raise HTTPException(404)
+    lang = lang if lang in readaloud.LANGS else "English"
+    out = tts.speak(readaloud.text(screen, lang), lang if lang in tts.REPLY_LANGS else "Pidgin")
+    if not out:
+        raise HTTPException(404, "voice is off")
+    return FileResponse(out["path"], media_type="audio/wav")
+
+
 @app.delete("/api/entry/{entry_id}")
 def delete(entry_id: int):
     return {"deleted": bool(ledger.delete_entry(entry_id))}

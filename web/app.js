@@ -127,13 +127,6 @@ function typing() {
   return el;
 }
 
-// voice reply -> a local blob url (works through Vercel/ngrok, where <audio src> can't send headers)
-async function speakUrl(id) {
-  const r = await fetch(`/api/speak/${id}`, { headers: HDR });
-  if (!r.ok) throw new Error("voice off");
-  return URL.createObjectURL(await r.blob());
-}
-
 // shrink phone photos before upload: faster on market data, and under Vercel's 4.5 MB request limit
 async function shrink(file, side = 1800) {
   try {
@@ -169,9 +162,7 @@ function voiceNote(src, { speakId = null, autoplay = false, seconds = null } = {
     if (seconds) len.textContent = mmss(seconds); };
   audio.onerror = () => { wrap.remove(); };
   const play = async () => {
-    if (!audio.src) {
-      try { audio.src = src || (await speakUrl(speakId)); } catch { wrap.remove(); return; }
-    }
+    if (!audio.src) audio.src = src || `/api/speak/${speakId}`;  // a plain URL, started inside the tap
     if (audio.paused) {
       document.querySelectorAll("audio").forEach((a) => a !== audio && a.pause());
       voiceNote.current?.pause(); voiceNote.current = audio;
@@ -494,15 +485,17 @@ document.addEventListener("click", async (e) => {
   if (del && confirm("Delete this record?")) { await api(`/api/entry/${del}`, { method: "DELETE" }); loadBook(); }
 });
 
-// 🔊 read it to me
-document.querySelectorAll(".read").forEach((b) => (b.onclick = async () => {
-  b.disabled = true;
-  try {
-    const r = await api(`/api/read/${b.dataset.screen}?lang=${encodeURIComponent(S.lang)}`);
-    toast(r.text, 6000);
-    if (S.voice && r.speak) { const p = $("#player"); p.src = await speakUrl(r.speak); await p.play().catch(() => {}); }
-  } catch (e) { toast(e.message); }
-  b.disabled = false;
+// 🔊 read it to me: the sound starts inside the tap itself (phones block sound that starts after a wait)
+document.querySelectorAll(".read").forEach((b) => (b.onclick = () => {
+  const screen = b.dataset.screen, p = $("#player");
+  if (S.voice) {
+    p.src = `/api/read/${screen}/audio?lang=${encodeURIComponent(S.lang)}&t=${Date.now()}`;
+    p.play().catch(() => toast(t("error", "Something went wrong."), 3000));
+    b.classList.add("playing"); p.onended = p.onerror = () => b.classList.remove("playing");
+  }
+  api(`/api/read/${screen}?lang=${encodeURIComponent(S.lang)}`)
+    .then((r) => toast(r.text + (S.voice ? "" : "\n(🔇 voice is off on this server)"), 7000))
+    .catch((e) => toast(e.message));
 }));
 
 // ------------------------------------------------------------------ sheets: speaking language, menu, welcome
