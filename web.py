@@ -463,7 +463,8 @@ def status():
             "brain": "brev" if os.getenv("LOCAL_LLM_URL") else ("nvidia" if os.getenv("NVIDIA_API_KEY") else "offline"),
             "photos": "brev" if os.getenv("LOCAL_VISION_URL") else ("nvidia" if llm.available("vision") else "off"),
             "shop": SHOP_NAME, "whatsapp": bool(os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID")
-                                                               or os.getenv("WHATSAPP_PHONE_NUMBER_ID")))}
+                                                               or os.getenv("WHATSAPP_PHONE_NUMBER_ID"))),
+            "whatsapp_seen": whatsapp.STATS}
 
 
 # ---------------------------------------------------------------- pages

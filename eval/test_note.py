@@ -9,6 +9,7 @@ import sys
 import tempfile
 from unittest import mock
 
+os.environ["TV_NO_DOTENV"] = "1"  # never let the real .env keys into a test
 os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(), "t.db")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import llm  # noqa: E402

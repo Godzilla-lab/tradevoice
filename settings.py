@@ -1,12 +1,13 @@
 """Load .env automatically (so `python app.py` works without `set -a; source .env; set +a`).
-Values already set in the shell win. Never prints values: .env holds keys."""
+The .env file wins over values inherited from the shell or tmux: tmux keeps the .env from when Brev started, so
+an edited key (a new WhatsApp token) would otherwise be ignored until tmux restarts. Never prints values."""
 import os
 
 _PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 
 
 def load(path=_PATH):
-    if not os.path.exists(path):
+    if os.getenv("TV_NO_DOTENV") or not os.path.exists(path):  # tests use their own fake keys
         return
     for line in open(path, encoding="utf-8"):
         line = line.strip()
@@ -18,7 +19,7 @@ def load(path=_PATH):
             value = value[1:-1]
         elif " #" in value:
             value = value.split(" #", 1)[0].rstrip()  # inline comment
-        if key and key not in os.environ:
+        if key:
             os.environ[key] = value
 
 

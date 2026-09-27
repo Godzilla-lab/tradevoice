@@ -38,6 +38,7 @@ if not os.getenv("WHATSAPP_PHONE_ID") and os.getenv("WHATSAPP_PHONE_NUMBER_ID"):
     os.environ["WHATSAPP_PHONE_ID"] = os.environ["WHATSAPP_PHONE_NUMBER_ID"]
 GRAPH = f"https://graph.facebook.com/{os.getenv('WHATSAPP_GRAPH_VERSION', 'v23.0')}"
 router = APIRouter()
+STATS = {"posts": 0, "messages": 0, "bad_signature": 0, "last_post": None, "sent": 0, "last_error": None}
 STATES = {}                    # phone -> conversation state (same shape as the web chat's)
 SEEN = OrderedDict()           # message ids already handled (Meta sometimes sends twice)
 LOCKS = {}                     # phone -> lock, so one trader's messages are answered in order
@@ -100,7 +101,9 @@ def graph_post(payload):
     r = requests.post(f"{GRAPH}/{os.environ['WHATSAPP_PHONE_ID']}/messages", headers=_headers(),
                       json={"messaging_product": "whatsapp", **payload}, timeout=30)
     if r.status_code >= 400:
+        STATS["last_error"] = f"send failed {r.status_code}: {r.text[:300]}"
         raise RuntimeError(f"WhatsApp send failed {r.status_code}: {r.text[:300]}")
+    STATS["sent"] += 1
     return r.json()
 
 
@@ -374,6 +377,7 @@ def _safe(msg):
     try:
         handle(msg)
     except Exception as e:  # noqa: BLE001 - never crash the server on one bad message
+        STATS["last_error"] = f"{type(e).__name__}: {e}"[:400]
         print(f"whatsapp message failed: {type(e).__name__}: {e}")
         try:
             send_text(msg["from"], "😕 Something went wrong on my side. Please try again.")
@@ -384,10 +388,14 @@ def _safe(msg):
 @router.post("/whatsapp/webhook")
 async def incoming(request: Request, tasks: BackgroundTasks):
     raw = await request.body()
+    STATS["posts"] += 1
+    STATS["last_post"] = dt.datetime.now().isoformat(timespec="seconds")
     secret = os.getenv("WHATSAPP_APP_SECRET")
     if secret:
         good = "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(good, request.headers.get("X-Hub-Signature-256", "")):
+            STATS["bad_signature"] += 1
+            print("whatsapp: message refused, WHATSAPP_APP_SECRET does not match (leave it empty to skip the check)")
             raise HTTPException(401, "bad signature")
     body = json.loads(raw or b"{}")
     for entry in body.get("entry", []):
@@ -396,6 +404,8 @@ async def incoming(request: Request, tasks: BackgroundTasks):
                 if msg.get("id") in SEEN:
                     continue
                 SEEN[msg.get("id")] = True
+                STATS["messages"] += 1
+                print(f"whatsapp: {msg.get('type')} message from …{str(msg.get('from', ''))[-4:]}")
                 while len(SEEN) > 2000:
                     SEEN.popitem(last=False)
                 tasks.add_task(_safe, msg)  # answer Meta at once; do the slow work after
