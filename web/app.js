@@ -37,7 +37,14 @@ function toast(msg, ms = 2500) {
 // ngrok's free links show a warning page to browsers unless this header is sent (harmless elsewhere)
 const HDR = { "ngrok-skip-browser-warning": "1" };
 async function api(path, opts = {}) {
-  const r = await fetch(path, { ...opts, headers: { ...HDR, ...(opts.headers || {}) } });
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), opts.timeout || 60000);
+  let r;
+  try {
+    r = await fetch(path, { ...opts, signal: ctl.signal, headers: { ...HDR, ...(opts.headers || {}) } });
+  } catch (e) {
+    throw new Error(e.name === "AbortError" ? "No answer from the server (took too long). Try again, or type it."
+                                            : "Can't reach TradeVoice. Check your internet.");
+  } finally { clearTimeout(timer); }
   let body = null;
   try { body = await r.json(); } catch {}
   if (!r.ok) throw new Error((body && (body.error || body.detail)) || `Error ${r.status}`);
@@ -106,7 +113,7 @@ async function shrink(file, side = 1800) {
 }
 
 // a voice note bubble; src = url, or a speak id we turn into audio only when played
-function voiceNote(src, { speakId = null, autoplay = false } = {}) {
+function voiceNote(src, { speakId = null, autoplay = false, seconds = null } = {}) {
   const wrap = document.createElement("div");
   wrap.className = "vn";
   const bars = Array.from({ length: 28 }, () => `<i style="height:${25 + Math.round(Math.random() * 75)}%"></i>`).join("");
@@ -115,13 +122,15 @@ function voiceNote(src, { speakId = null, autoplay = false } = {}) {
   audio.preload = "none";
   const btn = $(".play", wrap), len = $(".len", wrap), waves = [...wrap.querySelectorAll(".wave i")];
   const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  if (seconds) len.textContent = mmss(seconds);  // browser recordings often report no length
   audio.onloadedmetadata = () => { if (isFinite(audio.duration)) len.textContent = mmss(audio.duration); };
   audio.ontimeupdate = () => {
     const p = audio.duration ? audio.currentTime / audio.duration : 0;
     waves.forEach((w, i) => w.classList.toggle("done", i / waves.length < p));
     len.textContent = mmss(audio.currentTime);
   };
-  audio.onended = () => { btn.textContent = "▶"; waves.forEach((w) => w.classList.remove("done")); };
+  audio.onended = () => { btn.textContent = "▶"; waves.forEach((w) => w.classList.remove("done"));
+    if (seconds) len.textContent = mmss(seconds); };
   audio.onerror = () => { wrap.remove(); };
   const play = async () => {
     if (!audio.src) {
@@ -176,7 +185,10 @@ async function sendText(text, shown) {
 // ------------------------------------------------------------------ hold to talk
 
 const mic = $("#mic"), input = $("#text");
-let rec = null, chunks = [], recStart = 0, recTimer = null, cancelRec = false, startX = 0;
+// idle -> starting (mic permission / warm-up) -> recording -> idle.  Two ways to use it, like WhatsApp:
+// hold and let go to send, OR tap once to start and tap again to send (a lifted finger can never leave it stuck).
+let rec = null, stream = null, chunks = [], recStart = 0, recTimer = null, startX = 0;
+let state = "idle", held = false, pressAt = 0, tapMode = false, cancelRec = false;
 
 function micIcon() { mic.textContent = input.value.trim() ? "➤" : "🎤"; }
 input.addEventListener("input", micIcon);
@@ -187,49 +199,53 @@ function pickMime() {
   return opts.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || "";
 }
 
-async function startRec(e) {
-  if (input.value.trim()) { sendText(input.value); input.value = ""; micIcon(); return; }
-  if (!S.consent) return showWelcome();
-  if (!navigator.mediaDevices?.getUserMedia) return toast("This browser can't record. Type instead (the link must be https).", 4000);
-  startX = e.clientX; cancelRec = false;
+function hint(text) { $("#recHint").textContent = text; }
+
+async function startRec() {
+  state = "starting"; cancelRec = false; tapMode = false;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mime = pickMime();
-    rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-    chunks = [];
-    rec.ondataavailable = (ev) => ev.data.size && chunks.push(ev.data);
-    rec.onstop = () => { stream.getTracks().forEach((tr) => tr.stop()); finishRec(); };
-    rec.start(); recStart = Date.now();
-    mic.classList.add("rec"); $("#recbar").classList.add("on");
-    recTimer = setInterval(() => {
-      const s = Math.floor((Date.now() - recStart) / 1000);
-      $("#recTime").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-      if (s >= 110) stopRec(); // Intron takes up to 2 minutes
-    }, 250);
-    if (!rec || rec.state !== "recording") stopRec();
-  } catch { toast("Allow the microphone to talk, or type instead.", 4000); }
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    state = "idle"; return toast("Allow the microphone to talk, or type instead.", 4000);
+  }
+  const mime = pickMime();
+  rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  chunks = [];
+  rec.ondataavailable = (ev) => ev.data.size && chunks.push(ev.data);
+  rec.onstop = () => { stream.getTracks().forEach((tr) => tr.stop()); finishRec(); };
+  rec.start(); recStart = Date.now(); state = "recording";
+  mic.classList.add("rec"); $("#recbar").classList.add("on");
+  hint(t("recording", "Recording… let go to send"));
+  recTimer = setInterval(() => {
+    const s = Math.floor((Date.now() - recStart) / 1000);
+    $("#recTime").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    if (s >= 110) stopRec(); // Intron takes up to 2 minutes
+  }, 250);
+  if (!held) { tapMode = true; hint(t("tap_send", "Tap 🎤 again to send")); } // finger lifted while the mic warmed up
 }
 
-function stopRec() {
+function stopRec(cancel = false) {
+  cancelRec = cancel;
   clearInterval(recTimer);
   mic.classList.remove("rec"); $("#recbar").classList.remove("on"); $("#recTime").textContent = "0:00";
-  if (rec && rec.state === "recording") rec.stop();
+  if (rec && rec.state === "recording") rec.stop(); else state = "idle";
 }
 
 async function finishRec() {
+  state = "idle";
   const ms = Date.now() - recStart;
   if (cancelRec) return toast("Cancelled");
   if (ms < 700) return toast(t("hold", "Hold 🎤 to talk"));
   const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
   const ext = (rec.mimeType || "").includes("mp4") ? ".m4a" : (rec.mimeType || "").includes("ogg") ? ".ogg" : ".webm";
   const mine = bubble("out", "", { ticks: true });
-  mine.insertBefore(voiceNote(URL.createObjectURL(blob)), mine.querySelector(".meta"));
+  mine.insertBefore(voiceNote(URL.createObjectURL(blob), { seconds: ms / 1000 }), mine.querySelector(".meta"));
   const wait = typing();
   const fd = new FormData();
   fd.append("file", blob, "note" + ext); fd.append("session", S.session); fd.append("lang", S.speak);
   fd.append("consent", "yes"); fd.append("shop", S.shop || "");
   try {
-    const r = await api("/api/voice", { method: "POST", body: fd });
+    const r = await api("/api/voice", { method: "POST", body: fd, timeout: 90000 });
     wait.remove();
     const heard = document.createElement("div");
     heard.className = "heard"; heard.textContent = `“${r.heard}”`;
@@ -238,11 +254,30 @@ async function finishRec() {
   } catch (e) { wait.remove(); bubble("in err", esc(e.message)); }
 }
 
-mic.addEventListener("pointerdown", (e) => { e.preventDefault(); mic.setPointerCapture?.(e.pointerId); startRec(e); });
-mic.addEventListener("pointermove", (e) => {
-  if (rec && rec.state === "recording" && startX - e.clientX > 90) { cancelRec = true; stopRec(); }
+mic.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  if (input.value.trim()) { sendText(input.value); input.value = ""; micIcon(); return; }
+  if (state === "recording" && tapMode) return stopRec();  // second tap = send
+  if (state !== "idle") return;
+  if (!S.consent) return showWelcome();
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    return toast("This browser can't record. Type instead (the link must be https).", 4000);
+  }
+  mic.setPointerCapture?.(e.pointerId);
+  held = true; pressAt = Date.now(); startX = e.clientX;
+  startRec();
 });
-["pointerup", "pointercancel"].forEach((ev) => mic.addEventListener(ev, () => { if (rec && rec.state === "recording") stopRec(); }));
+mic.addEventListener("pointermove", (e) => {
+  if (held && state === "recording" && !tapMode && startX - e.clientX > 90) { held = false; stopRec(true); }
+});
+["pointerup", "pointercancel"].forEach((ev) => mic.addEventListener(ev, () => {
+  if (!held) return;
+  held = false;
+  if (state !== "recording" || tapMode) return;                 // still warming up: startRec switches to tap mode
+  if (Date.now() - pressAt < 450) { tapMode = true; hint(t("tap_send", "Tap 🎤 again to send")); return; }
+  stopRec();                                                     // held and let go = send
+}));
+$("#recbar").addEventListener("click", () => { if (state === "recording") stopRec(true); }); // tap the bar = cancel
 mic.addEventListener("contextmenu", (e) => e.preventDefault());
 
 // ------------------------------------------------------------------ photo of the book
@@ -255,7 +290,7 @@ $("#photo").addEventListener("change", async (e) => {
   const wait = typing();
   const fd = new FormData(); fd.append("file", await shrink(file)); fd.append("consent", "yes");
   try {
-    const r = await api("/api/photo", { method: "POST", body: fd });
+    const r = await api("/api/photo", { method: "POST", body: fd, timeout: 120000 });
     wait.remove(); photoRows(r);
   } catch (err) { wait.remove(); bubble("in err", esc(err.message)); }
 });

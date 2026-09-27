@@ -40,6 +40,8 @@ UI = {
              "Jide 🎤 ka i kwuo okwu"],
     "recording": ["Recording… let go to send", "I dey record… leave am make e send", "Ó ń gbà ohùn… fi sílẹ̀ láti fi ránṣẹ́",
                   "Ana nadi… saki don aika", "A na-edekọ… hapụ ka o ziga"],
+    "tap_send": ["Tap 🎤 again to send · tap here to cancel", "Tap 🎤 again make e send · tap here to cancel",
+                 "Tẹ 🎤 lẹ́ẹ̀kan sí i láti fi ránṣẹ́", "Sake taɓa 🎤 don aikawa", "Pịa 🎤 ọzọ ka o ziga"],
     "i_speak": ["I'm speaking", "I dey talk", "Mo ń sọ", "Ina magana da", "Ana m asụ"],
     "yes_save": ["✅ Yes, save", "✅ Yes, save am", "✅ Bẹ́ẹ̀ni, kọ ọ́", "✅ Eh, adana", "✅ Ee, chekwaa"],
     "no": ["❌ No", "❌ No", "❌ Rárá", "❌ A'a", "❌ Mba"],
