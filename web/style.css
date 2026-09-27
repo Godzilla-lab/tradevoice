@@ -1,24 +1,28 @@
 :root {
-  --head: #008069; --head-ink: #fff; --accent: #00a884; --accent-ink: #fff;
-  --bg: #efeae2; --pattern: rgba(0,0,0,.035); --panel: #fff; --ink: #111b21; --muted: #667781;
-  --out: #d9fdd3; --in: #fff; --line: #e9edef; --warn: #b3261e; --warn-bg: #fdecea; --ok: #1f7a4d;
-  --bar: #f0f2f5; --tick: #53bdeb; --chip: #fff; --shadow: 0 1px .5px rgba(11,20,26,.13);
+  /* designer's palette (docs/DESIGN_BRIEF.md): deep green, warm cream, amber for money highlights */
+  --head: #0E6B52; --head-ink: #fff; --accent: #0E6B52; --accent-ink: #fff; --amber: #B8722A;
+  --bg: #F3F1EC; --pattern: rgba(14,107,82,.05); --panel: #fff; --ink: #181B18; --muted: #5B6058;
+  --out: #E6F0EC; --in: #fff; --line: #E4E1D9; --warn: #B23A2E; --warn-bg: #FBEAE7; --ok: #1E7A46;
+  --bar: #F8F7F4; --tick: #0E6B52; --chip: #fff; --shadow: 0 1px 2px rgba(24,27,24,.08);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --head: #202c33; --head-ink: #e9edef; --accent: #00a884; --bg: #0b141a; --pattern: rgba(255,255,255,.025);
-    --panel: #111b21; --ink: #e9edef; --muted: #8696a0; --out: #005c4b; --in: #202c33; --line: #222d34;
-    --warn: #f28b82; --warn-bg: #3b1f1f; --ok: #6fdba5; --bar: #202c33; --chip: #202c33;
+    --head: #0B3D30; --head-ink: #EDEBE5; --accent: #2FA37F; --amber: #E0A15A; --bg: #121513;
+    --pattern: rgba(255,255,255,.025); --panel: #1B201D; --ink: #EDEBE5; --muted: #9AA096; --out: #10402F;
+    --in: #1F2521; --line: #2A302C; --warn: #F08C80; --warn-bg: #3A201C; --ok: #6FD39F; --bar: #171B18;
+    --tick: #6FD39F; --chip: #1F2521;
   }
 }
 :root[data-theme="dark"] {
-  --head: #202c33; --head-ink: #e9edef; --accent: #00a884; --bg: #0b141a; --pattern: rgba(255,255,255,.025);
-  --panel: #111b21; --ink: #e9edef; --muted: #8696a0; --out: #005c4b; --in: #202c33; --line: #222d34;
-  --warn: #f28b82; --warn-bg: #3b1f1f; --ok: #6fdba5; --bar: #202c33; --chip: #202c33;
+  --head: #0B3D30; --head-ink: #EDEBE5; --accent: #2FA37F; --amber: #E0A15A; --bg: #121513;
+  --pattern: rgba(255,255,255,.025); --panel: #1B201D; --ink: #EDEBE5; --muted: #9AA096; --out: #10402F;
+  --in: #1F2521; --line: #2A302C; --warn: #F08C80; --warn-bg: #3A201C; --ok: #6FD39F; --bar: #171B18;
+  --tick: #6FD39F; --chip: #1F2521;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bar); color: var(--ink);
-  font: 16px/1.4 -apple-system, "Segoe UI", Roboto, "Noto Sans", Helvetica, Arial, sans-serif; }
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Noto Sans", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased; }
 button { font: inherit; color: inherit; cursor: pointer; }
 #app { max-width: 520px; height: 100dvh; margin: 0 auto; display: flex; flex-direction: column;
   background: var(--bg); position: relative; overflow: hidden; }
@@ -125,7 +129,7 @@ main { flex: 1; min-height: 0; position: relative; }
   align-items: center; gap: 1px; font-size: 12px; color: var(--muted); }
 .tabs button b { font-size: 20px; font-weight: 400; padding: 2px 16px; border-radius: 16px; }
 .tabs button.on { color: var(--ink); font-weight: 600; }
-.tabs button.on b { background: rgba(0,168,132,.18); }
+.tabs button.on b { background: rgba(14,107,82,.18); }
 
 /* dashboard cards */
 .read { width: 100%; border: 0; background: var(--accent); color: #fff; font-size: 18px; font-weight: 600;
@@ -140,15 +144,15 @@ main { flex: 1; min-height: 0; position: relative; }
 .item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
 .item:first-of-type { border-top: 0; }
 .item .ic { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 18px;
-  background: rgba(0,168,132,.14); flex: none; }
+  background: rgba(14,107,82,.14); flex: none; }
 .item .main { flex: 1; min-width: 0; }
 .item .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item .s { font-size: 13px; color: var(--muted); }
 .item .amt { font-weight: 700; white-space: nowrap; }
 .badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; font-weight: 600; }
 .badge.late { background: var(--warn-bg); color: var(--warn); }
-.badge.ok { background: rgba(0,168,132,.14); color: var(--ok); }
-.small { border: 0; background: rgba(0,168,132,.14); color: var(--ok); border-radius: 16px; padding: 6px 12px;
+.badge.ok { background: rgba(14,107,82,.14); color: var(--ok); }
+.small { border: 0; background: rgba(14,107,82,.14); color: var(--ok); border-radius: 16px; padding: 6px 12px;
   font-size: 13.5px; font-weight: 600; }
 .x { border: 0; background: none; color: var(--muted); font-size: 18px; padding: 4px; }
 .big { font-size: 28px; font-weight: 800; }
@@ -183,7 +187,7 @@ pre.year { white-space: pre-wrap; font-size: 12.5px; margin: 0; }
 .langs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 16px; }
 .langs button, .opts button { border: 1px solid var(--line); background: var(--panel); border-radius: 20px;
   padding: 9px 16px; font-size: 15px; }
-.langs button.on, .opts button.on { border-color: var(--accent); background: rgba(0,168,132,.14); color: var(--ok);
+.langs button.on, .opts button.on { border-color: var(--accent); background: rgba(14,107,82,.14); color: var(--ok);
   font-weight: 600; }
 .consent { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
 .primary { border: 0; background: var(--accent); color: #fff; font-weight: 600; font-size: 17px; padding: 13px 28px;
@@ -201,3 +205,17 @@ pre.year { white-space: pre-wrap; font-size: 12.5px; margin: 0; }
   padding: 10px 16px; border-radius: 20px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none;
   z-index: 30; max-width: 90%; text-align: center; }
 .toast.on { opacity: 1; }
+
+/* designer's card language: hairline borders, calm surfaces */
+.card, .stat, .msg.in, .quick button, .chips button { border: 1px solid var(--line); }
+.msg.out { border: 1px solid rgba(14,107,82,.12); }
+.card { border-radius: 14px; }
+.stat .v, .big { letter-spacing: -0.01em; }
+.debts-late .amt, .badge.late + .amt { color: var(--warn); }
+.bars div.peak span { background: var(--amber); }
+.read { border-radius: 12px; }
+.tabs button.on { color: var(--accent); }
+.tabs button.on b { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.item .ic { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.late-amt { color: var(--warn); }
+.top .avatar { background: rgba(255,255,255,.16); }

@@ -236,6 +236,11 @@ app.mount("/static", StaticFiles(directory=os.path.join(HERE, "web")), name="sta
 
 
 @app.get("/")
+def landing():
+    return FileResponse(os.path.join(HERE, "web", "landing.html"))
+
+
+@app.get("/app")
 def index():
     return FileResponse(os.path.join(HERE, "web", "index.html"))
 

@@ -365,7 +365,7 @@ async function loadDebts() {
       <div class="t">${esc(x.customer)}</div><div class="s">${x.overdue
         ? `<span class="badge late">${esc(t("days_late", "{n} days late").replace("{n}", x.days_late))}</span>`
         : `<span class="badge ok">${esc(t("on_time", "on time"))}</span>`}${x.due_date ? " · " + esc(day(x.due_date)) : ""}</div></div>
-      <div class="amt">${naira(x.balance)}</div>${remind ? `<button class="small" data-remind="${esc(x.customer)}">${esc(t("remind", "Remind"))}</button>` : ""}</div>`;
+      <div class="amt${x.overdue ? " late-amt" : ""}">${naira(x.balance)}</div>${remind ? `<button class="small" data-remind="${esc(x.customer)}">${esc(t("remind", "Remind"))}</button>` : ""}</div>`;
   $("#debtsBody").innerHTML = `
     <div class="card"><h2>${esc(t("owe_me", "Owe me"))} <small>· ${d.owed_to_me.length}</small></h2><div class="big">${naira(total)}</div>
       ${d.owed_to_me.map((x) => person(x, true)).join("") || '<div class="empty">Nobody owes you 🎉</div>'}</div>

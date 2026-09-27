@@ -279,7 +279,7 @@ def handle(msg):
             set_user(phone, voice=1)
             return send_text(phone, SAY["voice_on"])
         if t in ("dashboard", "web", "app", "book", "see more"):
-            url = os.getenv("PUBLIC_URL", "").rstrip("/")
+            url = os.getenv("PUBLIC_URL", "").rstrip("/") + ("/app" if os.getenv("PUBLIC_URL") else "")
             return send_text(phone, SAY["dashboard"].format(url=url or "(ask the team for the link)"))
 
         # 3) photo of the notebook
