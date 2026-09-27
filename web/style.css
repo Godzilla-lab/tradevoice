@@ -405,3 +405,12 @@ body.wa-view .round { background: #00a884; color: #fff; }
 }
 [dir="rtl"] .msg.in { border-bottom-left-radius: 18px; border-bottom-right-radius: 6px; }
 [dir="rtl"] .msg.out { border-bottom-right-radius: 18px; border-bottom-left-radius: 6px; }
+
+/* share / bank / pin sheets */
+label.agree { display: flex; gap: 12px; align-items: flex-start; font-weight: 600; font-size: 15px; margin: 16px 0 4px; }
+label.agree input { width: 26px; height: 26px; min-height: 0; flex: none; accent-color: var(--in); margin: 0; }
+.srow { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.srow:last-child { border-bottom: 0; }
+.srow .grow { flex: 1; }
+.sheet input.otp { font-size: 26px; font-weight: 800; letter-spacing: .5em; text-align: center; }
+.msg.claim { background: var(--in-soft); border-color: transparent; }

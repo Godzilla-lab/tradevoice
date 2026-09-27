@@ -112,7 +112,8 @@ function renderThread() {
   for (const e of ev) {
     const d = e.created_at.slice(0, 10);
     if (d !== lastDay) { html += `<div class="day">${esc(dayLabel(e.created_at))}</div>`; lastDay = d; }
-    html += e.event === "record" ? recordCard(e) : e.kind === "reminder" ? reminderBubble(e, c) : noteBubble(e);
+    html += e.event === "record" ? recordCard(e) : ["reminder", "receipt"].includes(e.kind) ? reminderBubble(e, c)
+      : e.kind === "payclaim" ? claimBubble(e) : noteBubble(e);
   }
   if (!ev.length) html = `<div class="empty">${esc(t("empty_thread", "Nothing here yet.").replace("{n}", c.name))}</div>`;
   $("#cthread").innerHTML = `
@@ -154,11 +155,21 @@ function noteBubble(e) {
 function reminderBubble(e, c) {
   const opened = e.status === "opened";
   return `<div class="msg in tv" data-mid="${e.id}">
-    <div class="tvlabel">TradeVoice · ${esc(opened ? t("opened_note", "Opened in WhatsApp") : t("draft_note", "TradeVoice prepared this."))}</div>
+    <div class="tvlabel">${esc(e.kind === "receipt" ? "🧾 " + t("receipt", "Receipt") : "TradeVoice")} · ${esc(opened ? t("opened_note", "Opened in WhatsApp") : t("draft_note", "TradeVoice prepared this."))}</div>
     <div class="rtext">${fmt(e.content)}</div>
     ${c.phone ? "" : `<div class="en">${esc(t("no_phone", "No phone saved."))}</div>`}
     <div class="rbtns"><button data-act="editmsg">${esc(t("edit_message", "Edit message"))}</button>
       <button class="wa-btn" data-act="openwa">${esc(t("open_whatsapp", "Open WhatsApp"))}</button></div>
+    <span class="meta">${esc(when(e.created_at))}</span></div>`;
+}
+
+// the customer tapped "I have paid" on the pay link: the trader checks the bank app, then confirms
+function claimBubble(e) {
+  const open = (e.status || "").startsWith("claim:");
+  return `<div class="msg in claim" data-mid="${e.id}"><div class="tvlabel">💸 ${esc(t("pay_link", "Pay link"))}</div>
+    <div class="rtext">${fmt(e.content)}</div>
+    <div class="rbtns">${open ? `<button class="primary-sm" data-act="confirmpaid">✓ ${esc(t("confirm_paid", "Money arrived: record it"))}</button>`
+      : `<span class="muted">✓ ${esc(t("recorded", "Recorded"))}</span>`}</div>
     <span class="meta">${esc(when(e.created_at))}</span></div>`;
 }
 
@@ -218,6 +229,11 @@ $("#cthread").addEventListener("click", async (e) => {
       await api(`/api/messages/${bub.dataset.mid}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
                                                       body: JSON.stringify({ status: "opened", content: msg }) });
       return refreshThread();
+    }
+    if (act === "confirmpaid" && bub) {
+      const r = await post(`/api/customers/${c.id}/confirm_paid`, { message_id: +bub.dataset.mid });
+      toast(`${typeLabel("payment_received")} · ${balanceLine(r.customer)}`, 3500);
+      return refreshThread(r);
     }
     if (act === "draftno") { C.draft = null; return renderThread(); }
     if (act === "draftyes") {

@@ -9,6 +9,7 @@ import datetime as dt
 import os
 import shutil
 import tempfile
+import urllib.parse
 import uuid
 
 import settings  # noqa: F401  (loads .env before the other modules read it)
@@ -35,8 +36,12 @@ app = FastAPI(title="TradeVoice")
 import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, same book)
 
 app.include_router(whatsapp.router)
+import extras  # noqa: E402  (lender link, pay links, automatic reminders, receipts, PIN, CSV)
+
+app.include_router(extras.router)
 AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "1") == "1"  # AUTH_REQUIRED=0: no login, one shared book (old demo)
 OPEN_API = ("/api/auth/", "/api/ui", "/api/status", "/api/voice_check")
+PIN_FREE = ("/api/auth/", "/api/ui", "/api/status")
 COOKIE = "tv_auth"
 
 
@@ -60,6 +65,10 @@ class BookPerTrader:
         if (AUTH_REQUIRED and not phone and path.startswith("/api/") and not path.startswith(OPEN_API)):
             return await JSONResponse({"error": "Please log in with your phone number.", "login": True}, 401)(
                 scope, receive, send)
+        if phone and path.startswith("/api/") and not path.startswith(PIN_FREE) and extras.has_pin(phone):
+            unlock = dict(scope.get("headers", [])).get(b"x-tv-unlock", b"").decode()
+            if not extras.unlocked(phone, unlock):
+                return await JSONResponse({"error": "Enter your PIN.", "locked": True}, 423)(scope, receive, send)
         scope.setdefault("state", {})["phone"] = phone
         token = ledger.use_book(phone) if phone else None
         try:
@@ -281,13 +290,20 @@ class CustRecord(BaseModel):
 
 
 @app.post("/api/customers/{cid}/record")
-def customer_record(cid: int, r: CustRecord):
-    """Record a sale / payment for THIS customer (by id). Balances update everywhere at once."""
+def customer_record(cid: int, r: CustRecord, request: Request):
+    """Record a sale / payment for THIS customer (by id). Balances update everywhere at once.
+    Then a receipt, ready to send to the customer on WhatsApp."""
     _customer_or_404(cid)
     if r.type not in TYPES or r.amount <= 0:
         raise HTTPException(400, "needs a type and an amount")
     ledger.add_entry({"type": r.type, "amount": r.amount, "item": (r.item or "").strip() or None,
                       "due_date": r.due_date or None, "customer_id": cid}, raw_text=r.raw_text or "", engine="customer")
+    phone = request.scope["state"].get("phone")
+    prof = accounts.profile(phone) if phone else {}
+    rc = extras.receipt(cid, r.type, r.amount, (r.item or "").strip(), r.due_date, prof.get("shop") or SHOP_NAME,
+                        prof.get("lang") or "English")
+    if rc:
+        ledger.add_message(cid, rc, sender="tradevoice", kind="receipt", status="draft")
     return {"customer": ledger.customer_summary(cid), "thread": ledger.thread(cid)}
 
 
@@ -327,13 +343,15 @@ class Remind(BaseModel):
 
 
 @app.post("/api/customers/{cid}/reminder")
-def customer_reminder(cid: int, b: Remind):
-    """TradeVoice drafts the reminder; the trader edits it and sends it from their own WhatsApp."""
+def customer_reminder(cid: int, b: Remind, request: Request):
+    """TradeVoice drafts the reminder (with a pay link); the trader edits it and sends it from their own WhatsApp."""
     cust = _customer_or_404(cid)
     msg, link = insights.reminder(cust["name"], b.lang if b.lang in insights.TEMPLATES else "Pidgin",
                                   b.shop or SHOP_NAME, customer_id=cid)
     if not msg:
         return {"message": None}
+    msg = extras.reminder_with_paylink(extras._base(request), request.scope["state"].get("phone"), cid, msg)
+    link = link.split("?text=")[0] + "?text=" + urllib.parse.quote(msg)
     mid = ledger.add_message(cid, msg, sender="tradevoice", kind="reminder", status="draft")
     return {"message": msg, "link": link, "id": mid, "phone": cust.get("phone"), "thread": ledger.thread(cid)}
 
@@ -367,8 +385,12 @@ def debts():
 
 
 @app.get("/api/reminder")
-def reminder(customer: str, lang: str = "Pidgin", shop: str = ""):
+def reminder(customer: str, request: Request, lang: str = "Pidgin", shop: str = ""):
     msg, link = insights.reminder(customer, lang if lang in insights.TEMPLATES else "Pidgin", shop or SHOP_NAME)
+    d = next((x for x in ledger.debtors() if ledger.customer_key(x["customer"]) == ledger.customer_key(customer)), None)
+    if msg and d and d.get("customer_id"):
+        msg = extras.reminder_with_paylink(extras._base(request), request.scope["state"].get("phone"), d["customer_id"], msg)
+        link = link.split("?text=")[0] + "?text=" + urllib.parse.quote(msg)
     return {"message": msg, "link": link}
 
 
@@ -549,7 +571,7 @@ def _me(phone):
     finally:
         ledger.done_with_book(token)
     return {"phone": accounts.masked(phone), "name": p.get("name") or "", "shop": p.get("shop") or "",
-            "lang": p.get("lang") or "", "new": not p.get("shop"), "empty_book": empty}
+            "lang": p.get("lang") or "", "new": not p.get("shop"), "empty_book": empty, "has_pin": extras.has_pin(phone)}
 
 
 @app.post("/api/auth/start")
@@ -645,6 +667,18 @@ app.mount("/static", StaticFiles(directory=os.path.join(HERE, "web")), name="sta
 @app.get("/")
 def landing():
     return FileResponse(os.path.join(HERE, "web", "landing.html"))
+
+
+@app.get("/sw.js")
+def service_worker():
+    """Offline: the app opens without internet, and voice notes wait on the phone until it's back."""
+    return FileResponse(os.path.join(HERE, "web", "sw.js"), media_type="text/javascript",
+                        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+
+@app.on_event("startup")
+def _auto_reminders():
+    extras.start_scheduler()
 
 
 @app.get("/app")

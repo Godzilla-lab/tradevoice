@@ -10,6 +10,7 @@ const S = {
   lang: store.get("tv_lang", "English"),          // ONE language for everything: screens, replies, voice, hearing
   shop: store.get("tv_shop", ""),
   consent: store.get("tv_consent", "") === "yes",
+  unlock: (() => { try { return sessionStorage.getItem("tv_unlock") || ""; } catch { return ""; } })(),
   session: store.get("tv_session", "") || (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)),
   voice: null, T: {}, pending: null,
 };
@@ -51,6 +52,8 @@ const ICONS = {
   globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5z"/>',
   shop: '<path d="M4 9.5 5.5 4.5h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5.5 11.5v8h13v-8"/>',
   trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
+  down: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   sparkle: '<path d="M12 3.5l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8z"/>',
 };
 const svg = (n, size = 22) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ""}</svg>`;
@@ -83,14 +86,18 @@ async function api(path, opts = {}) {
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), opts.timeout || 60000);
   let r;
   try {
-    r = await fetch(path, { ...opts, signal: ctl.signal, headers: { ...HDR, ...(opts.headers || {}) } });
+    r = await fetch(path, { ...opts, signal: ctl.signal,
+                            headers: { ...HDR, ...(S.unlock ? { "X-TV-Unlock": S.unlock } : {}), ...(opts.headers || {}) } });
   } catch (e) {
-    throw new Error(e.name === "AbortError" ? t("error", "No answer from the server. Try again.")
-                                            : t("offline", "Can't reach TradeVoice. Check your internet."));
+    const err = new Error(e.name === "AbortError" ? t("error", "No answer from the server. Try again.")
+                                                  : t("offline", "Can't reach TradeVoice. Check your internet."));
+    err.offline = e.name !== "AbortError";
+    throw err;
   } finally { clearTimeout(timer); }
   let body = null;
   try { body = await r.json(); } catch {}
   if (r.status === 401 && body && body.login && !path.startsWith("/api/auth/me")) { showLogin(); }
+  if (r.status === 423) { setUnlock(""); showPin(); }
   if (!r.ok) throw new Error((body && (body.error || (typeof body.detail === "string" && body.detail))) || t("error", "Something went wrong."));
   return body;
 }
@@ -321,8 +328,50 @@ async function finishRec() {
     heard.className = "heard"; heard.textContent = `“${r.heard}”`;
     mine.insertBefore(heard, mine.querySelector(".meta"));
     showReply(r, { autoplay: true }); // they spoke, so answer out loud
-  } catch (e) { wait.remove(); bubble("in err", esc(e.message)); }
+  } catch (e) {
+    wait.remove();
+    if (e.offline) {   // no internet: keep the voice note on the phone and send it when the internet is back
+      try { await Q.add({ blob, ext, lang: S.lang, at: Date.now() });
+            return bubble("in", `⏳ ${esc(t("queued", "No internet. Your voice note is saved on this phone and will send by itself when the internet is back."))}`); }
+      catch {}
+    }
+    bubble("in err", esc(e.message));
+  }
 }
+
+// 📴 offline voice notes: a small queue in IndexedDB (the phone), sent in order when back online
+const Q = {
+  db() { return new Promise((res, rej) => { const r = indexedDB.open("tradevoice", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("q", { keyPath: "id", autoIncrement: true });
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async add(item) { const d = await Q.db(); return new Promise((res, rej) => { const tx = d.transaction("q", "readwrite");
+    tx.objectStore("q").add(item); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); },
+  async all() { const d = await Q.db(); return new Promise((res) => { const r = d.transaction("q").objectStore("q").getAll();
+    r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }); },
+  async del(id) { const d = await Q.db(); return new Promise((res) => { const tx = d.transaction("q", "readwrite");
+    tx.objectStore("q").delete(id); tx.oncomplete = res; tx.onerror = res; }); },
+};
+let flushing = false;
+async function flushQueue() {
+  if (flushing || !S.me || !navigator.onLine) return;
+  flushing = true;
+  try {
+    const items = await Q.all().catch(() => []);
+    if (items.length) toast(`⏳ ${items.length} × 🎤 → ✓`, 2500);
+    for (const it of items) {
+      const fd = new FormData();
+      fd.append("file", it.blob, "note" + it.ext); fd.append("session", S.session); fd.append("lang", it.lang);
+      fd.append("consent", "yes"); fd.append("shop", S.shop || "");
+      try {
+        const r = await api("/api/voice", { method: "POST", body: fd, timeout: 90000 });
+        await Q.del(it.id);
+        bubble("out", `<div class="heard">🎤 “${esc(r.heard)}”</div>`, { ticks: true }); showReply(r);
+      } catch (e) { if (e.offline) break; await Q.del(it.id); bubble("in err", esc(e.message)); }
+    }
+  } finally { flushing = false; }
+}
+window.addEventListener("online", flushQueue);
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
 mic.addEventListener("pointerdown", (e) => {
   e.preventDefault();
@@ -517,7 +566,13 @@ function settingsHtml(empty) {
     <button data-me="shop">${svg("shop")}<span class="grow">${esc(t("shop_name", "Shop name"))}</span><span class="val">${esc(S.shop || "")}</span></button>
     <button data-me="view">${svg("chat")}<span class="grow">WhatsApp view</span><span class="val">${S.view === "wa" ? "✓" : ""}</span></button>
     ${empty ? `<button data-me="sample">${svg("sparkle")}<span class="grow">${esc(t("sample_data", "Try with sample records"))}</span></button>` : ""}
-    <a href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${svg("doc")}<span class="grow">${esc(t("tax_record", "Year record"))}</span></a>
+    <button data-me="share">${svg("bank")}<span class="grow">${esc(t("share_lender", "Share with a lender"))}</span></button>
+    <button data-me="bank">${svg("doc")}<span class="grow">${esc(t("bank_details", "Bank details for pay links"))}</span>
+      <span class="val">${S.bank && S.bank.account_number ? "••" + esc(S.bank.account_number.slice(-4)) : ""}</span></button>
+    <button data-me="pin">${svg("lock")}<span class="grow">${esc(t("pin_lock", "PIN lock"))}</span>
+      <span class="val">${S.me && S.me.has_pin ? "✓" : ""}</span></button>
+    <button data-dl="/api/export.csv" data-name="tradevoice-book.csv">${svg("down")}<span class="grow">${esc(t("export_csv", "Download my book (CSV)"))}</span></button>
+    <button data-dl="/api/statement?shop=${encodeURIComponent(S.shop)}" data-name="tradevoice-statement.html">${svg("doc")}<span class="grow">${esc(t("tax_record", "Year record"))}</span></button>
     <button data-me="logout">${svg("out")}<span class="grow">${esc(t("logout", "Log out"))}</span></button>
     <button data-me="delete" class="red">${svg("trash")}<span class="grow">${esc(t("delete_account", "Delete my account and book"))}</span></button>
   </div><p class="note">${esc(t("privacy", ""))}</p></section>`;
@@ -532,6 +587,9 @@ $("#profileBody").addEventListener("click", async (e) => {
       const v = prompt(t("shop_name", "Shop name"), S.shop || ""); if (v === null) return;
       S.shop = v.trim(); store.set("tv_shop", S.shop); S.me = await post("/api/auth/me", { shop: S.shop }); loadWords(); return loadProfile();
     }
+    if (k === "share") return shareSheet();
+    if (k === "bank") return bankSheet();
+    if (k === "pin") return pinSheet();
     if (k === "sample") { await post("/api/demo_data", {}); toast("✓"); return loadProfile(); }
     if (k === "logout") { await post("/api/auth/logout", {}); S.me = null; return showLogin(); }
     if (k === "delete" && prompt(t("delete_account", "Delete my account") + " — DELETE") === "DELETE") {
@@ -540,15 +598,108 @@ $("#profileBody").addEventListener("click", async (e) => {
   } catch (err) { toast(err.message); }
 });
 
+// downloads go through fetch so the PIN header is sent (a plain link would be refused when a PIN is set)
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-dl]"); if (!b) return;
+  e.preventDefault();
+  try {
+    const r = await fetch(b.dataset.dl, { headers: { ...HDR, ...(S.unlock ? { "X-TV-Unlock": S.unlock } : {}) } });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || t("error", "Something went wrong."));
+    const url = URL.createObjectURL(await r.blob()), a = document.createElement("a");
+    a.href = url; a.download = b.dataset.name || "tradevoice"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (err) { toast(err.message); }
+});
+
+// 🏦 share with a lender: consent first, a time limit, and a list of links the trader can stop
+async function shareSheet() {
+  sheet(`<h3>${esc(t("share_lender", "Share with a lender"))}</h3>
+    <p>${esc(t("share_what", "The lender sees your record score, sales, spending, money owed to you and your weekly summary. They do not see your customers' phone numbers or your voice notes."))}</p>
+    <h3 class="sub">${esc(t("share_how_long", "For how long?"))}</h3>
+    <div class="opts" id="sDays"><button data-d="1">${esc(t("one_day", "1 day"))}</button>
+      <button data-d="7" class="on">${esc(t("seven_days", "7 days"))}</button><button data-d="30">${esc(t("thirty_days", "30 days"))}</button></div>
+    <label class="agree"><input type="checkbox" id="sOk"><span>${esc(t("share_consent", "I agree to share my records with this lender. I can stop it at any time."))}</span></label>
+    <button class="primary" id="sGo" disabled>${esc(t("create_link", "Create the link"))}</button>
+    <div id="sOut"></div><h3 class="sub">${esc(t("my_links", "My links"))}</h3><div id="sList" class="menu"></div>`);
+  let days = 7;
+  const list = async () => {
+    const { shares } = await api("/api/shares");
+    $("#sList").innerHTML = shares.length ? shares.map((x) => `<div class="srow"><span class="grow">${esc(day(x.created_at.slice(0, 10)))} →
+      ${esc(day(x.expires.slice(0, 10)))}<br><small class="muted">${x.views} ${esc(t("views", "views"))}</small></span>
+      ${x.active ? `<button class="textbtn" data-stop="${x.id}">${esc(t("stop_sharing", "Stop"))}</button>` : `<span class="muted">${esc(t("stopped", "Ended"))}</span>`}</div>`).join("")
+      : `<p class="muted" style="padding:0 16px">${esc(t("no_links", "No links yet."))}</p>`;
+  };
+  list().catch(() => {});
+  $("#sOk").onchange = (e) => { $("#sGo").disabled = !e.target.checked; };
+  $("#sheetBody").onclick = async (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.d) { days = +b.dataset.d; $("#sDays").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); }
+    if (b.dataset.stop) { await api(`/api/shares/${b.dataset.stop}`, { method: "DELETE" }); toast("✓"); list(); }
+    if (b.id === "sCopy") { navigator.clipboard?.writeText($("#sUrl").value).then(() => toast("✓")).catch(() => $("#sUrl").select()); }
+    if (b.id === "sGo") {
+      try {
+        const r = await post("/api/share", { days, consent: $("#sOk").checked });
+        $("#sOut").innerHTML = `<div class="callout"><b>${esc(t("link_ready", "Link ready. It stops working on {d}.").replace("{d}", day(r.expires)))}</b>
+          <input id="sUrl" readonly value="${esc(r.url)}" style="margin-top:8px"></div>
+          <div class="rbtns"><button id="sCopy">${esc(t("copy", "Copy"))}</button>
+          <a class="wa" href="${esc(r.whatsapp)}" target="_blank" rel="noopener">${esc(t("send_whatsapp", "Send on WhatsApp"))}</a></div>`;
+        list();
+      } catch (err) { toast(err.message); }
+    }
+  };
+}
+
+// 💳 where customers pay: bank details for the pay link (Paystack when the server has a key)
+async function bankSheet() {
+  const b = S.bank || (await api("/api/bank").catch(() => ({}))) || {};
+  sheet(`<h3>${esc(t("bank_details", "Bank details for pay links"))}</h3>
+    <p>${esc(b.paystack ? t("paystack_on", "Customers can pay by card, transfer or USSD with Paystack, and the debt updates by itself. Bank details are a second option.")
+                        : t("bank_why", "Reminders include a pay link. Customers see these details, pay by transfer, and tap 'I have paid'. You confirm when the money arrives."))}</p>
+    <label>${esc(t("bank_name", "Bank"))}<input id="bName" value="${esc(b.bank_name || "")}" placeholder="Moniepoint / OPay / GTBank"></label>
+    <label>${esc(t("account_number", "Account number"))}<input id="bNum" inputmode="numeric" maxlength="10" value="${esc(b.account_number || "")}"></label>
+    <label>${esc(t("account_name", "Account name"))}<input id="bAcc" value="${esc(b.account_name || "")}"></label>
+    <button class="primary" id="bSave">${esc(t("save", "Save"))}</button>`);
+  $("#bSave").onclick = async () => {
+    try {
+      await post("/api/bank", { bank_name: $("#bName").value, account_number: $("#bNum").value, account_name: $("#bAcc").value });
+      $("#sheet").hidden = true; toast("✓"); loadProfile();
+    } catch (err) { toast(err.message); }
+  };
+}
+
+// 🔒 PIN: set, change or remove (4 numbers)
+function pinSheet() {
+  const on = S.me && S.me.has_pin;
+  sheet(`<h3>${esc(t("pin_lock", "PIN lock"))}</h3>
+    <p>${esc(t("pin_why", "Ask for a 4-number PIN when TradeVoice opens, so nobody else can see your book on this phone."))}</p>
+    <label>${esc(on ? t("new_pin", "New PIN") : t("choose_pin", "Choose a PIN"))}<input id="pNew" class="otp" type="password" inputmode="numeric" maxlength="4"></label>
+    <label>${esc(t("repeat_pin", "Type it again"))}<input id="pRep" class="otp" type="password" inputmode="numeric" maxlength="4"></label>
+    <button class="primary" id="pSave">${esc(t("save", "Save"))}</button>
+    ${on ? `<button class="danger" id="pOff">${esc(t("pin_off", "Turn off PIN"))}</button>` : ""}`);
+  $("#pSave").onclick = async () => {
+    const a = $("#pNew").value, b = $("#pRep").value;
+    if (!/^\d{4}$/.test(a)) return toast(t("pin_4", "The PIN is 4 numbers."));
+    if (a !== b) return toast(t("pin_mismatch", "The two PINs are not the same."));
+    try { const r = await post("/api/auth/pin", { pin: a }); setUnlock(r.unlock); S.me.has_pin = true; $("#sheet").hidden = true; toast("🔒 ✓"); loadProfile(); }
+    catch (err) { toast(err.message); }
+  };
+  if ($("#pOff")) $("#pOff").onclick = async () => {
+    try { await api("/api/auth/pin", { method: "DELETE" }); S.me.has_pin = false; $("#sheet").hidden = true; toast("✓"); loadProfile(); }
+    catch (err) { toast(err.message); }
+  };
+}
+
 async function loadProfile() {
-  const { profile: p, year_data: y, tax } = await api(`/api/profile?lang=${encodeURIComponent(S.lang)}`);
+  const [{ profile: p, year_data: y, tax }, bank] = await Promise.all([
+    api(`/api/profile?lang=${encodeURIComponent(S.lang)}`), api("/api/bank").catch(() => null)]);
+  S.bank = bank;
   if (!p) { $("#profileBody").innerHTML = `${meHtml()}<p class="empty">${esc(t("empty_profile", "Your book is empty."))}</p>${taxHtml(y, tax)}${settingsHtml(true)}`; return; }
   $("#profileBody").innerHTML = `${meHtml()}
     <div class="card"><h2>${esc(t("score", "Record score"))}</h2>
     <div class="hero-fig">${p.score}<span class="of">/100</span> <span class="band">${esc(t("band_" + p.band, p.band))}</span></div>
     <div class="meter"><i style="width:${p.score}%"></i></div>
     <p class="muted">${esc(t("days_avg", "").replace("{d}", p.span_days).replace("{m}", naira(p.avg_daily_sales)))}</p>
-    <a class="primary" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${svg("doc")}${esc(t("share_lender", "Share with a lender"))}</a></div>
+    <button class="primary" data-me="share">${svg("bank")}${esc(t("share_lender", "Share with a lender"))}</button></div>
     <section class="sect"><h2>${esc(t("why_score", "Why this score"))}</h2>
       ${p.parts.map((x) => `<div class="part"><div class="pl"><span>${esc(t("sp_" + x.name, x.name))}</span><b>${Math.round(x.points)}/${x.max}</b></div>
         <div class="meter thin"><i style="width:${Math.round((x.points / x.max) * 100)}%"></i></div><div class="s">${esc(x.why)}</div></div>`).join("")}
@@ -586,7 +737,7 @@ function taxHtml(y, tax) {
   const rent = y && y.rent_levies.count ? `<p class="muted">${esc(t("tax_rent", "").replace("{n}", y.rent_levies.count).replace("{m}", naira(y.rent_levies.amount)))}</p>` : "";
   return `<section class="sect" id="taxSect"><h2>${esc(t("tax_title", "Tax and your records"))}</h2>
     ${you}${rent}
-    <a class="primary block ghost" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${esc(t("tax_record", "Year record for the tax office"))}</a>
+    <button class="primary ghost" data-dl="/api/statement?shop=${encodeURIComponent(S.shop)}" data-name="tradevoice-year-record.html">${esc(t("tax_record", "Year record for the tax office"))}</button>
     <h3 class="sub">${esc(t("tax_facts", "What the new tax law means for you"))}</h3>
     <ol class="facts">${tax.facts.map((f) => `<li><span>${esc(f.text)}</span> <a href="${esc(f.source)}" target="_blank" rel="noopener">${esc(t("source", "Source"))}</a></li>`).join("")}</ol>
     <p class="callout warn">${esc(tax.check)}</p>
@@ -831,6 +982,37 @@ function loginCode(r, err = "") {
   }, 2000);
   setTimeout(() => $("#lcode")?.focus(), 50);
 }
+// 🔒 PIN: asked when the app opens and after 5 minutes away; the server refuses the book until it is right
+function setUnlock(tok) {
+  S.unlock = tok || "";
+  try { tok ? sessionStorage.setItem("tv_unlock", tok) : sessionStorage.removeItem("tv_unlock"); } catch {}
+}
+function showPin(err = "") {
+  if (L.step === "pin" && !$("#login").hidden && !err) return;
+  L.step = "pin"; $("#login").hidden = false; $("#loginLangs").innerHTML = "";
+  $("#loginStep").innerHTML = `<h1>${esc(t("enter_pin", "Enter your PIN"))}</h1>
+    <p>${esc((S.me && S.me.shop) || S.shop || "")}</p>
+    <form id="lfp"><input id="lpin" class="otp" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+      autocomplete="off" placeholder="••••"><div class="lerr">${esc(err)}</div>
+      <button class="primary">${esc(t("continue", "Continue"))}</button></form>
+    <button class="textbtn" id="lout">${esc(t("forgot_pin", "Forgot PIN? Log in again with your number"))}</button>`;
+  $("#lfp").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await post("/api/auth/unlock", { pin: $("#lpin").value });
+      setUnlock(r.unlock); L.step = "done"; $("#login").hidden = true;
+      if (!S.started) finishLogin(); else { const cur = document.querySelector(".tabs button.on")?.dataset.tab || "home"; showTab(cur); }
+    } catch (er) { showPin(er.message); }
+  };
+  $("#lpin").oninput = (e) => { if (e.target.value.replace(/\D/g, "").length === 4) $("#lfp").requestSubmit(); };
+  $("#lout").onclick = async () => { await post("/api/auth/logout", {}).catch(() => {}); setUnlock(""); S.me = null; L.step = "phone"; showLogin(); };
+  setTimeout(() => $("#lpin")?.focus(), 50);
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { S.hiddenAt = Date.now(); return; }
+  if (S.me && S.me.has_pin && S.hiddenAt && Date.now() - S.hiddenAt > 5 * 60e3) { setUnlock(""); showPin(); }
+});
+
 function loggedIn(me) {
   clearInterval(L.poll); S.me = me;
   if (me.lang && me.lang !== S.lang) { S.lang = me.lang; store.set("tv_lang", me.lang); }
@@ -850,10 +1032,11 @@ function loginShop() {
   };
 }
 async function finishLogin() {
-  L.step = "done"; $("#login").hidden = true;
+  L.step = "done"; $("#login").hidden = true; S.started = true;
   S.consent = true; store.set("tv_consent", "yes");
   if (S.me && S.me.shop) { S.shop = S.me.shop; store.set("tv_shop", S.shop); }
   await loadWords(); greet(); showTab("home");
+  flushQueue();
 }
 
 // ------------------------------------------------------------------ start
@@ -892,6 +1075,7 @@ setView(store.get("tv_view", "app"));
   try { S.me = await api("/api/auth/me"); } catch { S.me = null; }
   if (!S.me) return showLogin();
   if (S.me.new) { $("#login").hidden = false; loginLangs(); return loginShop(); }
+  if (S.me.has_pin && !S.unlock) return showPin();
   finishLogin();
 })();
 
