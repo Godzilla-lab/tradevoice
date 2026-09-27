@@ -157,6 +157,20 @@ def main():
     r = c.post("/api/auth/verify", json={"login_id": st["login_id"], "code": code_sent()})
     check("after 5 wrong codes even the right one is refused", r.status_code == 400, r.text)
 
+    # no login: a new browser opens its own book straight away
+    g = TestClient(web.app)
+    check("no login: the app asks for nothing", g.get("/api/auth/me").status_code == 401)
+    r = g.post("/api/auth/guest", json={"shop": "Ada Stores", "lang": "Yoruba"}).json()
+    check("guest book opens with shop + language, no phone shown", r["me"]["guest"] and r["me"]["shop"] == "Ada Stores"
+          and r["me"]["lang"] == "Yoruba" and r["me"]["phone"] == "", r)
+    g.post("/api/message", json={"session": "g", "text": "I sell rice 5000", "lang": "English"})
+    g.post("/api/message", json={"session": "g", "text": "yes", "lang": "English"})
+    check("…and it keeps its records", g.get("/api/today").json()["summary"]["money_in"] == 5000)
+    again = g.post("/api/auth/guest", json={}).json()["me"]
+    check("same browser = same book (no second book)", again["shop"] == "Ada Stores" and not again["empty_book"], again)
+    other = TestClient(web.app).post("/api/auth/guest", json={}).json()["me"]
+    check("another phone gets its own empty book", other["empty_book"] and other["shop"] == "My shop", other)
+
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} login checks pass")
     return all(CHECKS)
 

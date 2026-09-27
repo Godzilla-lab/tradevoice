@@ -690,7 +690,7 @@ function suppliersHtml(ss) {
 function meHtml() {
   const me = S.me || {};
   return `<div class="idcard"><span class="cav">${esc(initials(me.shop || me.name || "TV"))}</span>
-      <span><b>${esc(me.shop || S.shop || "TradeVoice")}</b><span class="muted">${esc(t("logged_as", "Logged in as {p}").replace("{p}", me.phone || ""))}</span></span></div>`;
+      <span><b>${esc(me.shop || S.shop || "TradeVoice")}</b>${me.phone ? `<span class="muted">${esc(t("logged_as", "Logged in as {p}").replace("{p}", me.phone))}</span>` : ""}</span></div>`;
 }
 function settingsHtml(empty) {
   return `<section class="sect"><h2>${esc(t("settings", "Settings"))}</h2><div class="menu">
@@ -705,7 +705,7 @@ function settingsHtml(empty) {
       <span class="val">${S.me && S.me.has_pin ? "✓" : ""}</span></button>
     <button data-dl="/api/export.csv" data-name="tradevoice-book.csv">${svg("down")}<span class="grow">${esc(t("export_csv", "Download my book (CSV)"))}</span></button>
     <button data-dl="/api/statement?shop=${encodeURIComponent(S.shop)}" data-name="tradevoice-statement.html">${svg("doc")}<span class="grow">${esc(t("tax_record", "Year record"))}</span></button>
-    <button data-me="logout">${svg("out")}<span class="grow">${esc(t("logout", "Log out"))}</span></button>
+${S.me && S.me.guest ? "" : `    <button data-me="logout">${svg("out")}<span class="grow">${esc(t("logout", "Log out"))}</span></button>`}
     <button data-me="delete" class="red">${svg("trash")}<span class="grow">${esc(t("delete_account", "Delete my account and book"))}</span></button>
   </div><p class="note">${esc(t("privacy", ""))}</p></section>`;
 }
@@ -1093,9 +1093,16 @@ const LANG_NAMES = { English: "English", Pidgin: "Pidgin", Yoruba: "Yorùbá", H
 
 // 🔐 log in with your phone number: language -> number -> code (or "Confirm with WhatsApp") -> shop name + consent
 const L = { id: null, poll: null, step: "phone" };
+// No login screen: this phone gets its own book straight away (the phone-number login below stays for later)
+let opening = null;
 function showLogin() {
-  if (!$("#login").hidden && L.step !== "phone") return;
-  S.me = null; $("#login").hidden = false; loginLangs(); loginPhone();
+  if (opening) return opening;
+  opening = (async () => {
+    try { const r = await post("/api/auth/guest", { lang: S.lang, shop: S.shop || "" }); S.me = r.me; await finishLogin(); }
+    catch (e) { toast(e.message || "Can't open your book. Check your internet."); }
+    finally { opening = null; }
+  })();
+  return opening;
 }
 function loginLangs() {
   const box = $("#loginLangs");
@@ -1243,7 +1250,6 @@ setView(store.get("tv_view", "app"));
   micIcon();
   try { S.me = await api("/api/auth/me"); } catch { S.me = null; }
   if (!S.me) return showLogin();
-  if (S.me.new) { $("#login").hidden = false; loginLangs(); return loginShop(); }
   if (S.me.has_pin && !S.unlock) return showPin();
   finishLogin();
 })();

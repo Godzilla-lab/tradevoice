@@ -134,6 +134,17 @@ def poll(lid):
 
 # ---------------------------------------------------------------- sessions (the browser stays logged in)
 
+GUEST = "999"   # not a country code: books opened without a phone number are 999 + 12 random digits
+
+
+def new_guest():
+    return GUEST + "".join(secrets.choice("0123456789") for _ in range(12))
+
+
+def is_guest(phone):
+    return bool(phone) and phone.startswith(GUEST) and len(phone) == 15
+
+
 def new_session(phone):
     token = secrets.token_urlsafe(32)
     now = _now()

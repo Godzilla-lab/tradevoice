@@ -692,7 +692,8 @@ def _me(phone):
         empty = ledger.is_empty()
     finally:
         ledger.done_with_book(token)
-    return {"phone": accounts.masked(phone), "name": p.get("name") or "", "shop": p.get("shop") or "",
+    guest = accounts.is_guest(phone)
+    return {"phone": "" if guest else accounts.masked(phone), "guest": guest, "name": p.get("name") or "", "shop": p.get("shop") or "",
             "lang": p.get("lang") or "", "new": not p.get("shop"), "empty_book": empty, "has_pin": extras.has_pin(phone)}
 
 
@@ -733,6 +734,23 @@ def auth_verify(b: Code, request: Request):
 def auth_poll(b: Code, request: Request):
     phone = accounts.poll(b.login_id)
     return _logged_in(request, phone) if phone else {"ok": False}
+
+
+class Guest(BaseModel):
+    shop: str | None = None
+    lang: str | None = None
+
+
+@app.post("/api/auth/guest")
+def auth_guest(b: Guest, request: Request):
+    """No login: this phone/browser gets its own book straight away (kept by a cookie for 90 days)."""
+    phone = request.scope["state"].get("phone")
+    if phone:
+        return {"ok": True, "me": _me(phone)}
+    phone = accounts.new_guest()
+    accounts.update_profile(phone, shop=(b.shop or "").strip()[:60] or "My shop",
+                            lang=b.lang if b.lang in VOICE_LANGS else None)
+    return _logged_in(request, phone)
 
 
 @app.get("/api/auth/me")
