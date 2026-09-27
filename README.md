@@ -17,6 +17,10 @@ Nigerian market traders sell on credit and keep records in their heads or in a n
 don't know their real profit, and without records they can't get a loan from a microfinance bank or cooperative.
 
 ## What TradeVoice does
+**📱 The app looks and works like WhatsApp** (`python web.py`): chat with your book, hold 🎤 to talk, 📎 to snap your
+notebook, voice-note replies in your language, and Book / Debts / Insights / Profile tabs. The same chat code
+(`converse.py`) runs the WhatsApp bot.
+
 | Feature | What the trader does | What happens |
 |---|---|---|
 | 💬 **Talk to TradeVoice** | One conversation, switching language whenever they like: *"Mama Tunde dey owe me forty-five thousand"* → *"yes"* → *"Ṣé mo ní gbèsè lọ́wọ́ Alhaji?"* → *"Remind her tomorrow"* | Each message is routed (record / yes-no / question / reminder) and answered **in the language it was said in**, from the same book. It remembers who "her/him/am" is, fills a missing amount from the next message ("How much?" → "50k"), matches "Alhaji" to the right Alhaji (the one you owe vs the one who owes you), and sets reminders that show up on the day with the WhatsApp message ready. Works offline. `converse.py`, `eval/test_converse.py` (18/18). Typed messages switch language freely; for voice notes the trader taps the language once (the speech engine needs it) |
@@ -59,7 +63,8 @@ deterministic and explainable, so the AI can never invent a number in your books
 ## Code map
 | File | What it does |
 |---|---|
-| `app.py` | Gradio web app with all the tabs |
+| `web.py` + `web/` | 📱 **The app**: WhatsApp-style web app (chat home screen, hold 🎤 to talk, 📎 snap your book, voice-note replies, Book / Debts / Insights / Profile tabs, 5 languages, dark mode). `web.py` is a small API over the same modules |
+| `app.py` | Gradio screens (all features, used as the admin/backup view at `/admin`) |
 | `llm.py` | Every NVIDIA API call, with automatic fallback to the next model if one is deprecated |
 | `check_models.py` | Lists the models your key can see and tests ours. **Run this first** |
 | `eval/lang_check.py` | Scoreboard: which model reads/understands Yoruba, Hausa, Igbo, Pidgin best |
@@ -130,9 +135,14 @@ python app.py
    ```bash
    set -a; source .env; set +a
    python check_models.py        # "AI brain on our Brev GPU ✅" and "Photo reader on our Brev GPU ✅"
-   GRADIO_SHARE=1 python app.py  # prints a public https://….gradio.live link for demo + submission
+   python web.py                 # the WhatsApp-style web app on port 8000 (old Gradio screens at /admin)
+   # second terminal: a public https link (phones only allow the microphone on https)
+   curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+   chmod +x cloudflared && ./cloudflared tunnel --url http://localhost:8000   # prints https://….trycloudflare.com
    ```
-   Why the Gradio link: Brev's own tunnels sit behind a Cloudflare login, so judges' phones can't open them directly.
+   That trycloudflare link is the demo link for judges' phones (no login). Backup: `GRADIO_SHARE=1 python app.py`
+   prints a public `….gradio.live` link for the old Gradio screens. Brev's own tunnels sit behind a Cloudflare
+   login, so judges' phones can't open them directly.
 5. **Stop the instance whenever you're not using it.** Screenshot the Brev console (GPU type, runtime, cost) and
    `nvidia-smi` showing both models for the submission.
 

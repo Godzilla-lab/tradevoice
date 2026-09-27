@@ -82,7 +82,32 @@ WHEN = {"today": {"English": "Today,", "Pidgin": "Today,", "Yoruba": "Lónìí,"
 
 
 def new_state():
-    return {"pending": None, "pending_text": "", "last_customer": None, "lang": "English"}
+    return {"pending": None, "pending_text": "", "last_customer": None, "people": [], "lang": "English"}
+
+
+def _mention(state, name):
+    """Remember who we talked about, newest first (for "her", "him", "am")."""
+    if name:
+        state["last_customer"] = name
+        people = [p for p in state.setdefault("people", []) if ledger.customer_key(p) != ledger.customer_key(name)]
+        state["people"] = [name] + people[:9]
+
+
+def _pronoun_person(text, state, owes_me=False, today=None):
+    """"her" = the last woman we talked about, "him" = the last man, "am/them" = the last person.
+    owes_me: only people who owe the trader (for reminders)."""
+    t = fold(text)
+    if not PRONOUN.search(t):
+        return None
+    people = state.get("people") or ([state["last_customer"]] if state.get("last_customer") else [])
+    if re.search(r"\b(she|her|ita)\b", t):
+        people = [p for p in people if tts._female(p)]
+    elif re.search(r"\b(he|him|shi)\b", t):
+        people = [p for p in people if not tts._female(p)]
+    if owes_me:
+        owing = {ledger.customer_key(d["customer"]) for d in ledger.debtors(today)}
+        people = [p for p in people if ledger.customer_key(p) in owing]
+    return people[0] if people else None
 
 
 def _money(x):
@@ -97,14 +122,12 @@ def _lang(text, state):
     return lang
 
 
-def _known_name(text, state, vocab):
+def _known_name(text, state, vocab, owes_me=False, today=None):
     """Who the message is about: a name from the book (full or part), else "her/him/am" = the last person."""
     name = askbook.find_name(text, vocab.get("names"))
     if name:
         return name
-    if PRONOUN.search(fold(text)) and state.get("last_customer"):
-        return state["last_customer"]
-    return None
+    return _pronoun_person(text, state, owes_me=owes_me, today=today)
 
 
 def _full_name(asked, people):
@@ -127,7 +150,7 @@ def _confirm(state, today):
     theirs = mine = None
     if rec.get("customer"):
         theirs, mine = ledger.balance_with(rec["customer"], today)
-        state["last_customer"] = rec["customer"]
+        _mention(state, rec["customer"])
     sentence = tts.entry_sentence(rec, lang, money=_money)
     extra = extra_en = ""
     if rec["type"] in ("credit_sale", "payment_received") and theirs and theirs != rec["amount"]:
@@ -144,12 +167,11 @@ def _confirm(state, today):
 
 def _record(text, lang, state, vocab, today):
     rec, meta = extract(text, today=today, vocab=vocab)
-    if not rec.get("customer") and PRONOUN.search(fold(text)) and state.get("last_customer"):
-        rec["customer"] = state["last_customer"]  # "she don pay 10k" = the person we were talking about
+    if not rec.get("customer"):
+        rec["customer"] = _pronoun_person(text, state, today=today)  # "she don pay 10k" = who we talked about
     rec["_engine"] = meta.get("engine", "chat")
     state["pending"], state["pending_text"] = rec, text
-    if rec.get("customer"):
-        state["last_customer"] = rec["customer"]
+    _mention(state, rec.get("customer"))
     if rec.get("amount") in (None, ""):
         return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
     return _heard(rec, lang, note=rec.get("note"))
@@ -179,12 +201,12 @@ def _when_say(day, today, lang):
 
 
 def _remind(text, lang, state, vocab, today, shop):
-    who = _known_name(text, state, vocab) or state.get("last_customer")
+    who = _known_name(text, state, vocab, owes_me=True, today=today) or state.get("last_customer")
     if not who:
         return _out(SAY["remind_who"][lang], lang, english=SAY["remind_who"]["English"])
     debtors = ledger.debtors(today)
     who = _full_name(who, debtors)
-    state["last_customer"] = who
+    _mention(state, who)
     d = next((x for x in debtors if askbook.same_person(who, x["customer"])), None)
     if not d:
         return _out(SAY["remind_none"][lang].format(who=who), lang,
@@ -208,13 +230,12 @@ def _question(text, lang, state, vocab, today):
     q, engine = askbook.parse(text, vocab)
     if q["kind"] != "query":
         return None
-    if not q.get("customer") and PRONOUN.search(fold(text)) and state.get("last_customer"):
-        q["customer"] = state["last_customer"]  # "how much she owe now?"
+    if not q.get("customer"):
+        q["customer"] = _pronoun_person(text, state, today=today)  # "how much she owe now?"
     if q.get("customer") and q["what"] in ("owed_to_me", "i_owe"):
         people = ledger.debtors(today) if q["what"] == "owed_to_me" else ledger.creditors(today)
         q["customer"] = _full_name(q["customer"], people)
-    if q.get("customer"):
-        state["last_customer"] = q["customer"]
+    _mention(state, q.get("customer"))
     q["language"] = lang
     res = askbook.run(q, today)
     en = dict(q, language="English")

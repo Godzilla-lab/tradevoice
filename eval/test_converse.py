@@ -29,7 +29,7 @@ TURNS = [
     ("Mama Tunde dey owe me forty-five thousand", "Pidgin", "₦45,000"),
     ("yes", "Pidgin", "₦75,000"),                                  # saved; her total is now 30k + 45k
     ("Ṣé mo ní gbèsè lọ́wọ́ Alhaji?", "Yoruba", "O jẹ Alhaji Sani ní ₦70,000"),  # "Alhaji" = the one I owe
-    ("Remind Mama Tunde tomorrow", "English", "₦75,000 from Mama Tunde"),
+    ("Remind her tomorrow", "English", "₦75,000 from Mama Tunde"),  # "her" = the last WOMAN who owes me, not Alhaji
     ("How much she dey owe me now?", "Pidgin", "Mama Tunde dey owe you ₦75,000"),  # "she" = Mama Tunde
     ("Alhaji Musa don pay me 5k", "Pidgin", "₦5,000"),
     ("ok", "Pidgin", "₦7,000"),                                    # 12k - 5k
