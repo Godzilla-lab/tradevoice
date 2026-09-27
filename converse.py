@@ -29,6 +29,13 @@ REMIND = re.compile(r"\bremind\b|\bran .{0,40}\bleti\b|\bleti\b|\btunatar\b|\btu
 QUESTION = re.compile(r"\?|\bhow (much|many)\b|\bwho\b|\bwhat\b|\bwetin\b|\babi\b|\bdo i\b|\bdid\b|\bse\b|\bmelo\b|"
                       r"\belo\b|\bnawa\b|\bshin\b|\bole\b|\bkedu\b|\bani\b|\bna who\b")
 TAX = re.compile(r"\b(tax|taxes|owo ori|haraji|utu isi|nrs|firs|lirs|tax id|presumptive)\b")
+THANKS = re.compile(r"^\s*(thanks?( you)?|thank u|tnx|ese( gan)?|o ?se|na gode|daalu|good job|well done|ok thanks?)\W*$")
+HELP = re.compile(r"\b(what can you do|how (do|does) (this|it|you) work|help me|who are you|what are you)\b")
+SAY_THANKS = {"English": "You're welcome 🙏 Tell me anything you sell, spend or lend.",
+              "Pidgin": "No wahala 🙏 Tell me anything wey you sell, spend or give for credit.",
+              "Yoruba": "Kò tọ́pẹ́ 🙏 Sọ ohunkóhun tí o tà, tí o ná, tàbí tí o fi ṣe àwìn fún mi.",
+              "Hausa": "Ba komai 🙏 Faɗa min duk abin da ka sayar, ka kashe, ko ka bayar bashi.",
+              "Igbo": "Ọ dị mma 🙏 Gwa m ihe ọ bụla i rere, i mefuru, ma ọ bụ i nyere n'ụgwọ."}
 GREET = re.compile(r"^\s*(hi+|hello|hey|good (morning|afternoon|evening)|how far|bawo( ni)?|pele|e ?ka ?a?ro|e ?ka ?a?san|"
                    r"e ?ka ?a?le|sannu|ina kwana|ina wuni|ndewo|kedu|nnoo)\W*$")
 PRONOUN = re.compile(r"\b(she|he|her|him|am|them|dem|that person|ita|shi|ya)\b")
@@ -372,7 +379,9 @@ def reply(text, state=None, today=None, shop="your shop"):
     if REMIND.search(t):
         return _remind(text, lang, state, vocab, today, shop)
     amount = parse_amount(text)
-    if GREET.match(t):
+    if THANKS.match(t):
+        return _out(SAY_THANKS.get(lang, SAY_THANKS["English"]), lang, english=SAY_THANKS["English"])
+    if HELP.search(t) or GREET.match(t):
         import ui_text
 
         said = next((l for l, w in (("Yoruba", r"bawo|pele|ka ?a?(ro|san|le)"), ("Hausa", r"sannu|ina (kwana|wuni)"),
@@ -381,7 +390,6 @@ def reply(text, state=None, today=None, shop="your shop"):
 
         return _out(ui_text.t("hello", lang), lang, english=ui_text.t("hello", "English"))
     if TAX.search(t) and amount is None:  # "do I pay tax?": the plain facts + their own year, never "you owe ₦X"
-        import insights
         import tax
 
         return _out(tax.chat_answer(lang, insights.year_record(today=today)[0]), lang,

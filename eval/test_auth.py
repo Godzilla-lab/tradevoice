@@ -16,7 +16,7 @@ for k in list(os.environ):
 os.environ.update(DB_PATH=os.path.join(tempfile.mkdtemp(), "shared.db"), BOOKS_DIR=tempfile.mkdtemp(),
                   ACCOUNTS_DB=os.path.join(tempfile.mkdtemp(), "a.db"), WHATSAPP_TOKEN="test",
                   WHATSAPP_PHONE_ID="123", WHATSAPP_VERIFY_TOKEN="v", WHATSAPP_APP_SECRET="s3cret",
-                  WHATSAPP_DISPLAY_NUMBER="+1 555 154 9545", TRADEVOICE_ADMIN="0")
+                  WHATSAPP_DISPLAY_NUMBER="+1 555 154 9545", TRADEVOICE_ADMIN="0", AUTH_REQUIRED="1")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from fastapi.testclient import TestClient  # noqa: E402
 

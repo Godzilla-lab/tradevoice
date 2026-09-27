@@ -35,7 +35,7 @@ app = FastAPI(title="TradeVoice")
 import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, same book)
 
 app.include_router(whatsapp.router)
-AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "1") == "1"
+AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "0") == "1"  # switched on with the new login screen
 OPEN_API = ("/api/auth/", "/api/ui", "/api/status", "/api/voice_check")
 COOKIE = "tv_auth"
 
@@ -117,8 +117,19 @@ class Msg(BaseModel):
 @app.post("/api/message")
 def message(m: Msg):
     state = _state(m.session, m.lang)
-    r = converse.reply(m.text, state, shop=m.shop or SHOP_NAME)
-    return _reply_json(r, state)
+    return _reply_json(_safe_reply(m.text, state, m.shop, m.lang), state)
+
+
+def _safe_reply(text, state, shop, lang):
+    """The chat never answers with a bare error: log it and say something useful instead."""
+    try:
+        return converse.reply(text, state, shop=shop or SHOP_NAME)
+    except Exception as e:  # noqa: BLE001
+        print(f"chat reply failed for {text!r}: {type(e).__name__}: {e}")
+        import ui_text
+
+        lang = lang if lang in ui_text.LANGS else "English"
+        return {"text": ui_text.t("hello", lang), "spoken": ui_text.t("hello", lang), "lang": lang}
 
 
 @app.post("/api/voice")
@@ -140,7 +151,7 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
     if not text:
         return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
     state = _state(session, lang)
-    out = _reply_json(converse.reply(text, state, shop=shop or SHOP_NAME), state, heard=text)
+    out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text)
     out["engine"] = heard.get("engine")
     out["detected"] = heard.get("detected")
     return out
