@@ -211,7 +211,7 @@ def customer_risk(name, today=None):
     today = today or dt.date.today()
     d = customer_books().get(customer_key(name))
     if not d:
-        return {"level": "new", "message": f"First credit for {name} — start small until they build a record."}
+        return {"level": "new", "message": f"First credit for {name}. Start small until they build a record."}
     closed = [x for x in d["closed"] if x["due"]]
     on_time = sum(1 for x in closed if x["paid_on"] <= x["due"])
     late_open = [x for x in d["open"] if x["due"] and x["due"] < today.isoformat()]
@@ -221,7 +221,7 @@ def customer_risk(name, today=None):
         level, lead = "high", f"⛔ {d['customer']} already owes ₦{d['balance']:,.0f} and is {days_late} days late"
     elif late_open or (closed and on_time / len(closed) < 0.6):
         level, lead = "medium", f"⚠️ {d['customer']} owes ₦{d['balance']:,.0f}" + (
-            f", {days_late} days late" if late_open else "") + " — consider asking for part payment"
+            f", {days_late} days late" if late_open else "") + ". Consider asking for part payment"
     else:
         level, lead = "low", f"✅ {d['customer']} is reliable" + (
             f", currently owes ₦{d['balance']:,.0f}" if d["balance"] > 0 else "")

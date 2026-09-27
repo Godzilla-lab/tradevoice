@@ -1,7 +1,7 @@
 """Photo of a notebook page / receipt -> plain text lines, one money event per line.
 
 Default: a vision model on build.nvidia.com. To self-host on the Brev GPU instead, serve an open vision model with
-vLLM (OpenAI-compatible) and point VISION_BASE_URL / VISION_MODELS at it — see README.
+vLLM (OpenAI-compatible) and point VISION_BASE_URL / VISION_MODELS at it (see README).
 """
 import base64
 import io

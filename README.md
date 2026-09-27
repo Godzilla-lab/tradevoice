@@ -38,7 +38,7 @@ notebook, voice-note replies in your language, and Book / Debts / Insights / Pro
 | 📝 **Long voice notes** | Talks about many things in one note | Every money item in a tickable table, a simple-English summary on screen, the same summary as a voice note in their language, tips computed by code (rent per month/day, debt totals), unclear parts asked; every AI number checked (`note.py`, `eval/test_note.py`) |
 | 🧾 **Who I owe** | "Alhaji give me 10 bags on credit, I go pay Friday" / "I don pay Alhaji 50k" | The trader's OWN debts to suppliers/lenders, with promised dates and voice replies; goods on credit count as spending, borrowed cash doesn't |
 | 📒 **My year so far** | One button | Sales, money spent **by type** (restock, rent, levies, transport, power, staff), monthly totals, rent & levy payments to keep receipts for. Also in the statement. Facts from the book only, no tax advice (tax research in progress: `docs/FINANCE_RESEARCH.md`) |
-| 🔒 **My data** | — | Consent first, audio and photos deleted after reading, nothing saved without confirmation, delete-everything button |
+| 🔒 **My data** | - | Consent first, audio and photos deleted after reading, nothing saved without confirmation, delete-everything button |
 
 ## How it works
 ```
