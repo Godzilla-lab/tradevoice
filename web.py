@@ -91,7 +91,8 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
 
         heard = transcribe_auto(path, VOICE_LANGS.get(lang, "English / Pidgin"), vocab=ledger.known_words())
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": f"Could not hear that ({type(e).__name__}). Please type it."}, 502)
+        print(f"hearing failed: {type(e).__name__}: {e}")
+        return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
     finally:
         os.remove(path)  # the voice note is deleted as soon as it is read
     text = heard["text"].strip()
@@ -393,7 +394,8 @@ def assist(screen: str = Form("today"), lang: str = Form("English"), session: st
             h = transcribe_auto(path, VOICE_LANGS.get(speak_lang, "English / Pidgin"), vocab=ledger.known_words())
             heard, detected = h["text"].strip(), h.get("detected")
         except Exception as e:  # noqa: BLE001
-            return JSONResponse({"error": f"Could not hear that ({type(e).__name__}). Please type it."}, 502)
+            print(f"hearing failed: {type(e).__name__}: {e}")
+            return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
         finally:
             os.remove(path)  # the voice note is deleted as soon as it is read
     if not heard:

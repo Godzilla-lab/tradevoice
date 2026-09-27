@@ -527,9 +527,12 @@ function openAssist(screen) {
   sheet(`<div class="assist">
     <div class="ahead"><h3>${esc(t("assist_title", "Ask TradeVoice"))}</h3><button class="icon" id="aClose" aria-label="Close">✕</button></div>
     <div class="alog" id="alog"></div>
-    <p class="ahint" id="aHint">${esc(t("assist_hint", "Tap the mic and ask anything about your business."))}</p>
-    <form class="abar" id="aForm"><input id="aText" autocomplete="off" placeholder="${esc(t("ask_placeholder", "Or type a question"))}">
-      <button type="button" class="round" id="aMic" aria-label="${esc(t("hold", "Talk"))}">${svg("mic")}</button></form></div>`);
+    <div class="call" id="call">
+      <button class="orb" id="orb" aria-label="Talk">${svg("mic", 30)}</button>
+      <div class="cstate" id="cstate">${esc(t("assist_hint", "Tap and talk"))}</div>
+      <button class="textbtn" id="cend" hidden>${esc(t("end_call", "End"))}</button>
+    </div>
+    <form class="abar" id="aForm"><input id="aText" autocomplete="off" placeholder="${esc(t("ask_placeholder", "Or type a question"))}"></form></div>`);
   $("#sheet").classList.add("tall");
   const wait = aBubble("in", '<span class="typing"><i></i><i></i><i></i></span>');
   api(`/api/explain/${screen}?lang=${encodeURIComponent(S.lang)}`)
@@ -537,39 +540,100 @@ function openAssist(screen) {
     .catch((e) => { wait.innerHTML = esc(e.message); });
   $("#aClose").onclick = closeAssist;
   $("#aForm").onsubmit = (e) => { e.preventDefault(); const v = $("#aText").value.trim(); if (v) { $("#aText").value = ""; askAssist({ text: v }); } };
-  $("#aMic").onclick = toggleAssistRec;
+  $("#orb").onclick = () => (VC.on ? (VC.phase === "speaking" ? interrupt() : null) : startCall());
+  $("#cend").onclick = endCall;
+  startCall();  // hands-free from the first tap: it explains the screen, then listens
   $("#sheetBody").onclick = (e) => { const v = e.target.dataset?.say; if (v) askAssist({ text: v }); };
 }
 
 function closeAssist() {
-  if (A.rec && A.rec.state === "recording") { A.cancel = true; A.rec.stop(); }
+  endCall();
   $("#player").pause(); $("#sheet").hidden = true; $("#sheet").classList.remove("tall");
 }
 
-async function toggleAssistRec() {
-  unlockAudio();
-  const mic = $("#aMic");
-  if (A.rec && A.rec.state === "recording") { A.rec.stop(); return; }
-  if (!S.consent) return showWelcome();
-  try { A.stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch { return toast("Allow the microphone to talk, or type instead.", 4000); }
-  $("#player").pause();
-  const mime = pickMime();
-  A.rec = new MediaRecorder(A.stream, mime ? { mimeType: mime } : undefined); A.chunks = []; A.cancel = false;
-  A.rec.ondataavailable = (ev) => ev.data.size && A.chunks.push(ev.data);
-  A.rec.onstop = () => {
-    A.stream.getTracks().forEach((x) => x.stop()); mic.classList.remove("rec");
-    $("#aHint").textContent = t("assist_hint", "");
-    if (A.cancel || !A.chunks.length) return;
-    const blob = new Blob(A.chunks, { type: A.rec.mimeType || "audio/webm" });
-    const ext = (A.rec.mimeType || "").includes("mp4") ? ".m4a" : (A.rec.mimeType || "").includes("ogg") ? ".ogg" : ".webm";
-    askAssist({ blob, ext });
-  };
-  A.rec.start(); mic.classList.add("rec"); $("#aHint").textContent = t("listening", "Listening… tap to send");
-  setTimeout(() => { if (A.rec && A.rec.state === "recording") A.rec.stop(); }, 60000);
+// ---- hands-free call: listen -> (a second of quiet = done) -> answer out loud -> listen again
+const VC = { on: false, phase: "idle", stream: null, ctx: null, an: null, rec: null, timer: null, idle: 0, fails: 0 };
+function callState(phase, label) {
+  VC.phase = phase;
+  const o = $("#orb"), st = $("#cstate"); if (!o) return;
+  o.className = `orb ${phase}`; if (label) st.textContent = label;
+  $("#cend").hidden = !VC.on;
 }
 
-async function askAssist({ text = "", blob = null, ext = ".webm" }) {
+async function startCall() {
+  if (!S.consent) return showWelcome();
+  VC.on = true; VC.idle = 0; VC.fails = 0;
+  try {
+    VC.stream = VC.stream || await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    VC.ctx = VC.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (VC.ctx.state === "suspended") await VC.ctx.resume();
+    if (!VC.an) { VC.an = VC.ctx.createAnalyser(); VC.an.fftSize = 1024; VC.ctx.createMediaStreamSource(VC.stream).connect(VC.an); }
+  } catch { VC.on = false; callState("idle", t("assist_hint", "")); return toast("Allow the microphone to talk, or type instead.", 4000); }
+  const p = $("#player");
+  if (!p.paused && p.src && !p.src.startsWith("data:")) { callState("speaking", t("speaking", "Speaking… tap to talk")); p.onended = p.onerror = () => VC.on && listen(); }
+  else listen();
+}
+
+function level() {
+  const buf = new Float32Array(VC.an.fftSize); VC.an.getFloatTimeDomainData(buf);
+  let sum = 0; for (const v of buf) sum += v * v; return Math.sqrt(sum / buf.length);
+}
+
+function listen() {
+  if (!VC.on) return;
+  clearInterval(VC.timer);
+  const mime = pickMime(), chunks = [];
+  VC.rec = new MediaRecorder(VC.stream, mime ? { mimeType: mime } : undefined);
+  VC.rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  let floor = 0, n = 0, talking = false, loud = 0, quiet = 0, t0 = Date.now();
+  VC.rec.onstop = () => {
+    clearInterval(VC.timer);
+    if (!VC.on) return;
+    if (!talking) {                        // nobody spoke: keep listening a while, then hang up to save data
+      if (++VC.idle >= 3) return endCall();
+      return listen();
+    }
+    VC.idle = 0;
+    const blob = new Blob(chunks, { type: VC.rec.mimeType || "audio/webm" });
+    const ext = (VC.rec.mimeType || "").includes("mp4") ? ".m4a" : (VC.rec.mimeType || "").includes("ogg") ? ".ogg" : ".webm";
+    callState("thinking", t("thinking", "Thinking…"));
+    askAssist({ blob, ext, silent: true }).then((r) => {
+      if (!VC.on) return;
+      if (!r) { if (++VC.fails >= 2) { endCall(); return toast(t("error", "Something went wrong."), 3000); } return setTimeout(listen, 600); }
+      VC.fails = 0;
+      if (r && r.speak && S.voice) {
+        callState("speaking", t("speaking", "Speaking… tap to talk"));
+        const p = $("#player"); p.onended = p.onerror = () => VC.on && listen();
+        p.src = `/api/speak/${r.speak}`; p.play().catch(() => VC.on && listen());
+      } else setTimeout(listen, 400);
+    });
+  };
+  VC.rec.start(250);
+  callState("listening", t("listening_call", "Listening… just talk"));
+  VC.timer = setInterval(() => {
+    const v = level(), ms = Date.now() - t0;
+    if (ms < 400) { floor += v; n++; return; }            // learn the room's noise first (markets are loud)
+    const th = Math.max(0.015, (floor / Math.max(n, 1)) * 2.2);
+    $("#orb").style.setProperty("--lvl", Math.min(1, v / (th * 3)).toFixed(2));
+    if (v > th) { loud++; quiet = 0; if (loud >= 3) talking = true; } else { loud = 0; if (talking) quiet += 60; }
+    if ((talking && quiet >= 900) || ms > 25000 || (!talking && ms > 9000)) VC.rec.state === "recording" && VC.rec.stop();
+  }, 60);
+}
+
+function interrupt() {                     // tap while it talks: stop and listen
+  const p = $("#player"); p.onended = null; p.pause(); listen();
+}
+
+function endCall() {
+  VC.on = false; clearInterval(VC.timer);
+  if (VC.rec && VC.rec.state === "recording") VC.rec.stop();
+  if (VC.stream) { VC.stream.getTracks().forEach((x) => x.stop()); VC.stream = null; }
+  if (VC.ctx) { VC.ctx.close().catch(() => {}); VC.ctx = null; VC.an = null; }
+  const p = $("#player"); p.onended = null;
+  callState("idle", t("tap_to_talk", "Tap to talk"));
+}
+
+async function askAssist({ text = "", blob = null, ext = ".webm", silent = false }) {
   const mine = aBubble("out", blob ? '<span class="typing"><i></i><i></i><i></i></span>' : fmt(text));
   const wait = aBubble("in", `<span class="muted">${esc(t("thinking", "Thinking…"))}</span>`);
   const fd = new FormData();
@@ -585,9 +649,10 @@ async function askAssist({ text = "", blob = null, ext = ".webm" }) {
     if (r.choices && r.choices.length) html += `<div class="quick choices">${r.choices.map(([id, lb]) => `<button data-say="${esc(id)}">${esc(lb)}</button>`).join("")}</div>`;
     else if (r.pending) html += `<div class="quick"><button data-say="yes">${esc(t("yes_save", "Yes, save"))}</button><button data-say="no">${esc(t("no", "No"))}</button></div>`;
     wait.innerHTML = html;
-    if (r.speak) sayUrl(`/api/speak/${r.speak}`);
+    if (r.speak && !silent) sayUrl(`/api/speak/${r.speak}`);
     $("#alog").scrollTop = $("#alog").scrollHeight;
-  } catch (e) { mine.innerHTML = mine.innerHTML.includes("typing") ? "🎙️" : mine.innerHTML; wait.innerHTML = esc(e.message); }
+    return r;
+  } catch (e) { mine.innerHTML = mine.innerHTML.includes("typing") ? "🎙️" : mine.innerHTML; wait.innerHTML = esc(e.message); return null; }
 }
 
 document.querySelectorAll(".read").forEach((b) => (b.onclick = () => openAssist(b.dataset.screen)));

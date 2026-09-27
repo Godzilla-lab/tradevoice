@@ -251,6 +251,10 @@ UI = {
     "listening": ["Listening… tap to send", "I dey hear you… tap to send", "Mo ń gbọ́… tẹ̀ ẹ́ láti fi ránṣẹ́", "Ina saurare… taɓa don aikawa", "A na m ege… pịa ka o ziga"],
     "thinking": ["Thinking…", "I dey think…", "Mo ń ronú…", "Ina tunani…", "A na m eche…"],
     "ask_placeholder": ["Or type a question", "Or type question", "Tàbí kọ ìbéèrè", "Ko rubuta tambaya", "Ma ọ bụ dee ajụjụ"],
+    "listening_call": ["Listening… just talk", "I dey hear you… just talk", "Mo ń gbọ́… kàn sọ̀rọ̀", "Ina saurare… kawai yi magana", "A na m ege… naanị kwuo okwu"],
+    "speaking": ["Speaking… tap to talk", "I dey talk… tap make you talk", "Mo ń sọ̀rọ̀… tẹ̀ ẹ́ láti sọ̀rọ̀", "Ina magana… taɓa don yin magana", "A na m ekwu… pịa ka ị kwuo"],
+    "end_call": ["End", "End", "Parí", "Ƙare", "Kwụsị"],
+    "tap_to_talk": ["Tap to talk", "Tap make you talk", "Tẹ̀ ẹ́ láti sọ̀rọ̀", "Taɓa don yin magana", "Pịa ka ị kwuo okwu"],
     # ---- public website (web/landing.html). Short lines only; longer copy stays English until checked by natives.
     "web_open": ["Open TradeVoice", "Open TradeVoice", "Ṣí TradeVoice", "Buɗe TradeVoice", "Mepee TradeVoice"],
     "web_h1": ["Keep your books.<br>Just speak.", "Keep your book.<br>Just talk am.", "Tọ́jú ìwé rẹ.<br>Kàn sọ̀rọ̀.",
