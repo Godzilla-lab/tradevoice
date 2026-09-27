@@ -263,10 +263,15 @@ footer.l{padding:30px 0 60px;color:var(--ink-soft);font-size:13px;display:flex;j
 /* landing tweaks for the live app */
 .lnav a{cursor:pointer;text-decoration:none;}
 .lnav a.btn-primary,.hero a.btn-primary{color:#fff !important;}
+.lang-select{font:inherit;font-size:14px;height:40px;padding:0 10px;margin-left:12px;border:1px solid var(--line);
+  border-radius:var(--radius);background:var(--surface);color:var(--ink);}
 .langs-line{margin-top:14px;font-size:15px;color:var(--ink-soft);}
 .langs-line b{color:var(--brand-ink);}
+.lnav>div{display:flex;align-items:center;flex-wrap:nowrap;}
 @media (max-width:640px){
   .lnav .links{display:none;}
+  .lang-select{margin-left:0;height:36px;font-size:13px;padding:0 6px;}
+  .lnav a.btn-primary{height:36px !important;padding:0 12px !important;font-size:13px !important;margin-left:8px !important;}
   .lnav{padding-top:18px;}
 }
 </style>
@@ -276,20 +281,24 @@ footer.l{padding:30px 0 60px;color:var(--ink-soft);font-size:13px;display:flex;j
   <div class="lnav">
     <div class="brand">TradeVoice</div>
     <div>
-      <span class="links"><a href="#how">How it works</a>
-      <a href="#feat">Features</a></span>
-      <a class="btn btn-primary" href="/app" style="margin-left:10px;height:40px;padding:0 18px;font-size:14px;display:inline-flex;align-items:center;text-decoration:none;">Open TradeVoice</a>
+      <span class="links"><a href="#how" data-t="web_how_title">How it works</a>
+      <a href="#feat" data-t="web_features">Features</a></span>
+      <select id="lang" aria-label="Language" class="lang-select">
+        <option value="English">English</option><option value="Pidgin">Pidgin</option>
+        <option value="Yoruba">Yorùbá</option><option value="Hausa">Hausa</option><option value="Igbo">Igbo</option>
+      </select>
+      <a class="btn btn-primary" href="/app" style="margin-left:10px;height:40px;padding:0 18px;font-size:14px;display:inline-flex;align-items:center;text-decoration:none;" data-t="web_open">Open TradeVoice</a>
     </div>
   </div>
 
   <div class="hero">
     <div>
-      <h1>Keep your books.<br>Just speak.</h1>
+      <h1 data-t-html="web_h1">Keep your books.<br>Just speak.</h1>
       <p class="lead">TradeVoice helps you record sales, track who owes you, and understand your business, without spreadsheets or complicated bookkeeping.</p>
       <p class="langs-line">Talk in <b>English, Pidgin, Yorùbá, Hausa or Igbo</b>, on <b>WhatsApp</b> or here on the web. It answers out loud, for traders who prefer listening.</p>
       <div class="ctas">
-        <a class="btn btn-primary" href="/app" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;">Start keeping your books</a>
-        <a class="btn btn-ghost" href="#how" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;">See how it works</a>
+        <a class="btn btn-primary" href="/app" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;" data-t="web_start">Start keeping your books</a>
+        <a class="btn btn-ghost" href="#how" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;" data-t="web_how">See how it works</a>
       </div>
     </div>
     <div class="demo-card">
@@ -306,7 +315,7 @@ footer.l{padding:30px 0 60px;color:var(--ink-soft);font-size:13px;display:flex;j
   </div>
 
   <section class="l" id="how">
-    <h2>How it works</h2>
+    <h2 data-t="web_how_title">How it works</h2>
     <div class="steps">
       <div class="step"><div class="num">1</div><h3>Speak or snap</h3><p>Record transactions with your voice, or photograph your notebook.</p></div>
       <div class="step"><div class="num">2</div><h3>Check and confirm</h3><p>TradeVoice turns what you said into a structured record for you to review.</p></div>
@@ -315,7 +324,7 @@ footer.l{padding:30px 0 60px;color:var(--ink-soft);font-size:13px;display:flex;j
   </section>
 
   <section class="l" id="feat">
-    <h2>Everything a trader needs</h2>
+    <h2 data-t="web_everything">Everything a trader needs</h2>
     <div class="feat-grid">
       <div class="feat"><h3>Voice bookkeeping</h3><p>Say what happened, in your own words.</p></div>
       <div class="feat"><h3>Snap your book</h3><p>Turn notebook pages into digital records.</p></div>
@@ -328,7 +337,7 @@ footer.l{padding:30px 0 60px;color:var(--ink-soft);font-size:13px;display:flex;j
 
   <section class="l">
     <div class="trust">
-      <h2>You stay in control.</h2>
+      <h2 data-t="web_control">You stay in control.</h2>
       <p>TradeVoice helps interpret your records, but you review important information before it becomes part of your books. Voice notes and photos are deleted right after they are read.</p>
     </div>
   </section>
@@ -340,5 +349,29 @@ footer.l{padding:30px 0 60px;color:var(--ink-soft);font-size:13px;display:flex;j
 </div>
 
 
+<script>
+// Same language setting as the app (localStorage "tv_lang"); words come from ui_text.py via /api/ui.
+// Headings and buttons are translated; longer paragraphs stay in English until native speakers check them.
+(function () {
+  var sel = document.getElementById("lang"), lang = "English";
+  try { lang = localStorage.getItem("tv_lang") || "English"; } catch (e) {}
+  var orig = {};
+  document.querySelectorAll("[data-t],[data-t-html]").forEach(function (el, i) { el.dataset.i = i; orig[i] = el.innerHTML; });
+  function apply(l) {
+    fetch("/api/ui?lang=" + encodeURIComponent(l)).then(function (r) { return r.json(); }).then(function (T) {
+      document.querySelectorAll("[data-t]").forEach(function (el) { el.textContent = T[el.dataset.t] || el.textContent; });
+      document.querySelectorAll("[data-t-html]").forEach(function (el) {
+        var v = T[el.dataset.tHtml]; el.innerHTML = v ? v.replace(/</g, "&lt;").replace(/&lt;br>/g, "<br>") : orig[el.dataset.i];
+      });
+      document.documentElement.lang = T._code || "en"; document.documentElement.dir = T._dir || "ltr";
+    }).catch(function () {});
+  }
+  sel.value = lang; if (lang !== "English") apply(lang);
+  sel.addEventListener("change", function () {
+    try { localStorage.setItem("tv_lang", sel.value); localStorage.setItem("tv_speak", sel.value === "Pidgin" ? "English" : sel.value); } catch (e) {}
+    apply(sel.value);
+  });
+})();
+</script>
 </body>
 </html>
