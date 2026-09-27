@@ -477,6 +477,7 @@ def speak(text, language="Pidgin", fmt="wav", voice=None, speed=None):
             return {"path": _intron_speak(text, language), "engine": f"intron:{INTRON_VOICES[language][0]}"}
         except Exception as e:  # noqa: BLE001
             print(f"Intron voice failed ({language}): {type(e).__name__}: {e}")
+            LAST_ERROR["intron"] = f"{language}: {type(e).__name__}: {e}"[:300]
             errors.append(f"Intron: {e}")
             if any(w in str(e).lower() for w in ("401", "402", "403", "credit", "quota", "unauthori", "forbidden")):
                 _INTRON_DOWN["until"], _INTRON_DOWN["why"] = time.time() + 600, str(e)[:200]
@@ -505,6 +506,19 @@ def speak(text, language="Pidgin", fmt="wav", voice=None, speed=None):
 
 
 _INTRON_DOWN = {"until": 0.0, "why": ""}
+LAST_ERROR = {}   # engine -> last failure, shown by /api/voice_check and check_whatsapp.py
+
+
+def why_not_intron():
+    """Plain reason the voice is not Intron right now (None if it should be)."""
+    if not os.getenv("INTRON_API_KEY"):
+        return "INTRON_API_KEY is not in .env (or the app was not restarted after adding it)"
+    forced = os.getenv("TTS_BACKEND", "").lower()
+    if forced not in ("", "intron"):
+        return f"TTS_BACKEND={forced} in .env forces another voice: delete that line (or set TTS_BACKEND=intron)"
+    if time.time() < _INTRON_DOWN["until"]:
+        return f"Intron refused (key/credits), resting 10 minutes: {_INTRON_DOWN['why']}"
+    return LAST_ERROR.get("intron")
 _SPITCH_DOWN = {"until": 0.0, "why": ""}
 
 

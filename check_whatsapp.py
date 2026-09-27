@@ -120,7 +120,8 @@ try:
     for lg, txt in (("Yoruba", "Ẹ n lẹ́ o."), ("Hausa", "Sannu."), ("Igbo", "Ndewo.")):
         try:
             o = tts.speak(txt, lg)
-            say(bool(o), f"{lg} voice works ({o['engine']})" if o else f"No {lg} voice")
+            say(bool(o) and o["engine"].startswith("intron"), f"{lg} voice: {o['engine']}" if o else f"No {lg} voice",
+                f"Not Intron because: {tts.why_not_intron()}")
         except Exception as e:  # noqa: BLE001
             say(False, f"{lg} voice failed: {e}"[:200], "Check INTRON_API_KEY (voice.intron.io -> Developers)")
     path = whatsapp.voice_file("Hello, I am your book.", "Pidgin")
