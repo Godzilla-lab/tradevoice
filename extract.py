@@ -83,7 +83,8 @@ _CREDIT_KW = ("owe", "owes", "owing", "go pay", "will pay", "on credit", "na cre
               "ugwo", "ji m", "ga-akwu", "ga akwu")         # ig: debt, owes me, will pay
 _EXPENSE_RE = re.compile(r"\b(i|we)\s+(buy|bought|pay for|paid for|spend|spent|restock|restocked)\b"
                          r"|\b(i|we)\s+(pay|paid)\s+(n|₦)?\d"
-                         r"|\b(transport|motor fare|rent|levy|fuel|diesel|salary|shop rent|market levy|restock)\b"
+                         r"|\b(transport|motor fare|rent|levy|fuel|diesel|salary|shop rent|market levy|restock|tax|taxes|dues)\b"
+                         r"|\b(owo ori|haraji|utu isi)\b"          # yo / ha / ig: tax
                          r"|\bmo san\b|\bowo oko\b"                # yo: I paid, transport money
                          r"|\bna biya\b|\bkudin mota\b"            # ha: I paid, transport money
                          r"|\bakwuru m\b|\bugbo ala\b",            # ig: I paid, vehicle

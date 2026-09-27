@@ -16,7 +16,7 @@ WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", 
 
 
 def naira(x):
-    return f"₦{x:,.0f}"
+    return ("-" if x < 0 else "") + f"₦{abs(x):,.0f}"  # -₦693,900, not ₦-693,900
 
 
 def _rows(days=28, today=None):
@@ -257,6 +257,23 @@ def year_record(year=None, today=None):
     year = year or today.year
     end = min(dt.date(year, 12, 31), today)
     return ledger.period_summary(dt.date(year, 1, 1), end), ledger.monthly_totals(year)
+
+
+def year_data(today=None):
+    """This year, as numbers for the Profile screen (the words come from ui_text, so every language works)."""
+    s, months = year_record(today=today)
+    if not s["entries"]:
+        return None
+    best = max(months, key=lambda m: m["sales"]) if len(months) > 1 else None
+    restock = s["expenses_by_type"].get("Restock (goods to sell)", 0)
+    return {"start": s["start"], "end": s["end"], "days_recorded": s["days_recorded"], "sales": s["sales"],
+            "credit_sales": s["credit_sales"], "expenses": s["expenses"], "profit": s["profit"],
+            "by_type": [{"type": k, "amount": v} for k, v in s["expenses_by_type"].items()],
+            "rent_levies": {"count": len(s["rent_levies"]), "amount": sum(x["amount"] for x in s["rent_levies"])},
+            "stock_note": s["profit"] < 0 and restock > 0,
+            "months": [{"month": m["month"], "sales": m["sales"]} for m in months],
+            "best_month": {"month": best["month"], "sales": best["sales"]} if best else None,
+            "has_demo_data": s["has_demo_data"]}
 
 
 def year_record_text(year=None, today=None):

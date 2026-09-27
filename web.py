@@ -317,11 +317,14 @@ def insights_api():
 
 
 @app.get("/api/profile")
-def profile():
+def profile(lang: str = "English"):
     p = ledger.credit_profile()
     if p:
         p = dict(p, parts=[{"name": k, "points": v[0], "max": v[1], "why": v[2]} for k, v in p["parts"].items()])
-    return {"profile": p, "year": insights.year_record_text()}
+    import tax
+
+    return {"profile": p, "year": insights.year_record_text(), "year_data": insights.year_data(),
+            "tax": {"facts": tax.facts(lang), "check": tax.check(lang)}}
 
 
 @app.get("/api/statement", response_class=HTMLResponse)

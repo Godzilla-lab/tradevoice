@@ -469,8 +469,8 @@ async function loadInsights() {
 }
 
 async function loadProfile() {
-  const { profile: p, year } = await api("/api/profile");
-  if (!p) { $("#profileBody").innerHTML = `<p class="empty">${esc(t("empty_profile", "Your book is empty."))}</p>`; return; }
+  const { profile: p, year_data: y, tax } = await api(`/api/profile?lang=${encodeURIComponent(S.lang)}`);
+  if (!p) { $("#profileBody").innerHTML = `<p class="empty">${esc(t("empty_profile", "Your book is empty."))}</p>${taxHtml(y, tax)}`; return; }
   $("#profileBody").innerHTML = `
     <div class="hero-fig">${p.score}<span class="of">/100</span> <span class="band">${esc(t("band_" + p.band, p.band))}</span></div>
     <div class="meter"><i style="width:${p.score}%"></i></div>
@@ -480,7 +480,43 @@ async function loadProfile() {
       ${p.parts.map((x) => `<div class="part"><div class="pl"><span>${esc(t("sp_" + x.name, x.name))}</span><b>${Math.round(x.points)}/${x.max}</b></div>
         <div class="meter thin"><i style="width:${Math.round((x.points / x.max) * 100)}%"></i></div><div class="s">${esc(x.why)}</div></div>`).join("")}
       <p class="note">${esc(t("score_note", ""))}${p.has_demo_data ? " (demo data)" : ""}</p></section>
-    <details class="sect"><summary><h2>${esc(t("my_year", "My year so far"))}</h2></summary><pre class="year">${esc(year)}</pre></details>`;
+    ${yearHtml(y)}
+    ${taxHtml(y, tax)}`;
+}
+
+// 📅 my year so far: the same numbers as the statement, laid out like the Book screen (no monospace text dump)
+const longDay = (iso) => { const d = new Date(iso + "T12:00:00"); return isNaN(d) ? iso : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
+function yearHtml(y) {
+  if (!y) return `<section class="sect"><h2>${esc(t("my_year", "My year so far"))}</h2><p class="empty">${esc(t("no_year", "No records this year yet."))}</p></section>`;
+  const top = Math.max(...y.by_type.map((x) => x.amount), 1);
+  const months = y.months.length > 1 ? `<div class="bars year-bars">${y.months.map((m) => `<div class="${y.best_month && m.month === y.best_month.month ? "peak" : ""}"><span style="height:${Math.round((m.sales / Math.max(...y.months.map((x) => x.sales), 1)) * 100)}%"></span><em>${esc(m.month.slice(0, 3))}</em></div>`).join("")}</div>` : "";
+  return `<section class="sect"><h2>${esc(t("my_year", "My year so far"))}</h2>
+    <p class="muted">${esc(t("year_range", "{a} to {b} · {d} days recorded").replace("{a}", longDay(y.start)).replace("{b}", longDay(y.end)).replace("{d}", y.days_recorded))}</p>
+    <div class="figures">
+      <div><div class="k">${esc(t("sold", "Sold"))}</div><div class="v">${naira(y.sales)}</div>${y.credit_sales ? `<div class="s">${esc(t("on_credit", "{c} on credit").replace("{c}", naira(y.credit_sales)))}</div>` : ""}</div>
+      <div><div class="k">${esc(t("spent", "Spent"))}</div><div class="v">${naira(y.expenses)}</div></div>
+      <div><div class="k">${esc(t("sales_minus", "Sales minus spending"))}</div><div class="v ${y.profit < 0 ? "neg" : ""}">${naira(y.profit)}</div></div>
+    </div>
+    ${y.stock_note ? `<p class="callout">${esc(t("stock_note", ""))}</p>` : ""}
+    <h3 class="sub">${esc(t("where_money", "Where the money went"))}</h3>
+    ${y.by_type.map((x) => `<div class="part"><div class="pl"><span>${esc(t("xt_" + x.type, x.type))}</span><b>${naira(x.amount)}</b></div>
+      <div class="meter thin"><i style="width:${Math.max(2, Math.round((x.amount / top) * 100))}%"></i></div></div>`).join("")}
+    ${months ? `<h3 class="sub">${esc(t("best_month", "Best month"))}: ${esc(y.best_month.month)} · ${naira(y.best_month.sales)}</h3>${months}` : ""}
+  </section>`;
+}
+
+// 🧾 tax: plain facts with sources + the trader's own year; never "you owe ₦X" (that is for the tax office)
+function taxHtml(y, tax) {
+  if (!tax) return "";
+  const you = y ? `<p>${esc(t("tax_you", "").replace("{s}", naira(y.sales)).replace("{e}", naira(y.expenses)))}</p>` : "";
+  const rent = y && y.rent_levies.count ? `<p class="muted">${esc(t("tax_rent", "").replace("{n}", y.rent_levies.count).replace("{m}", naira(y.rent_levies.amount)))}</p>` : "";
+  return `<section class="sect" id="taxSect"><h2>${esc(t("tax_title", "Tax and your records"))}</h2>
+    ${you}${rent}
+    <a class="primary block ghost" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${esc(t("tax_record", "Year record for the tax office"))}</a>
+    <h3 class="sub">${esc(t("tax_facts", "What the new tax law means for you"))}</h3>
+    <ol class="facts">${tax.facts.map((f) => `<li><span>${esc(f.text)}</span> <a href="${esc(f.source)}" target="_blank" rel="noopener">${esc(t("source", "Source"))}</a></li>`).join("")}</ol>
+    <p class="callout warn">${esc(tax.check)}</p>
+  </section>`;
 }
 
 // remind buttons (Book + Debts): show the message first, then WhatsApp

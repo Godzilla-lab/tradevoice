@@ -24,7 +24,8 @@ PROMPT = """You are TradeVoice, a kind helper for a Nigerian market trader who m
 out loud, so write the way a friendly person talks: short sentences, simple everyday words, no lists, no symbols
 except ₦. Answer ONLY in __LANG__ (Nigerian Pidgin if __LANG__ is Pidgin). Use ONLY the numbers in the FACTS; never
 invent a number, a name or a date. If the facts don't have the answer, say you don't have that record yet.
-No investment, tax or legal advice; for loans say a lender decides. At most __N__ sentences.
+No investment or legal advice; for loans say a lender decides. For tax, you may repeat TAX_FACTS in simple words,
+but never say how much tax they owe or whether they must pay: say their state revenue service decides. At most __N__ sentences.
 The trader is looking at: __SCREEN__.
 FACTS (from their own book): __FACTS__"""
 
@@ -34,6 +35,10 @@ _cache, _lock = {}, threading.Lock()
 def _facts(screen, lang, today=None):
     f = insights.book_facts(today)
     f["this_screen_in_short"] = readaloud.text(screen, lang, written=True) if screen in readaloud.SCREENS else ""
+    if screen in ("profile", "talk"):
+        import tax
+
+        f["TAX_FACTS"] = [x["text"] for x in tax.facts("English")] + [tax.check("English")]
     return f
 
 
@@ -109,9 +114,11 @@ def answer(question, screen, lang="English", state=None, today=None, shop="my sh
 
     t = fold(question)
     # records, reminders and yes/no go through the same chat brain (so "Mama Tunde paid 5k" works here too)
-    if (converse.REMIND.search(t) or converse.YES.match(t) or converse.NO.match(t)
+    if (converse.REMIND.search(t) or converse.TAX.search(t) or converse.YES.match(t) or converse.NO.match(t)
             or (parse_amount(question) is not None and converse.EVENT.search(t) and not converse.QUESTION.search(t))):
-        r = converse.reply(question, state if state is not None else converse.new_state(), today=today, shop=shop)
+        if state is None:
+            state = dict(converse.new_state(), prefer=lang)
+        r = converse.reply(question, state, today=today, shop=shop)
         return dict(r, engine="chat", pending=bool((state or {}).get("pending")))
     exact = askbook.ask_book(question, today, language=lang)
     if exact:  # counts and totals: added up from the book, not guessed

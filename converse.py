@@ -28,6 +28,7 @@ NO = re.compile(r"^\s*(no|nope|cancel|no be so|leave am|forget am|rara|ko to|a'?
 REMIND = re.compile(r"\bremind\b|\bran .{0,40}\bleti\b|\bleti\b|\btunatar\b|\btuna wa\b|\bcheta(ra)?\b|\bchetara\b")
 QUESTION = re.compile(r"\?|\bhow (much|many)\b|\bwho\b|\bwhat\b|\bwetin\b|\babi\b|\bdo i\b|\bdid\b|\bse\b|\bmelo\b|"
                       r"\belo\b|\bnawa\b|\bshin\b|\bole\b|\bkedu\b|\bani\b|\bna who\b")
+TAX = re.compile(r"\b(tax|taxes|owo ori|haraji|utu isi|nrs|firs|lirs|tax id|presumptive)\b")
 GREET = re.compile(r"^\s*(hi+|hello|hey|good (morning|afternoon|evening)|how far|bawo( ni)?|pele|e ?ka ?a?ro|e ?ka ?a?san|"
                    r"e ?ka ?a?le|sannu|ina kwana|ina wuni|ndewo|kedu|nnoo)\W*$")
 PRONOUN = re.compile(r"\b(she|he|her|him|am|them|dem|that person|ita|shi|ya)\b")
@@ -379,6 +380,12 @@ def reply(text, state=None, today=None, shop="your shop"):
         lang = state["lang"] = said or lang  # "Bawo ni" = Yoruba, whatever was picked
 
         return _out(ui_text.t("hello", lang), lang, english=ui_text.t("hello", "English"))
+    if TAX.search(t) and amount is None:  # "do I pay tax?": the plain facts + their own year, never "you owe ₦X"
+        import insights
+        import tax
+
+        return _out(tax.chat_answer(lang, insights.year_record(today=today)[0]), lang,
+                    english=tax.chat_answer("English") if lang != "English" else None)
     if QUESTION.search(t) or (amount is None and not EVENT.search(t)):
         out = _question(text, lang, state, vocab, today)
         if out:
