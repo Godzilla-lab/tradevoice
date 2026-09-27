@@ -248,13 +248,13 @@ def voice_check(lang: str = "Yoruba", fmt: str = "wav"):
         if fmt == "ogg_opus":  # exactly what the WhatsApp bot sends (fmt=ogg_opus tests the voice-note path)
             path = whatsapp.voice_file(text, lang)
             if not path:
-                return {"lang": lang, "ok": False, "error": "no voice set up: SPITCH_API_KEY missing or spitch not installed"}
+                return {"lang": lang, "ok": False, "error": "no voice set up: add INTRON_API_KEY (or SPITCH_API_KEY) to .env"}
             size = os.path.getsize(path)
             os.remove(path)
             return {"lang": lang, "ok": True, "format": "ogg (WhatsApp voice note)", "bytes": size}
         out = tts.speak(text, lang if lang in tts.REPLY_LANGS else "English")
         if not out:
-            return {"lang": lang, "ok": False, "error": "no voice set up: SPITCH_API_KEY missing or spitch not installed"}
+            return {"lang": lang, "ok": False, "error": "no voice set up: add INTRON_API_KEY (or SPITCH_API_KEY) to .env"}
         return {"lang": lang, "ok": True, "engine": out["engine"], "bytes": os.path.getsize(out["path"])}
     except Exception as e:  # noqa: BLE001
         return {"lang": lang, "ok": False, "error": f"{type(e).__name__}: {e}"[:500]}

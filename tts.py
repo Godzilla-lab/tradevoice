@@ -1,6 +1,8 @@
 """Voice replies for traders who can't read: turn a saved entry into a short spoken confirmation.
 
-Engines (first one available wins, or force with TTS_BACKEND=spitch|mms|off):
+Engines (first one available wins, or force with TTS_BACKEND=intron|spitch|mms|off):
+- intron : Intron Sahara TTS (infer.voice.intron.io/tts/v1/generate), native Yoruba/Hausa/Igbo voices and Nigerian
+           English (also used for Pidgin). Same INTRON_API_KEY as the hearing. If it fails, Spitch, then MMS, take over.
 - spitch : Spitch (Nigerian) API, voices for English, Pidgin, Yoruba, Hausa, Igbo. `pip install spitch`, SPITCH_API_KEY.
 - mms    : Meta MMS-TTS on our own CPU/GPU (Yoruba, Hausa, English; no Igbo). `pip install -r requirements-tts.txt`.
            Licence CC-BY-NC: fine for the hackathon demo, NOT for a commercial product.
@@ -10,6 +12,7 @@ Yoruba/Hausa/Igbo, and traders commonly say prices in English anyway.
 ⚠️ The Yoruba/Hausa/Igbo sentences below were written by a non-native speaker: have native speakers check them.
 """
 import os
+import re
 import time
 import tempfile
 
@@ -18,6 +21,11 @@ REPLY_LANGS = ["Pidgin", "English", "Yoruba", "Hausa", "Igbo"]
 # Spitch voice names (from Spitch's SDK/docs, via research; check in their dashboard). Pidgin is chosen by voice.
 SPITCH_VOICES = {"English": ("en", "lucy"), "Pidgin": (None, "ufoma"), "Yoruba": ("yo", "sade"),
                  "Hausa": ("ha", "amina"), "Igbo": ("ig", "ngozi")}
+# Intron: spoken language + accent are two fields. Accents are overridable (INTRON_ACCENT_YORUBA=...) because Intron's
+# accent list isn't public; a rejected accent is retried without one.
+INTRON_VOICES = {"English": ("en", "nigerian"), "Pidgin": ("en", "nigerian"), "Yoruba": ("yo", "yoruba"),
+                 "Hausa": ("ha", "hausa"), "Igbo": ("ig", "igbo")}
+INTRON_URL = os.getenv("INTRON_TTS_URL", "https://infer.voice.intron.io").rstrip("/")
 MMS_MODELS = {"English": "facebook/mms-tts-eng", "Pidgin": "facebook/mms-tts-eng",
               "Yoruba": "facebook/mms-tts-yor", "Hausa": "facebook/mms-tts-hau"}
 
@@ -231,6 +239,8 @@ def backend():
     forced = os.getenv("TTS_BACKEND", "").lower()
     if forced in ("off", "none", "0"):
         return None
+    if forced in ("intron", "") and os.getenv("INTRON_API_KEY"):
+        return "intron"
     if forced in ("spitch", "") and os.getenv("SPITCH_API_KEY"):
         try:
             import spitch  # noqa: F401
@@ -365,34 +375,136 @@ def _mms_speak(text, language):
     return path
 
 
+_INTRON_MAX = {"chars": 240}   # Intron's per-request text limit is learned from its own error message
+
+
+def _intron_one(text, language, accent=True):
+    import requests
+
+    lang, acc = INTRON_VOICES[language]
+    body = {"text": text, "voice_language": lang, "voice_gender": os.getenv("INTRON_GENDER", "female")}
+    if accent:
+        body["voice_accent"] = os.getenv(f"INTRON_ACCENT_{language.upper()}", acc)
+    head = {"Authorization": f"Bearer {os.environ['INTRON_API_KEY']}"}
+    for _ in range(2):
+        r = requests.post(f"{INTRON_URL}/tts/v1/generate", json=body, headers=head, timeout=60)
+        if r.status_code != 429:
+            break
+        time.sleep(min(float(r.headers.get("retry-after") or 2), 10))
+    try:
+        j = r.json()
+    except ValueError:
+        j = {}
+    data = j.get("data") or {}
+    if r.status_code == 503 and (data.get("text_id") or j.get("text_id")):
+        tid, end = data.get("text_id") or j.get("text_id"), time.time() + 40
+        while time.time() < end and data.get("processing_status") not in ("TTS_TEXT_AUDIO_GENERATED",
+                                                                          "TTS_TEXT_AUDIO_PROCESSING_FAILED"):
+            time.sleep(1)
+            data = (requests.get(f"{INTRON_URL}/tts/v1/status/{tid}", headers=head, timeout=20).json() or {}).get("data") or {}
+    elif r.status_code != 200:
+        msg = str(j.get("message") or r.text)[:200]
+        m = re.search(r"max limit of (\d+) characters", msg)
+        if m:
+            raise _TooLong(int(m.group(1)))
+        if r.status_code == 400 and accent and "accent" in msg.lower():
+            return _intron_one(text, language, accent=False)
+        raise RuntimeError(f"Intron voice HTTP {r.status_code}: {msg}")
+    if data.get("processing_status") != "TTS_TEXT_AUDIO_GENERATED" or not data.get("audio_path"):
+        raise RuntimeError(f"Intron voice not ready ({data.get('processing_status') or 'no audio'})")
+    audio = requests.get(data["audio_path"], timeout=60)
+    audio.raise_for_status()
+    kind = ".wav" if audio.content[:4] == b"RIFF" else ".ogg" if audio.content[:4] == b"OggS" else ".mp3"
+    path = _tmp(kind)
+    with open(path, "wb") as f:
+        f.write(audio.content)
+    return path
+
+
+class _TooLong(Exception):
+    def __init__(self, n):
+        super().__init__(n)
+        self.n = n
+
+
+def _pieces(text, size):
+    out = []
+    for part in _chunks(text, size):
+        while len(part) > size:  # one very long sentence: cut at a space
+            cut = part.rfind(" ", 0, size) if " " in part[:size] else size
+            out.append(part[:cut].strip())
+            part = part[cut:].strip()
+        if part:
+            out.append(part)
+    return out
+
+
+def _intron_speak(text, language):
+    if language not in INTRON_VOICES:
+        raise RuntimeError(f"Intron has no {language} voice")
+    text = speakable(text)
+    if not text:
+        raise RuntimeError("nothing to say")
+    for _ in range(2):
+        try:
+            paths = []
+            for part in _pieces(text, _INTRON_MAX["chars"]):
+                paths.append(_intron_one(part, language))
+            break
+        except _TooLong as e:
+            for p in paths:
+                os.remove(p)
+            _INTRON_MAX["chars"] = max(40, e.n - 5)
+    else:
+        raise RuntimeError("Intron kept refusing the text as too long")
+    if len(paths) == 1:
+        return paths[0]
+    if all(p.endswith(".wav") for p in paths):
+        return _join_wavs(paths)
+    raise RuntimeError("Intron sent a long reply in pieces that can't be joined (not WAV)")
+
+
 def speak(text, language="Pidgin", fmt="wav", voice=None, speed=None):
     """Return {path, engine} for an audio file of `text`, or None if no voice engine is set up.
-    fmt: 'wav'/'mp3' for the web app, 'ogg_opus' for WhatsApp voice notes (Spitch; MMS gives wav -> convert)."""
+    Order: Intron -> Spitch -> free MMS voices; an engine that fails for credit/key reasons rests for 10 minutes.
+    fmt: 'wav'/'mp3' for the web app, 'ogg_opus' for WhatsApp voice notes (Spitch only; others give wav -> convert)."""
     engine = backend()
     if not engine:
         return None
-    if engine == "spitch" and time.time() >= _SPITCH_DOWN["until"]:
+    errors = []
+    if engine == "intron" and time.time() >= _INTRON_DOWN["until"]:
+        try:
+            return {"path": _intron_speak(text, language), "engine": f"intron:{INTRON_VOICES[language][0]}"}
+        except Exception as e:  # noqa: BLE001
+            print(f"Intron voice failed ({language}): {type(e).__name__}: {e}")
+            errors.append(f"Intron: {e}")
+            if any(w in str(e).lower() for w in ("401", "402", "403", "credit", "quota", "unauthori", "forbidden")):
+                _INTRON_DOWN["until"], _INTRON_DOWN["why"] = time.time() + 600, str(e)[:200]
+    spitch_ok = bool(os.getenv("SPITCH_API_KEY")) and os.getenv("TTS_BACKEND", "").lower() in ("", "spitch", "intron")
+    if spitch_ok and time.time() >= _SPITCH_DOWN["until"]:
         v = voice or os.getenv(f"TTS_VOICE_{language.upper()}") or SPITCH_VOICES.get(language, ("", ""))[1]
         try:
             return {"path": _spitch_safe(text, language, fmt, v, speed),
                     "engine": f"spitch:{v}" + (f"@{speed}" if speed else "")}
         except Exception as e:  # noqa: BLE001
             msg = str(e).lower()
-            if not any(w in msg for w in ("402", "credit", "quota", "401", "unauthori", "forbidden", "403")):
+            errors.append(f"Spitch: {e}"[:200])
+            if any(w in msg for w in ("402", "credit", "quota", "401", "unauthori", "forbidden", "403")):
+                # out of credits / key refused: stop asking Spitch for 10 minutes
+                _SPITCH_DOWN["until"], _SPITCH_DOWN["why"] = time.time() + 600, str(e)[:200]
+                print(f"Spitch unavailable ({str(e)[:120]}); trying the free MMS voices for 10 minutes")
+            elif not errors[:-1] and engine == "spitch":
                 raise
-            # out of credits / key refused: stop asking Spitch for 10 minutes, speak with the free MMS voices instead
-            _SPITCH_DOWN["until"], _SPITCH_DOWN["why"] = time.time() + 600, str(e)[:200]
-            print(f"Spitch unavailable ({str(e)[:120]}); using MMS voices for 10 minutes")
-    elif engine == "spitch":
-        pass  # Spitch is resting after an error: go straight to MMS
-    if language not in MMS_MODELS or not _mms_ok():
-        if engine == "spitch":
-            raise RuntimeError(f"Spitch unavailable ({_SPITCH_DOWN['why'] or 'error'}) and no free voice for {language}"
-                               + ("" if _mms_ok() else " (pip install transformers torch for the MMS voices)"))
+    if language in MMS_MODELS and _mms_ok():
+        return {"path": _mms_speak(speakable(text), language), "engine": f"mms:{MMS_MODELS.get(language)}"}
+    if engine == "mms":
         return None
-    return {"path": _mms_speak(speakable(text), language), "engine": f"mms:{MMS_MODELS.get(language)}"}
+    why = "; ".join(errors) or _INTRON_DOWN["why"] or _SPITCH_DOWN["why"] or "error"
+    raise RuntimeError(f"No voice worked for {language} ({why})"
+                       + ("" if _mms_ok() else " (pip install transformers torch for the free MMS backup voices)"))
 
 
+_INTRON_DOWN = {"until": 0.0, "why": ""}
 _SPITCH_DOWN = {"until": 0.0, "why": ""}
 
 
