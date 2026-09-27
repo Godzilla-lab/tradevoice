@@ -255,5 +255,10 @@ def transcribe_auto(path, language=None, vocab=None):
                 out = again
         except Exception:  # noqa: BLE001 - keep the first result
             pass
-    out["detected"] = detected if detected in LOCAL else "English / Pidgin"
+    if detected in LOCAL:
+        out["detected"] = detected
+    elif language in LOCAL:
+        out["detected"] = language  # the trader chose Yoruba/Hausa/Igbo: words without tone marks don't undo that
+    else:
+        out["detected"] = "English / Pidgin"
     return out

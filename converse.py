@@ -28,6 +28,8 @@ NO = re.compile(r"^\s*(no|nope|cancel|no be so|leave am|forget am|rara|ko to|a'?
 REMIND = re.compile(r"\bremind\b|\bran .{0,40}\bleti\b|\bleti\b|\btunatar\b|\btuna wa\b|\bcheta(ra)?\b|\bchetara\b")
 QUESTION = re.compile(r"\?|\bhow (much|many)\b|\bwho\b|\bwhat\b|\bwetin\b|\babi\b|\bdo i\b|\bdid\b|\bse\b|\bmelo\b|"
                       r"\belo\b|\bnawa\b|\bshin\b|\bole\b|\bkedu\b|\bani\b|\bna who\b")
+GREET = re.compile(r"^\s*(hi+|hello|hey|good (morning|afternoon|evening)|how far|bawo( ni)?|pele|e ?ka ?a?ro|e ?ka ?a?san|"
+                   r"e ?ka ?a?le|sannu|ina kwana|ina wuni|ndewo|kedu|nnoo)\W*$")
 PRONOUN = re.compile(r"\b(she|he|her|him|am|them|dem|that person|ita|shi|ya)\b")
 TOMORROW_LOCAL = re.compile(r"\b(ola|lola|ni ola)\b")
 # something happened (a record), in English/Pidgin, Yoruba, Hausa, Igbo
@@ -125,6 +127,11 @@ def _money(x):
 
 def _lang(text, state):
     lang = askbook.guess_language(text)
+    prefer = state.get("prefer")
+    # nothing in the words says which language (e.g. "hi", Yoruba heard without tone marks): use the one the
+    # trader chose, so picking Yoruba really means Yoruba replies
+    if lang == "English" and prefer and prefer != "English":
+        return prefer
     # a bare "yes"/"ok"/"45k" says nothing about language: keep the one we were talking in
     if len(fold(text).split()) <= 2 and lang in ("English", "Pidgin"):
         return state.get("lang") or lang
@@ -364,12 +371,26 @@ def reply(text, state=None, today=None, shop="your shop"):
     if REMIND.search(t):
         return _remind(text, lang, state, vocab, today, shop)
     amount = parse_amount(text)
+    if GREET.match(t):
+        import ui_text
+
+        said = next((l for l, w in (("Yoruba", r"bawo|pele|ka ?a?(ro|san|le)"), ("Hausa", r"sannu|ina (kwana|wuni)"),
+                                    ("Igbo", r"ndewo|kedu|nnoo")) if re.search(w, t)), None)
+        lang = state["lang"] = said or lang  # "Bawo ni" = Yoruba, whatever was picked
+
+        return _out(ui_text.t("hello", lang), lang, english=ui_text.t("hello", "English"))
     if QUESTION.search(t) or (amount is None and not EVENT.search(t)):
         out = _question(text, lang, state, vocab, today)
         if out:
             return out
     if amount is not None or EVENT.search(t):
         return _record(text, lang, state, vocab, today)
+    if lang not in ("English", "Pidgin"):  # the AI answers in Yoruba / Hausa / Igbo, numbers checked against the book
+        import assistant
+
+        said = assistant.free(text, lang, today)
+        if said:
+            return _out(said, lang, spoken=assistant.spoken(said))
     answer, engine = insights.ask(text)
     if engine == "rules" and not answer:
         return _out(SAY["not_sure"][lang], lang, english=SAY["not_sure"]["English"])

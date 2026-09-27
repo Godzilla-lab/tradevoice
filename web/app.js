@@ -7,15 +7,14 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
 };
 const S = {
-  lang: store.get("tv_lang", "English"),          // app language (screens + read-aloud)
-  speak: store.get("tv_speak", "English"),        // language of voice notes (Intron needs it)
+  lang: store.get("tv_lang", "English"),          // ONE language for everything: screens, replies, voice, hearing
   shop: store.get("tv_shop", ""),
   consent: store.get("tv_consent", "") === "yes",
   session: store.get("tv_session", "") || (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)),
   voice: null, T: {}, pending: null,
 };
 store.set("tv_session", S.session);
-const SPEAK_LANGS = [["English", "English / Pidgin"], ["Yoruba", "Yorùbá"], ["Hausa", "Hausa"], ["Igbo", "Igbo"]];
+const LANGS = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"];
 const TYPES = {
   sale: ["🛒", "Sold (paid)"], credit_sale: ["📝", "Sold on credit"], payment_received: ["💰", "Paid me back"],
   expense: ["💸", "Spent"], credit_purchase: ["📦", "Bought on credit (I owe)"], payment_made: ["↩️", "I paid back"],
@@ -93,7 +92,7 @@ async function loadWords() {
   $("#text").placeholder = t("message", "Message");
   $("#recHint").textContent = t("recording", "Recording… let go to send");
   $("#sub").textContent = S.shop || "";  // whose book this is; not a fake "online" status
-  $("#speakLang span").textContent = SPEAK_LANGS.find((l) => l[0] === S.speak)?.[1] || S.speak;
+  $("#speakLang span").textContent = LANG_NAMES[S.lang] || S.lang;
   document.documentElement.lang = { Yoruba: "yo", Hausa: "ha", Igbo: "ig", Pidgin: "pcm" }[S.lang] || "en";
   document.documentElement.dir = (S.T._dir) || "ltr";
   Object.keys(TYPES).forEach((k) => { if (S.T["t_" + k]) TYPES[k][1] = S.T["t_" + k]; });
@@ -104,8 +103,7 @@ async function loadWords() {
 
 function setLang(lang) {
   S.lang = lang; store.set("tv_lang", lang);
-  S.speak = lang === "Pidgin" ? "English" : lang; store.set("tv_speak", S.speak);
-  return loadWords();
+  return loadWords().then(() => { if (S.consent && !chat.querySelector(".msg.out")) greet(); });  // fresh chat: greet again in the new language
 }
 
 // ------------------------------------------------------------------ chat bubbles
@@ -200,16 +198,11 @@ function choiceReplies(choices) {
   chat.appendChild(q); scrollDown();
 }
 
-// the voice language follows what the trader actually speaks or writes: no switching by hand
+// the app follows what the trader actually speaks or writes: speak Yoruba and the whole app turns Yoruba
 function followLanguage(r) {
-  const heard = r.detected && r.detected !== "English / Pidgin" ? r.detected : r.detected ? "English" : null;
-  const wrote = ["Yoruba", "Hausa", "Igbo"].includes(r.lang) ? r.lang : null;
-  const next = heard || wrote;
-  if (next && next !== S.speak) {
-    S.speak = next; store.set("tv_speak", next);
-    $("#speakLang span").textContent = SPEAK_LANGS.find((l) => l[0] === next)?.[1] || next;
-    toast(`🗣️ ${SPEAK_LANGS.find((l) => l[0] === next)?.[1] || next}`, 1800);
-  }
+  const local = ["Yoruba", "Hausa", "Igbo"];
+  const next = local.includes(r.detected) ? r.detected : local.includes(r.lang) ? r.lang : null;
+  if (next && next !== S.lang) { setLang(next); toast(`🗣️ ${LANG_NAMES[next]}`, 1800); }
 }
 
 function showReply(r, { autoplay = false } = {}) {
@@ -232,7 +225,7 @@ async function sendText(text, shown) {
   bubble("out", fmt(shown || text), { ticks: true });
   const wait = typing();
   try {
-    const r = await post("/api/message", { session: S.session, text, shop: S.shop || null });
+    const r = await post("/api/message", { session: S.session, text, shop: S.shop || null, lang: S.lang });
     wait.remove(); showReply(r);
   } catch (e) { wait.remove(); bubble("in err", esc(e.message)); }
 }
@@ -301,7 +294,7 @@ async function finishRec() {
   mine.insertBefore(voiceNote(URL.createObjectURL(blob), { seconds: ms / 1000 }), mine.querySelector(".meta"));
   const wait = typing();
   const fd = new FormData();
-  fd.append("file", blob, "note" + ext); fd.append("session", S.session); fd.append("lang", S.speak);
+  fd.append("file", blob, "note" + ext); fd.append("session", S.session); fd.append("lang", S.lang);
   fd.append("consent", "yes"); fd.append("shop", S.shop || "");
   try {
     const r = await api("/api/voice", { method: "POST", body: fd, timeout: 90000 });
@@ -637,7 +630,7 @@ async function askAssist({ text = "", blob = null, ext = ".webm", silent = false
   const mine = aBubble("out", blob ? '<span class="typing"><i></i><i></i><i></i></span>' : fmt(text));
   const wait = aBubble("in", `<span class="muted">${esc(t("thinking", "Thinking…"))}</span>`);
   const fd = new FormData();
-  fd.append("screen", A.screen); fd.append("lang", S.lang); fd.append("speak_lang", S.speak);
+  fd.append("screen", A.screen); fd.append("lang", S.lang); fd.append("speak_lang", S.lang);
   fd.append("session", S.session); fd.append("shop", S.shop || ""); fd.append("consent", S.consent ? "yes" : "");
   if (blob) fd.append("file", blob, "q" + ext); else fd.append("text", text);
   try {
@@ -664,14 +657,12 @@ function sheet(html) {
 }
 $("#sheet").onclick = (e) => { if (e.target.id === "sheet") $("#sheet").hidden = true; };
 
-$("#speakLang").onclick = () => {
-  sheet(`<h3>🗣️ ${esc(t("i_speak", "I'm speaking"))}</h3><div class="opts">${SPEAK_LANGS.map(([k, lb]) =>
-    `<button data-speak="${k}" class="${k === S.speak ? "on" : ""}">${lb}</button>`).join("")}</div>
-    <p>For voice notes. Typing works in any language, and you can switch any time in the same chat.</p>`);
-  $("#sheetBody").onclick = (e) => {
+$("#speakLang").onclick = () => {   // one choice changes everything: screens, replies, voice and hearing
+  sheet(`<h3>🌍 ${esc(t("language", "Language"))}</h3><div class="opts">${LANGS.map((k) =>
+    `<button data-speak="${k}" class="${k === S.lang ? "on" : ""}">${LANG_NAMES[k]}</button>`).join("")}</div>`);
+  $("#sheetBody").onclick = async (e) => {
     const k = e.target.dataset.speak; if (!k) return;
-    S.speak = k; store.set("tv_speak", k); $("#sheet").hidden = true; loadWords();
-    toast(`🗣️ ${SPEAK_LANGS.find((l) => l[0] === k)[1]}`);
+    $("#sheet").hidden = true; await setLang(k); toast(`🌍 ${LANG_NAMES[k]}`);
   };
 };
 
@@ -713,7 +704,7 @@ $("#agree").onclick = () => {
 // ------------------------------------------------------------------ start
 
 async function greet() {
-  chat.innerHTML = '<div class="day">Today</div>';
+  chat.innerHTML = `<div class="day">${esc(t("today", "Today"))}</div>`;
   bubble("in", fmt(t("hello", "Hello 👋 I'm your book. Tell me what you sold, who owes you, or ask me anything.")));
   const ex = document.createElement("div");
   ex.className = "chips";

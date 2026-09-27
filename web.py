@@ -39,8 +39,12 @@ SPEAK = {}      # speak id -> (text, language) ; audio is made only when the pag
 AUDIO = {}      # speak id -> audio file path
 
 
-def _state(session):
-    return SESSIONS.setdefault(session or "anon", converse.new_state())
+def _state(session, lang=None):
+    """The chat's memory. `lang` = the language the trader picked; replies use it unless they clearly speak another."""
+    st = SESSIONS.setdefault(session or "anon", converse.new_state())
+    if lang in VOICE_LANGS:
+        st["prefer"] = lang
+    return st
 
 
 def _speak_id(text, lang):
@@ -71,11 +75,12 @@ class Msg(BaseModel):
     session: str = "anon"
     text: str
     shop: str | None = None
+    lang: str | None = None
 
 
 @app.post("/api/message")
 def message(m: Msg):
-    state = _state(m.session)
+    state = _state(m.session, m.lang)
     r = converse.reply(m.text, state, shop=m.shop or SHOP_NAME)
     return _reply_json(r, state)
 
@@ -98,7 +103,7 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
     text = heard["text"].strip()
     if not text:
         return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
-    state = _state(session)
+    state = _state(session, lang)
     out = _reply_json(converse.reply(text, state, shop=shop or SHOP_NAME), state, heard=text)
     out["engine"] = heard.get("engine")
     out["detected"] = heard.get("detected")
@@ -400,7 +405,7 @@ def assist(screen: str = Form("today"), lang: str = Form("English"), session: st
             os.remove(path)  # the voice note is deleted as soon as it is read
     if not heard:
         return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
-    state = _state(session)
+    state = _state(session, lang)
     r = assistant.answer(heard, screen, lang, state=state, shop=shop or SHOP_NAME)
     return {"heard": heard, "detected": detected, "text": r["text"], "english": r.get("english"),
             "lang": r.get("lang", lang), "engine": r.get("engine"), "message": r.get("message"), "link": r.get("link"),

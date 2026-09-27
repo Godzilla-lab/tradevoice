@@ -62,6 +62,21 @@ def _ask_ai(question, screen, lang, facts, sentences=4):
     return text.strip(), model
 
 
+def free(question, lang, today=None):
+    """A free question answered by the AI in `lang`, or None (no AI, or it said a number the book doesn't have)."""
+    try:
+        import llm
+
+        if not llm.available():
+            return None
+        facts = insights.book_facts(today)
+        ans, _ = _ask_ai(question, "talk", lang, facts, sentences=3)
+        return ans if ans and _numbers_ok(ans, facts) else None
+    except Exception as e:  # noqa: BLE001
+        print(f"assistant free fell back: {type(e).__name__}: {e}")
+        return None
+
+
 def explain(screen, lang="English", today=None):
     """What this screen means for the trader, spoken. Cached a minute so the text and the voice match."""
     key = (screen, lang)

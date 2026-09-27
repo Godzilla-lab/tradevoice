@@ -110,8 +110,9 @@ def main():
     check("Yoruba question → Yoruba answer + Yoruba voice", "O jẹ Alhaji Sani ní ₦60,000" in out
           and "[🔊 Yoruba]" in out, out)
     out = text_of(post({"type": "text", "text": {"body": "Remind her tomorrow"}}))
-    check("'Remind her' → Mama Tunde + message to forward", "Mama Tunde" in out and "Forward this" in out
-          and "Good day Mama Tunde" in out, out)
+    # they wrote Yoruba above, so the chat is now in Yoruba: the reminder comes in Yoruba too
+    check("'Remind her' → Mama Tunde + message to forward (Yoruba)", "Mama Tunde" in out and "Forward this" in out
+          and "Ẹ káàárọ̀ Mama Tunde" in out, out)
 
     out = text_of(post({"type": "image", "image": {"id": "i1"}}))
     check("photo → numbered lines + Save/Cancel", "1." in out and "2." in out and "Save ticked" in out, out)

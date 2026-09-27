@@ -176,6 +176,8 @@ def download(media_id, suffix):
 def _state(phone, lang):
     st = STATES.setdefault(phone, converse.new_state())
     st.setdefault("lang", lang or "Pidgin")
+    if lang:
+        st["prefer"] = lang  # their chosen language: replies use it unless they clearly speak another
     return st
 
 
