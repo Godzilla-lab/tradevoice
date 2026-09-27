@@ -1124,8 +1124,9 @@ function loginPhone(err = "") {
 function loginCode(r, err = "") {
   L.step = "code"; L.last = r; L.id = r.login_id;
   $("#loginStep").innerHTML = `<h1>${esc(t("code_title", "Enter the code"))}</h1>
-    <p>${esc(r.sent ? t("code_sent", "").replace("{p}", r.phone) : r.verify_link ? t("code_not_sent", "") : "")}</p>
-    ${r.demo_code ? `<div class="demo">${esc(t("demo_code", "Demo: your code is {c}").replace("{c}", r.demo_code))}</div>` : ""}
+    <p>${esc(r.sent ? t("code_sent", "").replace("{p}", r.phone) : r.fallback ? t("code_fallback", "WhatsApp couldn't send the code right now, so here it is:")
+            : r.verify_link ? t("code_not_sent", "") : "")}</p>
+    ${r.demo_code ? `<div class="demo">${esc((r.fallback ? t("your_code", "Your code: {c}") : t("demo_code", "Demo: your code is {c}")).replace("{c}", r.demo_code))}</div>` : ""}
     <form id="lf2"><input id="lcode" class="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••">
       <div class="lerr">${esc(err)}</div><button class="primary">${esc(t("continue", "Continue"))}</button></form>
     ${r.verify_link ? `<div class="or">${esc(t("or", "or"))}</div><a class="primary wa-go" id="lwa" href="${esc(r.verify_link)}" target="_blank" rel="noopener">${esc(t("verify_wa", "Confirm with WhatsApp"))}</a>

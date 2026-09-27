@@ -131,6 +131,19 @@ def main():
     check("delete my account removes the book", r.status_code == 200 and
           not os.path.exists(os.path.join(os.environ["BOOKS_DIR"], "2348091112222.db")))
 
+    # WhatsApp configured but the token has expired: the code is shown, never a dead end (unless AUTH_STRICT=1)
+    real_post = whatsapp.graph_post
+    def expired(p):
+        raise RuntimeError("WhatsApp send failed 401: Session has expired")
+    whatsapp.graph_post = expired
+    st = c.post("/api/auth/start", json={"phone": "08030000009"}).json()
+    check("token expired -> code shown on screen (fallback)", st["fallback"] and st["demo_code"] and not st["sent"], st)
+    os.environ["AUTH_STRICT"] = "1"
+    st = c.post("/api/auth/start", json={"phone": "08030000010"}).json()
+    check("AUTH_STRICT=1 -> no code on screen", st["demo_code"] is None, st)
+    os.environ.pop("AUTH_STRICT")
+    whatsapp.graph_post = real_post
+
     # demo mode: no WhatsApp -> code on screen
     os.environ["AUTH_DEMO"] = "1"
     st = c.post("/api/auth/start", json={"phone": "08030000000"}).json()

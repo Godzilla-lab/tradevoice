@@ -710,12 +710,15 @@ def auth_start(b: Start):
             whatsapp.send_text(phone, f"🔐 {words.get(b.lang, 'Your TradeVoice code is')} *{login['code']}*\n"
                                       "Don't share it with anyone.")
             sent = True
-        except Exception as e:  # noqa: BLE001 - Meta only lets us message people who wrote to us in the last 24 h
+        except Exception as e:  # noqa: BLE001 - expired token, or Meta's 24-hour rule
             print(f"login code not sent by WhatsApp: {e}")
     bot = whatsapp.bot_number()
+    # never a dead end: if WhatsApp couldn't deliver the code, show it on screen (AUTH_STRICT=1 turns this off)
+    fallback = not sent and not accounts.demo_mode() and os.getenv("AUTH_STRICT") != "1"
     return {"login_id": login["id"], "phone": accounts.masked(phone), "sent": sent,
             "word": login["word"], "verify_link": f"https://wa.me/{bot}?text=LOGIN%20{login['word']}" if bot else None,
-            "demo_code": login["code"] if accounts.demo_mode() else None}
+            "demo_code": login["code"] if accounts.demo_mode() or fallback else None,
+            "fallback": fallback}
 
 
 @app.post("/api/auth/verify")

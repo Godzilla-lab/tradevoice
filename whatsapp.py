@@ -119,9 +119,10 @@ def bot_number():
         try:
             r = requests.get(f"{GRAPH}/{os.environ['WHATSAPP_PHONE_ID']}", params={"fields": "display_phone_number"},
                              headers=_headers(), timeout=10)
-            _BOT["n"] = re.sub(r"\D", "", r.json().get("display_phone_number", "")) if r.ok else ""
+            if r.ok:  # remember only a real answer (an expired token must not hide the number for good)
+                _BOT["n"] = re.sub(r"\D", "", r.json().get("display_phone_number", ""))
         except Exception:  # noqa: BLE001
-            return ""
+            pass
     return _BOT.get("n", "")
 
 

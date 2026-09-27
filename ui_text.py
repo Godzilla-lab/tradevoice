@@ -474,6 +474,8 @@ UI = {
     "record_it": ["Record it", "Write am", "Kọ ọ́", "Rubuta", "Dee ya"],
     "usual_note": ["They bought this on the same day for {n} weeks. Nothing is saved until you confirm.", "Dem don buy am the same day for {n} weeks. Nothing go save until you confirm.", "Wọ́n ti rà á ní ọjọ́ kan náà fún ọ̀sẹ̀ {n}. A kò ní kọ ọ́ títí o fi jẹ́rìí.", "Sun saya a rana ɗaya har makonni {n}. Ba a adana komai sai ka tabbatar.", "Ha zụrụ ya n'otu ụbọchị izu {n}. Ọ dịghị ihe a na-echekwa ruo mgbe ị kwadoro."],
     "on_credit_btn": ["On credit", "For credit", "Ní àwìn", "Bashi", "N'ụgwọ"],
+    "code_fallback": ["WhatsApp couldn't send the code right now, so here it is:", "WhatsApp no fit send the code now, so see am here:", "WhatsApp kò lè fi kóòdù ránṣẹ́ báyìí, òun nìyí:", "WhatsApp ba zai iya aika lambar yanzu ba, ga ta nan:", "WhatsApp enweghị ike iziga koodu ugbu a, nke a bụ ya:"],
+    "your_code": ["Your code: {c}", "Your code: {c}", "Kóòdù rẹ: {c}", "Lambarka: {c}", "Koodu gị: {c}"],
     "consent": [
         "I agree that my voice note / photo is processed by AI to create my records. "
         "The audio or photo is deleted right after it is read.",
