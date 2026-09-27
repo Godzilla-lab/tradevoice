@@ -33,6 +33,9 @@ import tts
 import ui_text
 from extract import fold, parse_amount
 
+# the older setup notes called it WHATSAPP_PHONE_NUMBER_ID: accept both names
+if not os.getenv("WHATSAPP_PHONE_ID") and os.getenv("WHATSAPP_PHONE_NUMBER_ID"):
+    os.environ["WHATSAPP_PHONE_ID"] = os.environ["WHATSAPP_PHONE_NUMBER_ID"]
 GRAPH = f"https://graph.facebook.com/{os.getenv('WHATSAPP_GRAPH_VERSION', 'v23.0')}"
 router = APIRouter()
 STATES = {}                    # phone -> conversation state (same shape as the web chat's)
