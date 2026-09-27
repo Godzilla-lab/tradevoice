@@ -313,10 +313,14 @@ def handle(msg):
         if kind == "audio":
             path = download(msg["audio"]["id"], ".ogg")
             try:
-                from asr import transcribe
+                from asr import transcribe_auto
 
-                text = transcribe(path, VOICE_LANGS.get(u["lang"], "English / Pidgin"),
-                                  vocab=ledger.known_words())["text"].strip()
+                heard = transcribe_auto(path, VOICE_LANGS.get(u["lang"], "English / Pidgin"), vocab=ledger.known_words())
+                text = heard["text"].strip()
+                new = {"English / Pidgin": None}.get(heard.get("detected"), heard.get("detected"))
+                if new and new != u["lang"]:  # they spoke another of our languages: use it from now on
+                    set_user(phone, lang=new)
+                    u["lang"] = new
             except Exception as e:  # noqa: BLE001
                 print(f"whatsapp voice-note failed: {type(e).__name__}: {e}")
                 return send_text(phone, SAY["cant_hear"])
@@ -332,7 +336,10 @@ def handle(msg):
             return None
         # 5) everything else: the same brain as the web chat (record / yes-no / question / reminder)
         _due_once(phone, st, u["lang"])
-        return _reply(phone, converse.reply(text, st, shop=os.getenv("SHOP_NAME", "my shop")), u)
+        r = converse.reply(text, st, shop=os.getenv("SHOP_NAME", "my shop"))
+        if kind == "text" and r["lang"] in ("Yoruba", "Hausa", "Igbo") and r["lang"] != u["lang"]:
+            set_user(phone, lang=r["lang"])  # they wrote in another of our languages: hear voice notes in it too
+        return _reply(phone, r, u)
 
 
 def _ask_language(phone):

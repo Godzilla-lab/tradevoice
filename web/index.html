@@ -20,6 +20,7 @@
       <div class="sub" id="sub"></div>
     </div>
     <button class="pill" id="speakLang" title="I'm speaking"><span>English</span> <i data-icon="chev"></i></button>
+    <button class="icon" id="viewBtn" aria-label="WhatsApp view" title="WhatsApp view"></button>
     <button class="icon" id="menuBtn" aria-label="Settings" data-icon="more"></button>
   </header>
 
@@ -31,7 +32,7 @@
 
     <!-- 📒 book -->
     <section id="book" class="screen">
-      <div class="shead"><h1 id="bookTitle" data-t="today">Today</h1><button class="read" data-screen="today"><i data-icon="speaker"></i><span>Read it to me</span></button></div>
+      <div class="shead"><h1 id="bookTitle" data-t="today">Today</h1><button class="read ask" data-screen="today"><i data-icon="mic"></i><span>Ask</span></button></div>
       <div id="bookBody"></div>
     </section>
 
@@ -39,7 +40,7 @@
     <section id="customers" class="screen">
       <div class="cwrap">
         <div class="clist">
-          <div class="shead"><h1 data-t="nav_customers">Customers</h1><button class="read" data-screen="owes"><i data-icon="speaker"></i><span>Read it to me</span></button>
+          <div class="shead"><h1 data-t="nav_customers">Customers</h1><button class="read ask" data-screen="owes"><i data-icon="mic"></i><span>Ask</span></button>
             <button class="textbtn" id="newCust">New customer</button></div>
           <div class="csum" id="csum"></div>
           <input class="csearch" id="csearch" type="search" autocomplete="off">
@@ -57,13 +58,13 @@
 
     <!-- 🔮 insights -->
     <section id="insights" class="screen">
-      <div class="shead"><h1 data-t="next_week">Next 7 days</h1><button class="read" data-screen="insights"><i data-icon="speaker"></i><span>Read it to me</span></button></div>
+      <div class="shead"><h1 data-t="next_week">Next 7 days</h1><button class="read ask" data-screen="insights"><i data-icon="mic"></i><span>Ask</span></button></div>
       <div id="insightsBody"></div>
     </section>
 
     <!-- 🏦 profile -->
     <section id="profile" class="screen">
-      <div class="shead"><h1 data-t="score">Record score</h1><button class="read" data-screen="profile"><i data-icon="speaker"></i><span>Read it to me</span></button></div>
+      <div class="shead"><h1 data-t="score">Record score</h1><button class="read ask" data-screen="profile"><i data-icon="mic"></i><span>Ask</span></button></div>
       <div id="profileBody"></div>
     </section>
   </main>

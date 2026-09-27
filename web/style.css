@@ -393,3 +393,25 @@ pre.year { font-size: 12.5px; line-height: 1.5; }
 .biglogo { display: block; margin: 0 auto 16px; }
 .read.playing { background: var(--accent); color: #fff; border-color: var(--accent); }
 .toast { white-space: pre-line; }
+
+.row .from .mean { color: var(--muted); font-style: italic; }
+/* WhatsApp view: just the conversation, in WhatsApp's familiar chat colours (no WhatsApp logo or name) */
+body.wa-view .tabs { display: none; }
+body.wa-view { --head: #008069; --bg: #efeae2; --out: #d9fdd3; --in: #ffffff; --accent: #00a884; --bar: #f0f2f5; }
+@media (prefers-color-scheme: dark) {
+  body.wa-view { --head: #202c33; --bg: #0b141a; --out: #005c4b; --in: #202c33; --accent: #00a884; --bar: #1f2c34; }
+}
+body.wa-view #app { max-width: 520px; }
+body.wa-view #talk { background-image: radial-gradient(rgba(0,0,0,.05) 1px, transparent 1px); background-size: 14px 14px; }
+
+/* Ask TradeVoice panel: a conversation in a tall sheet, same bubbles and tokens as the chat */
+#sheet.tall .sheet { height: 85dvh; display: flex; flex-direction: column; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+.assist { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.ahead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ahead h3 { margin: 0; font-size: 17px; }
+.alog { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px 2px;
+  background: var(--bg); border-radius: 10px; }
+.ahint { font-size: 13px; color: var(--muted); text-align: center; margin: 8px 0; }
+.abar { display: flex; gap: 8px; align-items: center; }
+.abar input { flex: 1; min-width: 0; margin: 0 !important; border-radius: 22px !important; }
+.abar .round { width: 56px; height: 56px; }

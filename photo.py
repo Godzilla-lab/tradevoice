@@ -18,6 +18,16 @@ def read(path):
             "brain": meta["engine"], "ms": res["latency_ms"] + meta["latency_ms"]}
 
 
+def _written(line):
+    """The photo line as written in the book (the reader adds "=> English meaning" after it)."""
+    return (line or "").split("=>")[0].strip()
+
+
+def _meaning(line):
+    m = (line or "").partition("=>")[2].strip()
+    return "" if m.lower() in ("", "none", "n/a", "-") else m
+
+
 def row(r):
     checks = []
     if r["amount"] is None:
@@ -32,7 +42,8 @@ def row(r):
             checks.append(risk["message"])
     return {"save": r["amount"] is not None and r["confidence"] >= 0.6, "type": r["type"], "amount": r["amount"],
             "customer": r.get("customer") or "", "due_date": r.get("due_date") or "", "item": r.get("item") or "",
-            "quantity": r.get("quantity"), "unit": r.get("unit") or "", "line": r.get("line") or "",
+            "quantity": r.get("quantity"), "unit": r.get("unit") or "", "line": _written(r.get("line")),
+            "meaning": _meaning(r.get("line")),
             "checks": checks}
 
 

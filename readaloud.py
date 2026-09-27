@@ -107,5 +107,19 @@ def profile(lang):
 SCREENS = {"today": today, "owes": owes, "insights": insights_text, "profile": profile}
 
 
-def text(screen, lang):
-    return SCREENS[screen](lang)
+_swap = __import__("threading").Lock()
+
+
+def text(screen, lang, written=False):
+    """The screen in a few sentences. written=True: amounts as ₦1,672,400 (for the screen), else in words (for voice)."""
+    if not written:
+        return SCREENS[screen](lang)
+    g = globals()
+    with _swap:
+        keep = g["naira_words"], g["number_words"]
+        g["naira_words"] = lambda x: f"₦{float(x):,.0f}"
+        g["number_words"] = lambda x: f"{float(x):,.0f}"
+        try:
+            return SCREENS[screen](lang)
+        finally:
+            g["naira_words"], g["number_words"] = keep

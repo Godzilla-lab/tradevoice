@@ -87,9 +87,9 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
         raise HTTPException(400, "consent needed")
     path = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm")
     try:
-        from asr import transcribe
+        from asr import transcribe_auto
 
-        heard = transcribe(path, VOICE_LANGS.get(lang, "English / Pidgin"), vocab=ledger.known_words())
+        heard = transcribe_auto(path, VOICE_LANGS.get(lang, "English / Pidgin"), vocab=ledger.known_words())
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": f"Could not hear that ({type(e).__name__}). Please type it."}, 502)
     finally:
@@ -100,6 +100,7 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
     state = _state(session)
     out = _reply_json(converse.reply(text, state, shop=shop or SHOP_NAME), state, heard=text)
     out["engine"] = heard.get("engine")
+    out["detected"] = heard.get("detected")
     return out
 
 
@@ -350,6 +351,59 @@ def read_audio(screen: str, lang: str = "English"):
     if not out:
         raise HTTPException(404, "voice is off")
     return FileResponse(out["path"], media_type="audio/wav")
+
+
+# ---------------------------------------------------------------- 🎙️ Ask TradeVoice (voice assistant on every screen)
+
+@app.get("/api/explain/{screen}")
+def explain(screen: str, lang: str = "English"):
+    import assistant
+
+    e = assistant.explain(screen, lang)
+    return {"text": e["text"], "engine": e["engine"], "speak": _speak_id(e.get("spoken") or e["text"], lang)}
+
+
+@app.get("/api/explain/{screen}/audio")
+def explain_audio(screen: str, lang: str = "English"):
+    """The explanation as a plain audio URL, so the sound can start inside the tap that opened the assistant."""
+    import assistant
+
+    e = assistant.explain(screen, lang)
+    out = tts.speak(e.get("spoken") or e["text"], lang if lang in tts.REPLY_LANGS else "Pidgin")
+    if not out:
+        raise HTTPException(404, "voice is off")
+    return FileResponse(out["path"], media_type="audio/wav")
+
+
+@app.post("/api/assist")
+def assist(screen: str = Form("today"), lang: str = Form("English"), session: str = Form("anon"),
+           text: str = Form(""), speak_lang: str = Form("English"), consent: str = Form(""),
+           shop: str = Form(""), file: UploadFile | None = File(None)):
+    """A question by voice (file) or typed (text) about the screen the trader is on; answered in their language."""
+    import assistant
+
+    heard, detected = text.strip(), None
+    if file is not None:
+        if consent != "yes":
+            raise HTTPException(400, "consent needed")
+        path = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm")
+        try:
+            from asr import transcribe_auto
+
+            h = transcribe_auto(path, VOICE_LANGS.get(speak_lang, "English / Pidgin"), vocab=ledger.known_words())
+            heard, detected = h["text"].strip(), h.get("detected")
+        except Exception as e:  # noqa: BLE001
+            return JSONResponse({"error": f"Could not hear that ({type(e).__name__}). Please type it."}, 502)
+        finally:
+            os.remove(path)  # the voice note is deleted as soon as it is read
+    if not heard:
+        return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
+    state = _state(session)
+    r = assistant.answer(heard, screen, lang, state=state, shop=shop or SHOP_NAME)
+    return {"heard": heard, "detected": detected, "text": r["text"], "english": r.get("english"),
+            "lang": r.get("lang", lang), "engine": r.get("engine"), "message": r.get("message"), "link": r.get("link"),
+            "pending": bool(state.get("pending")), "choices": r.get("choices"),
+            "speak": _speak_id(r.get("spoken") or r["text"], r.get("lang", lang))}
 
 
 @app.delete("/api/entry/{entry_id}")

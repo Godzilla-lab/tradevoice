@@ -246,6 +246,11 @@ UI = {
                  "Ụbọchị {d} nke ndekọ · nkezi ahịa kwa ụbọchị {m}"],
     "empty_insights": ["Record a few more days, then I can tell you about next week.", "Write for some more days, then I go fit tell you about next week.", "Kọ àkọsílẹ̀ fún ọjọ́ díẹ̀ sí i, lẹ́yìn náà mo lè sọ nípa ọ̀sẹ̀ tó ń bọ̀.", "Ka rubuta na wasu kwanaki, sannan zan iya faɗa maka game da makon gobe.", "Dee ihe ụbọchị ole na ole ọzọ, mgbe ahụ m ga-agwa gị maka izu na-abịa."],
     "empty_profile": ["Your book is empty. Start by recording a sale.", "Your book still empty. Start by writing one sale.", "Ìwé rẹ ṣì ṣófo. Bẹ̀rẹ̀ nípa kíkọ ọjà kan tí o tà.", "Littafinka babu komai. Fara da rubuta wani abin da aka sayar.", "Akwụkwọ gị tọgbọrọ chakoo. Bido site n'ide otu ahịa i rere."],
+    "assist_title": ["Ask TradeVoice", "Ask TradeVoice", "Béèrè lọ́wọ́ TradeVoice", "Tambayi TradeVoice", "Jụọ TradeVoice"],
+    "assist_hint": ["Tap the mic and ask anything about your business.", "Tap the mic, ask anything about your business.", "Tẹ gbohùngbohùn kí o béèrè ohunkóhun nípa òwò rẹ.", "Taɓa makirufo ka tambayi komai game da kasuwancinka.", "Pịa igwe okwu ka ị jụọ ihe ọ bụla gbasara azụmahịa gị."],
+    "listening": ["Listening… tap to send", "I dey hear you… tap to send", "Mo ń gbọ́… tẹ̀ ẹ́ láti fi ránṣẹ́", "Ina saurare… taɓa don aikawa", "A na m ege… pịa ka o ziga"],
+    "thinking": ["Thinking…", "I dey think…", "Mo ń ronú…", "Ina tunani…", "A na m eche…"],
+    "ask_placeholder": ["Or type a question", "Or type question", "Tàbí kọ ìbéèrè", "Ko rubuta tambaya", "Ma ọ bụ dee ajụjụ"],
     # ---- public website (web/landing.html). Short lines only; longer copy stays English until checked by natives.
     "web_open": ["Open TradeVoice", "Open TradeVoice", "Ṣí TradeVoice", "Buɗe TradeVoice", "Mepee TradeVoice"],
     "web_h1": ["Keep your books.<br>Just speak.", "Keep your book.<br>Just talk am.", "Tọ́jú ìwé rẹ.<br>Kàn sọ̀rọ̀.",

@@ -38,6 +38,7 @@ const ICONS = {
   speaker: '<path d="M4.5 9.5h3.5l4.5-4v13l-4.5-4H4.5z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/>',
   more: '<circle cx="12" cy="5.5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="18.5" r="1.2"/>',
   chev: '<path d="M7 10l5 5 5-5"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
 };
 const svg = (n, size = 22) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ""}</svg>`;
@@ -86,7 +87,7 @@ const post = (path, data) => api(path, { method: "POST", headers: { "Content-Typ
 async function loadWords() {
   try { S.T = await api(`/api/ui?lang=${encodeURIComponent(S.lang)}`); } catch { S.T = {}; }
   document.querySelectorAll("[data-t]").forEach((el) => { if (S.T[el.dataset.t]) el.textContent = S.T[el.dataset.t]; });
-  const readWord = t("read", "Read it to me").replace(/^🔊\s*/, "");
+  const readWord = t("ask", "Ask");
   document.querySelectorAll(".read span").forEach((b) => (b.textContent = readWord));
   document.querySelectorAll(".read").forEach((b) => b.setAttribute("aria-label", readWord));
   $("#text").placeholder = t("message", "Message");
@@ -199,7 +200,20 @@ function choiceReplies(choices) {
   chat.appendChild(q); scrollDown();
 }
 
+// the voice language follows what the trader actually speaks or writes: no switching by hand
+function followLanguage(r) {
+  const heard = r.detected && r.detected !== "English / Pidgin" ? r.detected : r.detected ? "English" : null;
+  const wrote = ["Yoruba", "Hausa", "Igbo"].includes(r.lang) ? r.lang : null;
+  const next = heard || wrote;
+  if (next && next !== S.speak) {
+    S.speak = next; store.set("tv_speak", next);
+    $("#speakLang span").textContent = SPEAK_LANGS.find((l) => l[0] === next)?.[1] || next;
+    toast(`🗣️ ${SPEAK_LANGS.find((l) => l[0] === next)?.[1] || next}`, 1800);
+  }
+}
+
 function showReply(r, { autoplay = false } = {}) {
+  followLanguage(r);
   let html = fmt(r.text);
   if (r.english) html += `<div class="en">🇬🇧 ${fmt(r.english)}</div>`;
   if (r.message) {
@@ -342,7 +356,7 @@ $("#photo").addEventListener("change", async (e) => {
 
 function photoRows(r) {
   if (!r.rows.length) return bubble("in", esc(t("photo_none", "I couldn't find money records in this photo.")));
-  const opts = (sel) => Object.entries(TYPES).map(([k, [ic, lb]]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${ic} ${lb}</option>`).join("");
+  const opts = (sel) => Object.entries(TYPES).map(([k, [, lb]]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${lb}</option>`).join("");
   const rows = r.rows.map((x, i) => `
     <div class="row" data-i="${i}">
       <input type="checkbox" ${x.save ? "checked" : ""}>
@@ -351,7 +365,7 @@ function photoRows(r) {
         <input class="f amt" inputmode="numeric" value="${x.amount ?? ""}" placeholder="₦ amount">
         <input class="f who" value="${esc(x.customer)}" placeholder="name">
       </div>
-      ${x.line ? `<div class="from">“${esc(x.line)}”</div>` : ""}
+      ${x.line ? `<div class="from">“${esc(x.line)}”${x.meaning ? `<br><span class="mean">${esc(x.meaning)}</span>` : ""}</div>` : ""}
       ${x.checks.length ? `<div class="chk">⚠️ ${esc(x.checks.join(" · "))}</div>` : ""}
     </div>`).join("");
   const el = bubble("in", `📸 ${esc(t("photo_read", "I read {n} lines.").replace("{n}", r.rows.length))}
@@ -365,7 +379,12 @@ function photoRows(r) {
     ev.target.disabled = true;
     try {
       const res = await post("/api/save_rows", { rows: out });
-      bubble("in", `✅ ${esc(t("saved_n", "Saved {n}.").replace("{n}", res.saved))}` + (res.problems.length ? `<div class="en">⚠️ ${esc(res.problems.join("; "))}</div>` : ""));
+      el.querySelectorAll("input,select").forEach((x) => (x.disabled = true));
+      ev.target.textContent = `✓ ${t("saved_n", "Saved {n}.").replace("{n}", res.saved)}`;
+      const done = bubble("in", `${esc(t("saved_n", "Saved {n}.").replace("{n}", res.saved))}` +
+        (res.problems.length ? `<div class="en">${esc(res.problems.join("; "))}</div>` : "") +
+        `<div class="rbtns"><button data-go="book">${esc(t("nav_book", "Book"))}</button></div>`);
+      $("[data-go]", done).onclick = () => showTab("book");
     } catch (e) { ev.target.disabled = false; bubble("in err", esc(e.message)); }
   };
 }
@@ -485,18 +504,93 @@ document.addEventListener("click", async (e) => {
   if (del && confirm("Delete this record?")) { await api(`/api/entry/${del}`, { method: "DELETE" }); loadBook(); }
 });
 
-// 🔊 read it to me: the sound starts inside the tap itself (phones block sound that starts after a wait)
-document.querySelectorAll(".read").forEach((b) => (b.onclick = () => {
-  const screen = b.dataset.screen, p = $("#player");
-  if (S.voice) {
-    p.src = `/api/read/${screen}/audio?lang=${encodeURIComponent(S.lang)}&t=${Date.now()}`;
-    p.play().catch(() => toast(t("error", "Something went wrong."), 3000));
-    b.classList.add("playing"); p.onended = p.onerror = () => b.classList.remove("playing");
-  }
-  api(`/api/read/${screen}?lang=${encodeURIComponent(S.lang)}`)
-    .then((r) => toast(r.text + (S.voice ? "" : "\n(🔇 voice is off on this server)"), 7000))
-    .catch((e) => toast(e.message));
-}));
+// 🎙️ Ask TradeVoice: explains the screen out loud, then answers spoken questions about the trader's own book
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+function unlockAudio() { const p = $("#player"); if (!p.src) { p.src = SILENT; p.play().catch(() => {}); } }
+function sayUrl(url) {   // plays on the same element the first tap unlocked (phones allow it after that)
+  if (!S.voice || !url) return;
+  const p = $("#player"); p.src = url; p.play().catch(() => {});
+}
+const A = { screen: "today", rec: null, chunks: [], stream: null };
+
+function aBubble(side, html) {
+  const el = document.createElement("div");
+  el.className = `msg ${side}`; el.innerHTML = html;
+  $("#alog").appendChild(el); $("#alog").scrollTop = $("#alog").scrollHeight;
+  return el;
+}
+
+function openAssist(screen) {
+  A.screen = screen;
+  unlockAudio();
+  if (S.voice) sayUrl(`/api/explain/${screen}/audio?lang=${encodeURIComponent(S.lang)}&t=${Date.now()}`); // inside the tap
+  sheet(`<div class="assist">
+    <div class="ahead"><h3>${esc(t("assist_title", "Ask TradeVoice"))}</h3><button class="icon" id="aClose" aria-label="Close">✕</button></div>
+    <div class="alog" id="alog"></div>
+    <p class="ahint" id="aHint">${esc(t("assist_hint", "Tap the mic and ask anything about your business."))}</p>
+    <form class="abar" id="aForm"><input id="aText" autocomplete="off" placeholder="${esc(t("ask_placeholder", "Or type a question"))}">
+      <button type="button" class="round" id="aMic" aria-label="${esc(t("hold", "Talk"))}">${svg("mic")}</button></form></div>`);
+  $("#sheet").classList.add("tall");
+  const wait = aBubble("in", '<span class="typing"><i></i><i></i><i></i></span>');
+  api(`/api/explain/${screen}?lang=${encodeURIComponent(S.lang)}`)
+    .then((r) => { wait.innerHTML = fmt(r.text); })
+    .catch((e) => { wait.innerHTML = esc(e.message); });
+  $("#aClose").onclick = closeAssist;
+  $("#aForm").onsubmit = (e) => { e.preventDefault(); const v = $("#aText").value.trim(); if (v) { $("#aText").value = ""; askAssist({ text: v }); } };
+  $("#aMic").onclick = toggleAssistRec;
+  $("#sheetBody").onclick = (e) => { const v = e.target.dataset?.say; if (v) askAssist({ text: v }); };
+}
+
+function closeAssist() {
+  if (A.rec && A.rec.state === "recording") { A.cancel = true; A.rec.stop(); }
+  $("#player").pause(); $("#sheet").hidden = true; $("#sheet").classList.remove("tall");
+}
+
+async function toggleAssistRec() {
+  unlockAudio();
+  const mic = $("#aMic");
+  if (A.rec && A.rec.state === "recording") { A.rec.stop(); return; }
+  if (!S.consent) return showWelcome();
+  try { A.stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch { return toast("Allow the microphone to talk, or type instead.", 4000); }
+  $("#player").pause();
+  const mime = pickMime();
+  A.rec = new MediaRecorder(A.stream, mime ? { mimeType: mime } : undefined); A.chunks = []; A.cancel = false;
+  A.rec.ondataavailable = (ev) => ev.data.size && A.chunks.push(ev.data);
+  A.rec.onstop = () => {
+    A.stream.getTracks().forEach((x) => x.stop()); mic.classList.remove("rec");
+    $("#aHint").textContent = t("assist_hint", "");
+    if (A.cancel || !A.chunks.length) return;
+    const blob = new Blob(A.chunks, { type: A.rec.mimeType || "audio/webm" });
+    const ext = (A.rec.mimeType || "").includes("mp4") ? ".m4a" : (A.rec.mimeType || "").includes("ogg") ? ".ogg" : ".webm";
+    askAssist({ blob, ext });
+  };
+  A.rec.start(); mic.classList.add("rec"); $("#aHint").textContent = t("listening", "Listening… tap to send");
+  setTimeout(() => { if (A.rec && A.rec.state === "recording") A.rec.stop(); }, 60000);
+}
+
+async function askAssist({ text = "", blob = null, ext = ".webm" }) {
+  const mine = aBubble("out", blob ? '<span class="typing"><i></i><i></i><i></i></span>' : fmt(text));
+  const wait = aBubble("in", `<span class="muted">${esc(t("thinking", "Thinking…"))}</span>`);
+  const fd = new FormData();
+  fd.append("screen", A.screen); fd.append("lang", S.lang); fd.append("speak_lang", S.speak);
+  fd.append("session", S.session); fd.append("shop", S.shop || ""); fd.append("consent", S.consent ? "yes" : "");
+  if (blob) fd.append("file", blob, "q" + ext); else fd.append("text", text);
+  try {
+    const r = await api("/api/assist", { method: "POST", body: fd, timeout: 90000 });
+    if (blob) mine.innerHTML = fmt(r.heard);
+    followLanguage(r);
+    let html = fmt(r.text) + (r.english ? `<div class="en">🇬🇧 ${fmt(r.english)}</div>` : "");
+    if (r.message) html += `<div class="quote">${fmt(r.message)}</div><a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">${esc(t("open_whatsapp", "Open WhatsApp"))}</a>`;
+    if (r.choices && r.choices.length) html += `<div class="quick choices">${r.choices.map(([id, lb]) => `<button data-say="${esc(id)}">${esc(lb)}</button>`).join("")}</div>`;
+    else if (r.pending) html += `<div class="quick"><button data-say="yes">${esc(t("yes_save", "Yes, save"))}</button><button data-say="no">${esc(t("no", "No"))}</button></div>`;
+    wait.innerHTML = html;
+    if (r.speak) sayUrl(`/api/speak/${r.speak}`);
+    $("#alog").scrollTop = $("#alog").scrollHeight;
+  } catch (e) { mine.innerHTML = mine.innerHTML.includes("typing") ? "🎙️" : mine.innerHTML; wait.innerHTML = esc(e.message); }
+}
+
+document.querySelectorAll(".read").forEach((b) => (b.onclick = () => openAssist(b.dataset.screen)));
 
 // ------------------------------------------------------------------ sheets: speaking language, menu, welcome
 
@@ -567,6 +661,18 @@ async function greet() {
       <div class="quick" style="margin-top:6px"><button data-remind="${esc(r.customer)}">📲 ${esc(t("remind", "Remind"))}</button></div>`));
   } catch {}
 }
+
+// App view (chat + dashboards) or WhatsApp view (just the conversation, as a trader sees it on WhatsApp)
+function setView(v) {
+  S.view = v === "wa" ? "wa" : "app"; store.set("tv_view", S.view);
+  document.body.classList.toggle("wa-view", S.view === "wa");
+  const b = $("#viewBtn");
+  if (b) { b.innerHTML = svg(S.view === "wa" ? "grid" : "chat", 20); b.title = S.view === "wa" ? "App view" : "WhatsApp view";
+           b.setAttribute("aria-label", b.title); }
+  if (S.view === "wa") showTab("talk");
+}
+$("#viewBtn").onclick = () => setView(S.view === "wa" ? "app" : "wa");
+setView(store.get("tv_view", "app"));
 
 (async function start() {
   try { const st = await api("/api/status"); S.voice = st.voice; if (!S.shop) S.shop = st.shop; } catch {}
