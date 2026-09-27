@@ -5,22 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#008069">
 <title>TradeVoice</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%2300a884'/%3E%3Cpath d='M22 26a10 10 0 0 1 20 0v4a10 10 0 0 1-10 10h-2.6l-6.4 4.6V40A10 10 0 0 1 22 30z' fill='none' stroke='white' stroke-width='3.4' stroke-linejoin='round'/%3E%3Cpath d='M40.5 22.5c3.8 1.6 6 4.6 6 8.5s-2.2 6.9-6 8.5' fill='none' stroke='%23e8a13d' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%2300a884'/><text x='50' y='66' font-size='50' text-anchor='middle'>🗣️</text></svg>">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div id="app">
   <header class="top">
-    <div class="avatar" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10.5a4 4 0 0 1 8 0v2a4 4 0 0 1-8 0z"/><path d="M14 7.8a5.6 5.6 0 0 1 0 9.4"/></svg></div>
+    <div class="avatar">🗣️</div>
     <div class="who">
       <div class="name">TradeVoice</div>
       <div class="sub" id="sub">online</div>
     </div>
-    <button class="pill" id="speakLang" title="I'm speaking"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10.5a4 4 0 0 1 8 0v2a4 4 0 0 1-8 0z"/><path d="M14 7.8a5.6 5.6 0 0 1 0 9.4"/></svg><span>English</span> ▾</button>
-    <button class="icon" id="menuBtn" aria-label="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
+    <button class="pill" id="speakLang" title="I'm speaking">🗣️ <span>English</span> ▾</button>
+    <button class="icon" id="menuBtn" aria-label="Menu">⋮</button>
   </header>
 
   <main>
@@ -57,32 +54,28 @@
   <footer class="composer" id="composer">
     <div class="box">
       <input id="text" autocomplete="off" placeholder="Message" enterkeyhint="send">
-      <label class="icon attach" title="Snap your book">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-2h6l2 2h3v12H4z"/><circle cx="12" cy="13" r="3.4"/></svg>
+      <label class="icon attach" title="Snap your book">📎
         <input type="file" id="photo" accept="image/*" capture="environment" hidden>
       </label>
     </div>
-    <button class="round" id="mic" aria-label="Hold to talk">
-      <svg class="i-mic" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
-      <svg class="i-send" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l16-8-6 8 6 8z"/></svg>
-    </button>
+    <button class="round" id="mic" aria-label="Hold to talk">🎤</button>
   </footer>
   <div class="recbar" id="recbar"><span class="dot"></span><span id="recTime">0:00</span>
     <span id="recHint">Recording… let go to send</span></div>
 
   <nav class="tabs">
-    <button data-tab="talk" class="on"><b><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg></b><span data-t="nav_talk">Chat</span></button>
-    <button data-tab="book"><b><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17V4"/><path d="M9.5 8.5h5M9.5 12h5"/></svg></b><span data-t="nav_book">Book</span></button>
-    <button data-tab="debts"><b><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h11v10H4z"/><path d="M15 10h3.5l1.5 3v4h-5"/><circle cx="8" cy="17" r="1.8"/><circle cx="17" cy="17" r="1.8"/></svg></b><span data-t="nav_debts">Debts</span></button>
-    <button data-tab="insights"><b><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V12"/><path d="M12 20V5"/><path d="M19 20v-6"/></svg></b><span data-t="nav_insights">Insights</span></button>
-    <button data-tab="profile"><b><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg></b><span data-t="nav_profile">Profile</span></button>
+    <button data-tab="talk" class="on"><b>💬</b><span data-t="nav_talk">Chat</span></button>
+    <button data-tab="book"><b>📒</b><span data-t="nav_book">Book</span></button>
+    <button data-tab="debts"><b>🤝</b><span data-t="nav_debts">Debts</span></button>
+    <button data-tab="insights"><b>🔮</b><span data-t="nav_insights">Insights</span></button>
+    <button data-tab="profile"><b>🏦</b><span data-t="nav_profile">Profile</span></button>
   </nav>
 </div>
 
 <!-- first open -->
 <div class="overlay" id="welcome" hidden>
   <div class="welcome">
-    <div class="bigavatar" aria-hidden="true"><svg width="58" height="58" viewBox="0 0 64 64" fill="none"><path d='M22 26a10 10 0 0 1 20 0v4a10 10 0 0 1-10 10h-2.6l-6.4 4.6V40A10 10 0 0 1 22 30z' stroke='white' stroke-width='3.4' stroke-linejoin='round'/><path d='M40.5 22.5c3.8 1.6 6 4.6 6 8.5s-2.2 6.9-6 8.5' stroke='%23e8a13d' stroke-width='3.2' stroke-linecap='round'/></svg></div>
+    <div class="bigavatar">🗣️</div>
     <h1 data-t="welcome">Welcome to TradeVoice</h1>
     <div class="langs" id="welcomeLangs"></div>
     <p class="consent" data-t="consent"></p>
