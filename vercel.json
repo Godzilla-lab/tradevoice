@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "",
+  "installCommand": "",
+  "outputDirectory": "web",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://financing-metallic-supplemental-increasingly.trycloudflare.com/api/:path*" },
+    { "source": "/admin/:path*", "destination": "https://financing-metallic-supplemental-increasingly.trycloudflare.com/admin/:path*" },
+    { "source": "/static/:path*", "destination": "/:path*" }
+  ]
+}

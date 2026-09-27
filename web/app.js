@@ -34,8 +34,10 @@ function toast(msg, ms = 2500) {
   clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove("on"), ms);
 }
 
+// ngrok's free links show a warning page to browsers unless this header is sent (harmless elsewhere)
+const HDR = { "ngrok-skip-browser-warning": "1" };
 async function api(path, opts = {}) {
-  const r = await fetch(path, opts);
+  const r = await fetch(path, { ...opts, headers: { ...HDR, ...(opts.headers || {}) } });
   let body = null;
   try { body = await r.json(); } catch {}
   if (!r.ok) throw new Error((body && (body.error || body.detail)) || `Error ${r.status}`);
@@ -82,6 +84,27 @@ function typing() {
   return el;
 }
 
+// voice reply -> a local blob url (works through Vercel/ngrok, where <audio src> can't send headers)
+async function speakUrl(id) {
+  const r = await fetch(`/api/speak/${id}`, { headers: HDR });
+  if (!r.ok) throw new Error("voice off");
+  return URL.createObjectURL(await r.blob());
+}
+
+// shrink phone photos before upload: faster on market data, and under Vercel's 4.5 MB request limit
+async function shrink(file, side = 1800) {
+  try {
+    const img = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const k = Math.min(1, side / Math.max(img.width, img.height));
+    if (k === 1 && file.size < 3e6) return file;
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.85));
+    return blob ? new File([blob], "page.jpg", { type: "image/jpeg" }) : file;
+  } catch { return file; }
+}
+
 // a voice note bubble; src = url, or a speak id we turn into audio only when played
 function voiceNote(src, { speakId = null, autoplay = false } = {}) {
   const wrap = document.createElement("div");
@@ -100,8 +123,10 @@ function voiceNote(src, { speakId = null, autoplay = false } = {}) {
   };
   audio.onended = () => { btn.textContent = "▶"; waves.forEach((w) => w.classList.remove("done")); };
   audio.onerror = () => { wrap.remove(); };
-  const play = () => {
-    if (!audio.src) audio.src = src || `/api/speak/${speakId}`;
+  const play = async () => {
+    if (!audio.src) {
+      try { audio.src = src || (await speakUrl(speakId)); } catch { wrap.remove(); return; }
+    }
     if (audio.paused) {
       document.querySelectorAll("audio").forEach((a) => a !== audio && a.pause());
       voiceNote.current?.pause(); voiceNote.current = audio;
@@ -228,7 +253,7 @@ $("#photo").addEventListener("change", async (e) => {
   if (!S.consent) return showWelcome();
   bubble("out", `<img class="snap" src="${URL.createObjectURL(file)}" alt="book page">`, { ticks: true });
   const wait = typing();
-  const fd = new FormData(); fd.append("file", file); fd.append("consent", "yes");
+  const fd = new FormData(); fd.append("file", await shrink(file)); fd.append("consent", "yes");
   try {
     const r = await api("/api/photo", { method: "POST", body: fd });
     wait.remove(); photoRows(r);
@@ -341,7 +366,7 @@ async function loadProfile() {
     <div class="card"><h2>Why this score</h2>${p.parts.map((x) => `<div class="part"><b>${esc(x.name)}</b> · ${Math.round(x.points)}/${x.max}
       <div class="bar"><i style="width:${Math.round((x.points / x.max) * 100)}%"></i></div><div class="why">${esc(x.why)}</div></div>`).join("")}
       <p class="note">A simple published formula over your own records, no hidden AI. It helps you talk to a lender, cooperative or ajo group; it is not a loan decision.${p.has_demo_data ? " Includes demo data for the hackathon." : ""}</p>
-      <a class="btn" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download>${esc(t("statement", "⬇️ Statement for lender / cooperative"))}</a></div>
+      <a class="btn" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${esc(t("statement", "⬇️ Statement for lender / cooperative"))}</a></div>
     <div class="card"><h2>📒 My year so far</h2><pre class="year">${esc(year)}</pre></div>`;
 }
 
@@ -365,7 +390,7 @@ document.querySelectorAll(".read").forEach((b) => (b.onclick = async () => {
   try {
     const r = await api(`/api/read/${b.dataset.screen}?lang=${encodeURIComponent(S.lang)}`);
     toast(r.text, 6000);
-    if (S.voice && r.speak) { const p = $("#player"); p.src = `/api/speak/${r.speak}`; await p.play().catch(() => {}); }
+    if (S.voice && r.speak) { const p = $("#player"); p.src = await speakUrl(r.speak); await p.play().catch(() => {}); }
   } catch (e) { toast(e.message); }
   b.disabled = false;
 }));

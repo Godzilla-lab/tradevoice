@@ -143,6 +143,10 @@ python app.py
    That trycloudflare link is the demo link for judges' phones (no login). Backup: `GRADIO_SHARE=1 python app.py`
    prints a public `….gradio.live` link for the old Gradio screens. Brev's own tunnels sit behind a Cloudflare
    login, so judges' phones can't open them directly.
+**Optional nicer link on Vercel** (e.g. `tradevoice.vercel.app`): Vercel serves only the pages in `web/`; every
+`/api` call is passed to our server by `vercel.json`. When the server's public link changes, update the two
+`destination` lines in `vercel.json` and push (Vercel redeploys by itself).
+
 **After a stop/start, one command brings everything back:** `bash start_brev.sh` (both models, web app, public
 link, model check); `bash start_brev.sh stop` before stopping the machine. For a link that stays the same across
 restarts, put `NGROK_AUTHTOKEN` and `NGROK_DOMAIN` (the free static domain from dashboard.ngrok.com) in `.env`.
