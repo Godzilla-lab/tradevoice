@@ -258,7 +258,7 @@ async function startRec() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch {
-    state = "idle"; return toast("Allow the microphone to talk, or type instead.", 4000);
+    state = "idle"; return toast("Allow the microphone to talk to TradeVoice.", 4000);
   }
   const mime = pickMime();
   rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
@@ -560,15 +560,13 @@ function openAssist(screen) {
       <button class="orb" id="orb" aria-label="Talk">${svg("mic", 30)}</button>
       <div class="cstate" id="cstate">${esc(t("assist_hint", "Tap and talk"))}</div>
       <button class="textbtn" id="cend" hidden>${esc(t("end_call", "End"))}</button>
-    </div>
-    <form class="abar" id="aForm"><input id="aText" autocomplete="off" placeholder="${esc(t("ask_placeholder", "Or type a question"))}"></form></div>`);
+    </div></div>`);  // voice only: talk to it like a phone call (typing stays in the main chat)
   $("#sheet").classList.add("tall");
   const wait = aBubble("in", '<span class="typing"><i></i><i></i><i></i></span>');
   api(`/api/explain/${screen}?lang=${encodeURIComponent(S.lang)}`)
     .then((r) => { wait.innerHTML = fmt(r.text); })
     .catch((e) => { wait.innerHTML = esc(e.message); });
   $("#aClose").onclick = closeAssist;
-  $("#aForm").onsubmit = (e) => { e.preventDefault(); const v = $("#aText").value.trim(); if (v) { $("#aText").value = ""; askAssist({ text: v }); } };
   $("#orb").onclick = () => (VC.on ? (VC.phase === "speaking" ? interrupt() : null) : startCall());
   $("#cend").onclick = endCall;
   startCall();  // hands-free from the first tap: it explains the screen, then listens
@@ -597,7 +595,7 @@ async function startCall() {
     VC.ctx = VC.ctx || new (window.AudioContext || window.webkitAudioContext)();
     if (VC.ctx.state === "suspended") await VC.ctx.resume();
     if (!VC.an) { VC.an = VC.ctx.createAnalyser(); VC.an.fftSize = 1024; VC.ctx.createMediaStreamSource(VC.stream).connect(VC.an); }
-  } catch { VC.on = false; callState("idle", t("assist_hint", "")); return toast("Allow the microphone to talk, or type instead.", 4000); }
+  } catch { VC.on = false; callState("idle", t("assist_hint", "")); return toast("Allow the microphone to talk to TradeVoice.", 4000); }
   const p = $("#player");
   if (!p.paused && p.src && !p.src.startsWith("data:")) { callState("speaking", t("speaking", "Speaking… tap to talk")); p.onended = p.onerror = () => VC.on && listen(); }
   else listen();

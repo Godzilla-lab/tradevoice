@@ -96,7 +96,8 @@ def explain(screen, lang="English", today=None):
         try:
             import llm
 
-            if llm.available():
+            # Yoruba / Hausa / Igbo: our checked sentences read better than the AI's (a 14B model's Yoruba is weak)
+            if llm.available() and lang not in ("Yoruba", "Hausa", "Igbo"):
                 ans, model = _ask_ai(f"Explain this screen to me: what the numbers mean for my business and "
                                      f"one thing I should do next.", screen, lang, facts, sentences=5)
                 if ans and _numbers_ok(ans, facts):

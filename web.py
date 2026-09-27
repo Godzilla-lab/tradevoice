@@ -110,6 +110,20 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
     return out
 
 
+@app.get("/api/voice_check")
+def voice_check(lang: str = "Yoruba"):
+    """Open /api/voice_check?lang=Yoruba in a browser: says whether the voice works, and the error if not."""
+    samples = {"English": "Hello, I am your book.", "Pidgin": "Hello, na me be your book.",
+               "Yoruba": "Ẹ n lẹ́ o. Èmi ni ìwé rẹ.", "Hausa": "Sannu. Ni ne littafinka.", "Igbo": "Ndewo. Abụ m akwụkwọ gị."}
+    try:
+        out = tts.speak(samples.get(lang, samples["English"]), lang if lang in tts.REPLY_LANGS else "English")
+        if not out:
+            return {"lang": lang, "ok": False, "error": "no voice set up: SPITCH_API_KEY missing or spitch not installed"}
+        return {"lang": lang, "ok": True, "engine": out["engine"], "bytes": os.path.getsize(out["path"])}
+    except Exception as e:  # noqa: BLE001
+        return {"lang": lang, "ok": False, "error": f"{type(e).__name__}: {e}"[:500]}
+
+
 @app.get("/api/speak/{sid}")
 def speak(sid: str):
     """The voice note for a reply, made on first request (so the text shows without waiting for the voice)."""

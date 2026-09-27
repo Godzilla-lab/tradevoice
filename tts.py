@@ -256,7 +256,7 @@ def _tmp(suffix):
     return path
 
 
-def _spitch(text, language, fmt, voice_override=None, speed=None):
+def _spitch(text, language, fmt, voice_override=None, speed=None, with_code=True):
     from spitch import Spitch
 
     lang, voice = SPITCH_VOICES.get(language, SPITCH_VOICES["English"])
@@ -266,7 +266,7 @@ def _spitch(text, language, fmt, voice_override=None, speed=None):
     speed = speed or float(os.getenv("TTS_SPEED", "0") or 0)  # 1.0 = Spitch default; try 0.9-1.1
     if speed:
         kwargs["speed"] = speed
-    if lang:
+    if lang and with_code:
         kwargs["language"] = lang
     resp = client.speech.generate(**kwargs)
     path = _tmp({"ogg_opus": ".ogg", "mp3": ".mp3"}.get(fmt, ".wav"))
@@ -277,6 +277,67 @@ def _spitch(text, language, fmt, voice_override=None, speed=None):
         with open(path, "wb") as f:
             f.write(data)
     return path
+
+
+def speakable(text):
+    """What a voice can say: no emoji, no *bold*/_italic_ marks, no link, ₦ -> naira."""
+    import re
+
+    text = re.sub(r"https?://\S+", "", text or "")
+    text = re.sub(r"₦\s?", "naira ", text)
+    text = re.sub(r"[*_~`#>|•👉👇]", " ", text)
+    text = "".join(c for c in text if not (0x1F000 <= ord(c) <= 0x1FAFF or 0x2600 <= ord(c) <= 0x27BF or ord(c) in (0xFE0F, 0x200D)))
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _chunks(text, size=240):
+    """Short pieces at sentence ends (long texts are where local-language voices fail)."""
+    import re
+
+    out, cur = [], ""
+    for sent in re.split(r"(?<=[.!?])\s+", text):
+        if cur and len(cur) + len(sent) + 1 > size:
+            out.append(cur)
+            cur = sent
+        else:
+            cur = f"{cur} {sent}".strip()
+    return out + ([cur] if cur else [])
+
+
+def _join_wavs(paths):
+    import wave
+
+    out = _tmp(".wav")
+    with wave.open(out, "wb") as w:
+        for i, p in enumerate(paths):
+            with wave.open(p, "rb") as r:
+                if i == 0:
+                    w.setparams(r.getparams())
+                w.writeframes(r.readframes(r.getnframes()))
+    for p in paths:
+        os.remove(p)
+    return out
+
+
+def _spitch_safe(text, language, fmt, voice, speed):
+    """Spitch, made sturdy: clean text, short pieces, and one retry without the language code. Errors are printed
+    (the web app otherwise just stays silent)."""
+    text = speakable(text)
+    if not text:
+        raise RuntimeError("nothing to say")
+    parts = _chunks(text) if fmt == "wav" else [text]
+    paths = []
+    for part in parts:
+        try:
+            paths.append(_spitch(part, language, fmt, voice, speed))
+        except Exception as e:  # noqa: BLE001
+            print(f"voice failed ({language}, {voice}, {len(part)} chars): {type(e).__name__}: {e}")
+            try:  # some voices reject the language code; the voice already fixes the language
+                paths.append(_spitch(part, language, fmt, voice, speed, with_code=False))
+            except Exception as e2:  # noqa: BLE001
+                print(f"voice failed again without language code: {type(e2).__name__}: {e2}")
+                raise
+    return paths[0] if len(paths) == 1 else _join_wavs(paths)
 
 
 def _mms_speak(text, language):
@@ -311,5 +372,5 @@ def speak(text, language="Pidgin", fmt="wav", voice=None, speed=None):
         return None
     if engine == "spitch":
         v = voice or os.getenv(f"TTS_VOICE_{language.upper()}") or SPITCH_VOICES.get(language, ("", ""))[1]
-        return {"path": _spitch(text, language, fmt, v, speed), "engine": f"spitch:{v}" + (f"@{speed}" if speed else "")}
+        return {"path": _spitch_safe(text, language, fmt, v, speed), "engine": f"spitch:{v}" + (f"@{speed}" if speed else "")}
     return {"path": _mms_speak(text, language), "engine": f"mms:{MMS_MODELS.get(language)}"}
