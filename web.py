@@ -20,9 +20,9 @@ from pydantic import BaseModel
 import converse
 import insights
 import ledger
+import photo
 import tts
 import ui_text
-from extract import TYPES, extract_many
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHOP_NAME = os.getenv("SHOP_NAME", "Chioma Stores")
@@ -30,6 +30,9 @@ VOICE_LANGS = {"English": "English / Pidgin", "Pidgin": "English / Pidgin", "Yor
                "Igbo": "Igbo"}
 
 app = FastAPI(title="TradeVoice")
+import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, same book)
+
+app.include_router(whatsapp.router)
 SESSIONS = {}   # browser session id -> conversation state (who "her" is, the draft waiting for "yes")
 SPEAK = {}      # speak id -> (text, language) ; audio is made only when the page asks for it
 AUDIO = {}      # speak id -> audio file path
@@ -115,42 +118,17 @@ def speak(sid: str):
 
 # ---------------------------------------------------------------- photo of the book
 
-def _row(r):
-    checks = []
-    if r["amount"] is None:
-        checks.append("add amount")
-    if r["confidence"] < 0.6:
-        checks.append("check this")
-    if r.get("note"):
-        checks.append(r["note"])
-    if r["type"] == "credit_sale" and r.get("customer"):
-        risk = ledger.customer_risk(r["customer"])
-        if risk["level"] in ("medium", "high"):
-            checks.append(risk["message"])
-    return {"save": r["amount"] is not None and r["confidence"] >= 0.6, "type": r["type"], "amount": r["amount"],
-            "customer": r.get("customer") or "", "due_date": r.get("due_date") or "", "item": r.get("item") or "",
-            "quantity": r.get("quantity"), "unit": r.get("unit") or "", "line": r.get("line") or "",
-            "checks": checks}
-
-
 @app.post("/api/photo")
-def photo(file: UploadFile = File(...), consent: str = Form("")):
+def photo_api(file: UploadFile = File(...), consent: str = Form("")):
     if consent != "yes":
         raise HTTPException(400, "consent needed")
     path = _upload(file, os.path.splitext(file.filename or "")[1] or ".jpg")
     try:
-        from vision import read_notebook
-
-        res = read_notebook(path)
+        return photo.read(path)
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": f"Could not read the photo ({type(e).__name__}: {str(e)[:100]})."}, 502)
     finally:
         os.remove(path)  # the photo is deleted as soon as it is read
-    if not res["text"]:
-        return {"rows": [], "lines": "", "engine": res["engine"]}
-    recs, meta = extract_many(res["text"])
-    return {"rows": [_row(r) for r in recs], "lines": res["text"], "engine": res["engine"],
-            "brain": meta["engine"], "ms": res["latency_ms"] + meta["latency_ms"]}
 
 
 class Rows(BaseModel):
@@ -159,26 +137,7 @@ class Rows(BaseModel):
 
 @app.post("/api/save_rows")
 def save_rows(body: Rows):
-    saved, problems = 0, []
-    for n, row in enumerate(body.rows, 1):
-        if not row.get("save"):
-            continue
-        try:
-            amount = float(str(row.get("amount") or 0).replace(",", "").replace("₦", ""))
-        except ValueError:
-            amount = 0
-        if row.get("type") not in TYPES or amount <= 0:
-            problems.append(f"line {n}: needs a type and an amount")
-            continue
-        qty = row.get("quantity")
-        ledger.add_entry({"type": row["type"], "amount": amount, "customer": (row.get("customer") or "").strip() or None,
-                          "due_date": (row.get("due_date") or "").strip() or None,
-                          "item": (row.get("item") or "").strip() or None,
-                          "quantity": float(qty) if qty not in (None, "") else None,
-                          "unit": (row.get("unit") or "").strip() or None},
-                         raw_text=row.get("line") or "", engine="photo")
-        saved += 1
-    return {"saved": saved, "problems": problems}
+    return photo.save(body.rows)
 
 
 # ---------------------------------------------------------------- screens
@@ -267,7 +226,7 @@ def status():
     return {"hearing": hearing, "voice": tts.backend(),
             "brain": "brev" if os.getenv("LOCAL_LLM_URL") else ("nvidia" if os.getenv("NVIDIA_API_KEY") else "offline"),
             "photos": "brev" if os.getenv("LOCAL_VISION_URL") else ("nvidia" if llm.available("vision") else "off"),
-            "shop": SHOP_NAME}
+            "shop": SHOP_NAME, "whatsapp": bool(os.getenv("WHATSAPP_TOKEN") and os.getenv("WHATSAPP_PHONE_ID"))}
 
 
 # ---------------------------------------------------------------- pages

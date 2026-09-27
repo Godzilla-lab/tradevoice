@@ -73,6 +73,8 @@ deterministic and explainable, so the AI can never invent a number in your books
 | `asr_server/server.py` | Optional standalone speech API (FastAPI) for a Brev GPU, same engines as `asr.py` |
 | `vision.py` | Book photo → text lines (shrinks the image to fit NVIDIA's inline-image limit) |
 | `extract.py` | Text → entries. LLM first; rules as fallback and amount cross-check. `extract()` for one, `extract_many()` for many lines |
+| `whatsapp.py` | 📲 WhatsApp bot (Meta Cloud API webhook at `/whatsapp/webhook`, inside `web.py`): sign-up in chat, voice notes, photos, buttons, voice-note replies; `eval/test_whatsapp.py` |
+| `photo.py` | Notebook photo → draft rows → tick/fix → save (shared by web and WhatsApp) |
 | `converse.py` | 💬 One conversation over one book: routes each message (record, yes/no, question, reminder), follows the language per message, remembers who "her/him" is. Channel-free: the WhatsApp bot can call `reply()` as it is |
 | `ledger.py` | SQLite storage, daily summary, debtors (oldest debt paid first), customer credit check, record score |
 | `insights.py` | Forecast, best sellers, WhatsApp reminders, Ask-my-book, lender statement |

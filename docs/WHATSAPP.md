@@ -1,5 +1,12 @@
 # 📲 TradeVoice on WhatsApp: research + build plan
 
+> **Built (27 Sep):** `whatsapp.py`, mounted in `web.py` (same server, link and book as the web app).
+> Webhook: `https://<app link>/whatsapp/webhook`. Env: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_VERIFY_TOKEN`,
+> optional `WHATSAPP_APP_SECRET`, `PUBLIC_URL`. Sign-up in chat (language list → "I agree"), voice notes (Intron),
+> texts, notebook photos ("2 = 40k" to fix a line, "no 2" to skip), ✅/❌ buttons, voice-note replies, reminders to
+> forward, "voice off", "dashboard". Tested without Meta by `eval/test_whatsapp.py` (15/15).
+> Not built: shop name / statement as a document / "delete my data" in chat (use the web app), per-trader books.
+
 **Decision:** one engine, two front doors.
 - **WhatsApp**: how traders actually use it. Send a voice note, a photo of the notebook, or a text; get the record back.
 - **Web app**: dashboard + demo + backup if WhatsApp fails live. Same data.

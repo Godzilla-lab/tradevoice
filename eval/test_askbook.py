@@ -40,6 +40,8 @@ CASES = [  # question, expected money, expected language
     ("How much rice I buy this week?", 120000, "English"),
     ("Who I owe?", 70000, "English"),
     ("How much Mama Tunde owe me?", 30000, "English"),
+    ("Who owes me?", 30000, "English"),
+    ("Who dey owe me?", 30000, "Pidgin"),
     # everyday English phrasings
     ("What were my total sales last month?", 150000, "English"),
     ("How much did I sell yesterday?", 45000, "English"),

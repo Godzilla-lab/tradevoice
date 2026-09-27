@@ -32,6 +32,10 @@ Brev runs the AI brain (LLM) and the photo reader (VLM). Speech-to-text is Intro
    INTRON_API_KEY=...
    SPITCH_API_KEY=...
    NVIDIA_API_KEY=...
+   WHATSAPP_TOKEN=...           # Meta → WhatsApp → API Setup → access token
+   WHATSAPP_PHONE_ID=...        # Meta → WhatsApp → API Setup → Phone number ID
+   WHATSAPP_VERIFY_TOKEN=tradevoice-2026   # any word; type the same in Meta's webhook form
+   PUBLIC_URL=https://…         # the app link, so "dashboard" on WhatsApp can send it
    NGROK_AUTHTOKEN=...          # optional
    NGROK_DOMAIN=....ngrok-free.app   # optional
    ```
