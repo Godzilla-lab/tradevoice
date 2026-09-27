@@ -155,7 +155,8 @@ function renderThread() {
 }
 
 function recordCard(e, bal = {}) {
-  const what = e.item ? (e.quantity ? `${e.item} × ${e.quantity}${e.unit ? " " + e.unit : ""}` : e.item) : "";
+  const unit = e.unit ? (e.quantity && e.quantity !== 1 && !/s$/.test(e.unit) ? e.unit + "s" : e.unit) : "";
+  const what = e.item ? (e.quantity ? `${e.quantity}${unit ? " " + unit : ""} ${unit ? "of " : ""}${e.item}` : e.item) : "";
   const bits = [what, e.due_date ? t("due", "Due {d}").replace("{d}", day(e.due_date)) : ""].filter(Boolean);
   const IN = ["sale", "payment_received"], sign = IN.includes(e.type) ? "+" : e.type === "credit_sale" ? "" : "−";
   const cls = IN.includes(e.type) ? "in" : e.type === "credit_sale" ? "credit" : "out";

@@ -527,3 +527,4 @@ ul.trust .ic { color: var(--in); }
   .box { padding-left: 12px; }
 }
 .figures .s { overflow-wrap: anywhere; }
+@media (max-width: 340px) { .tabs button { font-size: 10.5px; } .tabs button span { padding: 0 1px; } .tabs button b { width: 46px; } }
