@@ -40,6 +40,7 @@ vision.read_notebook = lambda path: {"text": "Iya Bisi paid 15k\nOga Emeka owe 4
 client = TestClient(web.app)
 PHONE = "2348000000001"
 n = 0
+ALL = []
 
 
 def post(msg):
@@ -51,6 +52,7 @@ def post(msg):
     r = client.post("/whatsapp/webhook", content=body, headers={"X-Hub-Signature-256": sig,
                                                                 "Content-Type": "application/json"})
     assert r.status_code == 200, r.text
+    ALL.extend(SENT)
     return [s for s in SENT if s.get("status") != "read"]
 
 
@@ -136,6 +138,8 @@ def main():
     global n
     n -= 1  # same message id again (Meta retry)
     check("duplicate delivery is ignored", post(dup) == [])
+    check("no 'Something went wrong' after normal messages", not any("went wrong" in json.dumps(x) for x in ALL),
+          [x for x in ALL if "went wrong" in json.dumps(x)][:2])
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} WhatsApp checks pass")
     return len(CHECKS) - sum(CHECKS)
 

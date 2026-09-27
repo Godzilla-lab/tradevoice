@@ -435,12 +435,12 @@ def _safe(msg):
     except Exception as e:  # noqa: BLE001 - never crash the server on one bad message
         STATS["last_error"] = f"{type(e).__name__}: {e}"[:400]
         print(f"whatsapp message failed: {type(e).__name__}: {e}")
-    finally:
-        ledger.done_with_book(token)
-        try:
+        try:  # only when something really failed
             send_text(msg["from"], "😕 Something went wrong on my side. Please try again.")
         except Exception:  # noqa: BLE001
             pass
+    finally:
+        ledger.done_with_book(token)
 
 
 @router.post("/whatsapp/webhook")
