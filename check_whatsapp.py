@@ -122,8 +122,16 @@ try:
     else:
         say(False, "No voice set up", "SPITCH_API_KEY in .env, and: .venv/bin/pip install spitch")
 except Exception as e:  # noqa: BLE001
-    say(False, f"Making a voice note failed: {type(e).__name__}: {e}"[:300],
-        "If it mentions ffmpeg: sudo apt-get install -y ffmpeg. If Spitch: check SPITCH_API_KEY.")
+    m = str(e).lower()
+    fix = ("Spitch has no credits left: top up at spitch.app. Meanwhile the app speaks with the free MMS voices "
+           "(English, Pidgin, Yoruba, Hausa) if this works: .venv/bin/pip install transformers torch; and for WhatsApp "
+           "voice notes: sudo apt-get install -y ffmpeg" if ("credit" in m or "402" in m) else
+           "sudo apt-get install -y ffmpeg" if "ffmpeg" in m else "Check SPITCH_API_KEY in .env")
+    say(False, f"Making a voice note failed: {type(e).__name__}: {e}"[:220], fix)
+import shutil  # noqa: E402
+
+say(bool(shutil.which("ffmpeg")), "ffmpeg is installed (needed when the voice comes as WAV, e.g. the free MMS voices)",
+    "sudo apt-get install -y ffmpeg")
 if seen.get("last_voice_error"):
     print(f"   Last voice error while replying: {seen['last_voice_error']}")
     if "upload" in seen["last_voice_error"]:

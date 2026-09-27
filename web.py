@@ -7,6 +7,7 @@ The API only moves data; every number still comes from ledger.py / insights.py, 
 """
 import datetime as dt
 import os
+import re
 import shutil
 import tempfile
 import urllib.parse
@@ -787,7 +788,7 @@ app.mount("/static", StaticFiles(directory=os.path.join(HERE, "web")), name="sta
 
 @app.get("/")
 def landing():
-    return FileResponse(os.path.join(HERE, "web", "landing.html"))
+    return _page("landing.html")
 
 
 @app.get("/sw.js")
@@ -802,9 +803,26 @@ def _auto_reminders():
     extras.start_scheduler()
 
 
+NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}
+
+
+def _version():
+    """Changes whenever any file in web/ changes: stamped on /static links so a browser never mixes an old page
+    with a new stylesheet (that showed old tabs with the new colours and an empty Insights screen)."""
+    web = os.path.join(HERE, "web")
+    return str(int(max(os.path.getmtime(os.path.join(web, f)) for f in os.listdir(web))))
+
+
+def _page(name):
+    html = open(os.path.join(HERE, "web", name), encoding="utf-8").read()
+    v = _version()
+    html = re.sub(r'(/static/[\w.-]+\.(?:css|js|svg|png))(?=["\'])', rf"\1?v={v}", html)
+    return HTMLResponse(html, headers=NO_CACHE)
+
+
 @app.get("/app")
 def index():
-    return FileResponse(os.path.join(HERE, "web", "index.html"))
+    return _page("index.html")
 
 
 if os.getenv("TRADEVOICE_ADMIN", "1") == "1":  # the old Gradio screens, as a backup, at /admin

@@ -10,6 +10,7 @@ Yoruba/Hausa/Igbo, and traders commonly say prices in English anyway.
 ⚠️ The Yoruba/Hausa/Igbo sentences below were written by a non-native speaker: have native speakers check them.
 """
 import os
+import time
 import tempfile
 
 REPLY_LANGS = ["Pidgin", "English", "Yoruba", "Hausa", "Igbo"]
@@ -370,7 +371,36 @@ def speak(text, language="Pidgin", fmt="wav", voice=None, speed=None):
     engine = backend()
     if not engine:
         return None
-    if engine == "spitch":
+    if engine == "spitch" and time.time() >= _SPITCH_DOWN["until"]:
         v = voice or os.getenv(f"TTS_VOICE_{language.upper()}") or SPITCH_VOICES.get(language, ("", ""))[1]
-        return {"path": _spitch_safe(text, language, fmt, v, speed), "engine": f"spitch:{v}" + (f"@{speed}" if speed else "")}
-    return {"path": _mms_speak(text, language), "engine": f"mms:{MMS_MODELS.get(language)}"}
+        try:
+            return {"path": _spitch_safe(text, language, fmt, v, speed),
+                    "engine": f"spitch:{v}" + (f"@{speed}" if speed else "")}
+        except Exception as e:  # noqa: BLE001
+            msg = str(e).lower()
+            if not any(w in msg for w in ("402", "credit", "quota", "401", "unauthori", "forbidden", "403")):
+                raise
+            # out of credits / key refused: stop asking Spitch for 10 minutes, speak with the free MMS voices instead
+            _SPITCH_DOWN["until"], _SPITCH_DOWN["why"] = time.time() + 600, str(e)[:200]
+            print(f"Spitch unavailable ({str(e)[:120]}); using MMS voices for 10 minutes")
+    elif engine == "spitch":
+        pass  # Spitch is resting after an error: go straight to MMS
+    if language not in MMS_MODELS or not _mms_ok():
+        if engine == "spitch":
+            raise RuntimeError(f"Spitch unavailable ({_SPITCH_DOWN['why'] or 'error'}) and no free voice for {language}"
+                               + ("" if _mms_ok() else " (pip install transformers torch for the MMS voices)"))
+        return None
+    return {"path": _mms_speak(speakable(text), language), "engine": f"mms:{MMS_MODELS.get(language)}"}
+
+
+_SPITCH_DOWN = {"until": 0.0, "why": ""}
+
+
+def _mms_ok():
+    try:
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
