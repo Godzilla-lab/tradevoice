@@ -12,11 +12,12 @@ import tempfile
 import uuid
 
 import settings  # noqa: F401  (loads .env before the other modules read it)
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import accounts
 import converse
 import insights
 import ledger
@@ -34,14 +35,49 @@ app = FastAPI(title="TradeVoice")
 import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, same book)
 
 app.include_router(whatsapp.router)
-SESSIONS = {}   # browser session id -> conversation state (who "her" is, the draft waiting for "yes")
+AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "1") == "1"
+OPEN_API = ("/api/auth/", "/api/ui", "/api/status", "/api/voice_check")
+COOKIE = "tv_auth"
+
+
+class BookPerTrader:
+    """Every request works on the logged-in trader's own book (books/<number>.db). Not logged in -> 401 for the API."""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.inner(scope, receive, send)
+        cookies = {}
+        for k, v in scope.get("headers", []):
+            if k == b"cookie":
+                for part in v.decode("latin-1").split(";"):
+                    name, _, val = part.strip().partition("=")
+                    cookies[name] = val
+        phone = accounts.phone_for(cookies.get(COOKIE))
+        path = scope.get("path", "")
+        if (AUTH_REQUIRED and not phone and path.startswith("/api/") and not path.startswith(OPEN_API)):
+            return await JSONResponse({"error": "Please log in with your phone number.", "login": True}, 401)(
+                scope, receive, send)
+        scope.setdefault("state", {})["phone"] = phone
+        token = ledger.use_book(phone) if phone else None
+        try:
+            await self.inner(scope, receive, send)
+        finally:
+            if token:
+                ledger.done_with_book(token)
+
+
+app.add_middleware(BookPerTrader)
+SESSIONS = {}   # (book, browser session id) -> conversation state (who "her" is, the draft waiting for "yes")
 SPEAK = {}      # speak id -> (text, language) ; audio is made only when the page asks for it
 AUDIO = {}      # speak id -> audio file path
 
 
 def _state(session, lang=None):
     """The chat's memory. `lang` = the language the trader picked; replies use it unless they clearly speak another."""
-    st = SESSIONS.setdefault(session or "anon", converse.new_state())
+    st = SESSIONS.setdefault((ledger.book_path(), session or "anon"), converse.new_state())
     if lang in VOICE_LANGS:
         st["prefer"] = lang
     return st
@@ -443,7 +479,8 @@ class Wipe(BaseModel):
 def wipe(w: Wipe):
     if w.confirm != "DELETE":
         raise HTTPException(400, "type DELETE")
-    SESSIONS.clear()
+    for k in [k for k in SESSIONS if k[0] == ledger.book_path()]:
+        SESSIONS.pop(k)
     return {"deleted": ledger.wipe()}
 
 
@@ -465,6 +502,128 @@ def status():
             "shop": SHOP_NAME, "whatsapp": bool(os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID")
                                                                or os.getenv("WHATSAPP_PHONE_NUMBER_ID"))),
             "whatsapp_seen": whatsapp.STATS}
+
+
+# ---------------------------------------------------------------- 🔐 log in with your phone number
+
+class Start(BaseModel):
+    phone: str
+    lang: str | None = None
+
+
+class Code(BaseModel):
+    login_id: str
+    code: str = ""
+
+
+class Me(BaseModel):
+    name: str | None = None
+    shop: str | None = None
+    lang: str | None = None
+
+
+def _logged_in(request: Request, phone):
+    token = accounts.new_session(phone)
+    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    r = JSONResponse({"ok": True, "me": _me(phone)})
+    r.set_cookie(COOKIE, token, max_age=accounts.SESSION_DAYS * 86400, httponly=True, samesite="lax", secure=secure)
+    return r
+
+
+def _me(phone):
+    p = accounts.profile(phone)
+    token = ledger.use_book(phone)
+    try:
+        empty = ledger.is_empty()
+    finally:
+        ledger.done_with_book(token)
+    return {"phone": accounts.masked(phone), "name": p.get("name") or "", "shop": p.get("shop") or "",
+            "lang": p.get("lang") or "", "new": not p.get("shop"), "empty_book": empty}
+
+
+@app.post("/api/auth/start")
+def auth_start(b: Start):
+    phone = accounts.normalize(b.phone)
+    if not phone:
+        raise HTTPException(400, "That doesn't look like a phone number. Try like 0803 123 4567.")
+    login = accounts.start(phone)
+    sent = False
+    if not accounts.demo_mode():
+        try:
+            words = {"Pidgin": "Your TradeVoice code na", "Yoruba": "Kóòdù TradeVoice rẹ ni",
+                     "Hausa": "Lambar TradeVoice ɗinka ita ce", "Igbo": "Koodu TradeVoice gị bụ"}
+            whatsapp.send_text(phone, f"🔐 {words.get(b.lang, 'Your TradeVoice code is')} *{login['code']}*\n"
+                                      "Don't share it with anyone.")
+            sent = True
+        except Exception as e:  # noqa: BLE001 - Meta only lets us message people who wrote to us in the last 24 h
+            print(f"login code not sent by WhatsApp: {e}")
+    bot = whatsapp.bot_number()
+    return {"login_id": login["id"], "phone": accounts.masked(phone), "sent": sent,
+            "word": login["word"], "verify_link": f"https://wa.me/{bot}?text=LOGIN%20{login['word']}" if bot else None,
+            "demo_code": login["code"] if accounts.demo_mode() else None}
+
+
+@app.post("/api/auth/verify")
+def auth_verify(b: Code, request: Request):
+    phone, why = accounts.check_code(b.login_id, b.code)
+    if not phone:
+        raise HTTPException(400, why)
+    return _logged_in(request, phone)
+
+
+@app.post("/api/auth/poll")
+def auth_poll(b: Code, request: Request):
+    phone = accounts.poll(b.login_id)
+    return _logged_in(request, phone) if phone else {"ok": False}
+
+
+@app.get("/api/auth/me")
+def auth_me(request: Request):
+    phone = request.scope["state"].get("phone")
+    if not phone:
+        return JSONResponse({"login": True}, 401)
+    return _me(phone)
+
+
+@app.post("/api/auth/me")
+def auth_update(b: Me, request: Request):
+    phone = request.scope["state"].get("phone")
+    if not phone:
+        return JSONResponse({"login": True}, 401)
+    accounts.update_profile(phone, name=b.name, shop=b.shop, lang=b.lang)
+    return _me(phone)
+
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request):
+    accounts.end_session(request.cookies.get(COOKIE))
+    r = JSONResponse({"ok": True})
+    r.delete_cookie(COOKIE)
+    return r
+
+
+@app.post("/api/auth/delete")
+def auth_delete(w: Code, request: Request):
+    phone = request.scope["state"].get("phone")
+    if not phone or w.code != "DELETE":
+        raise HTTPException(400, "type DELETE")
+    for k in [k for k in SESSIONS if k[0] == ledger.book_file(phone)]:
+        SESSIONS.pop(k)
+    accounts.delete_account(phone)
+    r = JSONResponse({"ok": True})
+    r.delete_cookie(COOKIE)
+    return r
+
+
+@app.post("/api/demo_data")
+def demo_data():
+    """Fill an EMPTY book with 3 weeks of clearly-marked sample records (for trying the app / the demo video)."""
+    if ledger.credit_profile():
+        raise HTTPException(400, "Your book already has records.")
+    import seed_demo
+
+    seed_demo.seed()
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------- pages

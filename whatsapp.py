@@ -107,6 +107,23 @@ def graph_post(payload):
     return r.json()
 
 
+_BOT = {}
+
+
+def bot_number():
+    """The bot's own number (digits), for wa.me links: WHATSAPP_DISPLAY_NUMBER, else asked from Meta once."""
+    if os.getenv("WHATSAPP_DISPLAY_NUMBER"):
+        return re.sub(r"\D", "", os.environ["WHATSAPP_DISPLAY_NUMBER"])
+    if "n" not in _BOT and os.getenv("WHATSAPP_TOKEN") and os.getenv("WHATSAPP_PHONE_ID"):
+        try:
+            r = requests.get(f"{GRAPH}/{os.environ['WHATSAPP_PHONE_ID']}", params={"fields": "display_phone_number"},
+                             headers=_headers(), timeout=10)
+            _BOT["n"] = re.sub(r"\D", "", r.json().get("display_phone_number", "")) if r.ok else ""
+        except Exception:  # noqa: BLE001
+            return ""
+    return _BOT.get("n", "")
+
+
 def send_text(to, body):
     return graph_post({"to": to, "type": "text", "text": {"body": body[:4096], "preview_url": True}})
 
@@ -253,6 +270,13 @@ def handle(msg):
     """Answer one incoming WhatsApp message (runs in the background, after Meta got its 200)."""
     phone, kind = msg["from"], msg.get("type")
     with LOCKS.setdefault(phone, threading.Lock()):
+        if kind == "text" and re.match(r"\s*login\b", msg["text"]["body"], re.I):  # "Verify with WhatsApp" on the web
+            import accounts
+
+            ok = accounts.confirm_from_whatsapp(phone, msg["text"]["body"])
+            return send_text(phone, "✅ Done. You're logged in: go back to TradeVoice." if ok else
+                             "😕 That login code is old or not for this number. On the website, tap "
+                             "'Verify with WhatsApp' again from this phone.")
         u = user(phone)
         mark_read(msg.get("id"))
         text = ""
@@ -374,11 +398,16 @@ def verify(request: Request):
 
 
 def _safe(msg):
+    import accounts
+
+    token = ledger.use_book(accounts.normalize(msg.get("from", "")) or "unknown")  # the sender's own book
     try:
         handle(msg)
     except Exception as e:  # noqa: BLE001 - never crash the server on one bad message
         STATS["last_error"] = f"{type(e).__name__}: {e}"[:400]
         print(f"whatsapp message failed: {type(e).__name__}: {e}")
+    finally:
+        ledger.done_with_book(token)
         try:
             send_text(msg["from"], "😕 Something went wrong on my side. Please try again.")
         except Exception:  # noqa: BLE001

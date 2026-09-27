@@ -1,10 +1,31 @@
 """SQLite ledger + the numbers shown on the dashboard and credit profile."""
+import contextvars
 import datetime as dt
 import os
 import sqlite3
 from collections import defaultdict
 
-DB_PATH = os.getenv("DB_PATH", "tradevoice.db")
+DB_PATH = os.getenv("DB_PATH", "tradevoice.db")  # the book when nobody is logged in (tests, the admin page)
+BOOKS_DIR = os.getenv("BOOKS_DIR", "books")      # one book per phone number: books/2348031234567.db
+_BOOK = contextvars.ContextVar("book", default=None)
+
+
+def book_file(phone):
+    return os.path.join(BOOKS_DIR, "".join(ch for ch in str(phone) if ch.isdigit()) + ".db")
+
+
+def use_book(phone):
+    """Everything after this (in this request / this WhatsApp message) reads and writes this number's book."""
+    os.makedirs(BOOKS_DIR, exist_ok=True)
+    return _BOOK.set(book_file(phone))
+
+
+def done_with_book(token):
+    _BOOK.reset(token)
+
+
+def book_path():
+    return _BOOK.get() or DB_PATH
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS entries (
@@ -72,7 +93,7 @@ def _migrate(c):
 
 
 def conn():
-    c = sqlite3.connect(DB_PATH)
+    c = sqlite3.connect(book_path())
     c.row_factory = sqlite3.Row
     old = c.execute("SELECT sql FROM sqlite_master WHERE name='entries'").fetchone()
     if old and "credit_purchase" not in old[0]:  # books made before "I owe" existed: widen the type list
@@ -254,6 +275,11 @@ def thread(cid):
         ents = [dict(r, event="record") for r in c.execute("SELECT * FROM entries WHERE customer_id=?", (cid,))]
         msgs = [dict(r, event="message") for r in c.execute("SELECT * FROM messages WHERE customer_id=?", (cid,))]
     return sorted(ents + msgs, key=lambda x: (x["created_at"], x["event"] == "message", x["id"]))
+
+
+def is_empty():
+    with conn() as c:
+        return c.execute("SELECT 1 FROM entries LIMIT 1").fetchone() is None
 
 
 def entries(day=None, limit=200):

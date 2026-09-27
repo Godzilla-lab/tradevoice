@@ -12,6 +12,7 @@ import time
 
 import askbook
 import insights
+import ledger
 import readaloud
 
 SCREENS = {"today": "Book (today's sales, spending and money that came in)",
@@ -84,7 +85,7 @@ def free(question, lang, today=None):
 
 def explain(screen, lang="English", today=None):
     """What this screen means for the trader, spoken. Cached a minute so the text and the voice match."""
-    key = (screen, lang)
+    key = (ledger.book_path(), screen, lang)  # one cache per trader's book
     with _lock:
         hit = _cache.get(key)
         if hit and time.time() - hit[0] < 60:

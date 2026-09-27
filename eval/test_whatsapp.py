@@ -12,6 +12,8 @@ import tempfile
 
 os.environ["TV_NO_DOTENV"] = "1"  # never let the real .env keys into a test
 os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(), "t.db")
+os.environ["BOOKS_DIR"] = tempfile.mkdtemp()
+os.environ["ACCOUNTS_DB"] = os.path.join(tempfile.mkdtemp(), "a.db")
 for k in list(os.environ):
     if k.endswith("API_KEY") or k.startswith("LOCAL_") or k.startswith("WHATSAPP_"):
         os.environ.pop(k)
@@ -76,6 +78,7 @@ def check(name, ok, out=""):
 
 
 def main():
+    ledger.use_book(PHONE)  # the WhatsApp sender's own book (same one the web app opens after login)
     ledger.add_entry({"type": "credit_sale", "item": "rice", "amount": 30000, "customer": "Mama Tunde"},
                      created_at=dt.datetime(2026, 9, 20, 10))
     ledger.add_entry({"type": "credit_purchase", "item": "rice", "amount": 60000, "customer": "Alhaji Sani"},
