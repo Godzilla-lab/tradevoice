@@ -39,17 +39,31 @@ const ICONS = {
   chev: '<path d="M7 10l5 5 5-5"/>',
   grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
+  home: '<path d="M4 11 12 4.5 20 11"/><path d="M6.5 9.5V19.5h11V9.5"/><path d="M10 19.5v-5h4v5"/>',
+  person: '<circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
+  bell: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  doc: '<path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4M9 12.5h6M9 16h6"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff: '<path d="M3 3l18 18"/><path d="M10.6 5.6A9.7 9.7 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.8 3.6M6.4 6.9C3.9 8.6 2.5 12 2.5 12S6 18.5 12 18.5c1.7 0 3.2-.5 4.5-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  out: '<path d="M14 4.5h5.5v15H14"/><path d="M10 8l-4 4 4 4M6 12h10"/>',
+  bulb: '<path d="M9 17.5h6M10 20.5h4"/><path d="M12 3.5a6 6 0 0 0-3.5 10.9V16h7v-1.6A6 6 0 0 0 12 3.5z"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5z"/>',
+  shop: '<path d="M4 9.5 5.5 4.5h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5.5 11.5v8h13v-8"/>',
+  trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+  sparkle: '<path d="M12 3.5l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8z"/>',
 };
-const svg = (n, size = 22) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ""}</svg>`;
+const svg = (n, size = 22) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ""}</svg>`;
 function mountIcons(root = document) {
   root.querySelectorAll("[data-icon]").forEach((el) => {
-    const n = el.dataset.icon, size = n === "chev" ? 16 : n === "mark" ? 26 : 22;
+    const n = el.dataset.icon, size = n === "chev" ? 16 : el.closest(".fab") ? 30 : el.closest(".tabs") ? 24 : 22;
     if (el.tagName === "LABEL") { const keep = el.querySelector("input"); el.innerHTML = svg(n, size); if (keep) el.appendChild(keep); }
     else el.innerHTML = svg(n, size);
   });
 }
 mountIcons();
 const naira = (x) => (x < 0 ? "-₦" : "₦") + Math.round(Math.abs(x || 0)).toLocaleString("en-NG");
+const nm = (x) => `<span class="money">${naira(x)}</span>`;  // an amount the eye button can hide
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (s) => esc(s).replace(/\*(.+?)\*/g, "<b>$1</b>").replace(/_(.+?)_/g, "<i>$1</i>").replace(/\n/g, "<br>");
 const day = (iso) => { if (!iso) return ""; const d = new Date(iso + "T12:00:00"); return isNaN(d) ? iso : d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
@@ -76,6 +90,7 @@ async function api(path, opts = {}) {
   } finally { clearTimeout(timer); }
   let body = null;
   try { body = await r.json(); } catch {}
+  if (r.status === 401 && body && body.login && !path.startsWith("/api/auth/me")) { showLogin(); }
   if (!r.ok) throw new Error((body && (body.error || (typeof body.detail === "string" && body.detail))) || t("error", "Something went wrong."));
   return body;
 }
@@ -91,19 +106,22 @@ async function loadWords() {
   document.querySelectorAll(".read").forEach((b) => b.setAttribute("aria-label", readWord));
   $("#text").placeholder = t("message", "Message");
   $("#recHint").textContent = t("recording", "Recording… let go to send");
-  $("#sub").textContent = S.shop || "";  // whose book this is; not a fake "online" status
+  $("#sub").textContent = S.shop || "TradeVoice";  // whose book this is; not a fake "online" status
+  const h = new Date().getHours();
+  $("#hi").textContent = t(h < 12 ? "good_morning" : h < 17 ? "good_afternoon" : "good_evening", "Hello");
   $("#speakLang span").textContent = LANG_NAMES[S.lang] || S.lang;
   document.documentElement.lang = { Yoruba: "yo", Hausa: "ha", Igbo: "ig", Pidgin: "pcm" }[S.lang] || "en";
   document.documentElement.dir = (S.T._dir) || "ltr";
   Object.keys(TYPES).forEach((k) => { if (S.T["t_" + k]) TYPES[k][1] = S.T["t_" + k]; });
   const cur = document.querySelector(".tabs button.on")?.dataset.tab;
-  if (cur && cur !== "talk") showTab(cur);  // redraw the open screen in the new language
+  if (cur && cur !== "talk" && S.me) showTab(cur);  // redraw the open screen in the new language
   mountIcons();
 }
 
 function setLang(lang) {
   S.lang = lang; store.set("tv_lang", lang);
-  return loadWords().then(() => { if (S.consent && !chat.querySelector(".msg.out")) greet(); });  // fresh chat: greet again in the new language
+  if (S.me) post("/api/auth/me", { lang }).catch(() => {});
+  return loadWords().then(() => { if (S.me && !chat.querySelector(".msg.out")) greet(); });  // fresh chat: greet again in the new language
 }
 
 // ------------------------------------------------------------------ chat bubbles
@@ -311,7 +329,7 @@ mic.addEventListener("pointerdown", (e) => {
   if (input.value.trim()) { sendText(input.value); input.value = ""; micIcon(); return; }
   if (state === "recording" && tapMode) return stopRec();  // second tap = send
   if (state !== "idle") return;
-  if (!S.consent) return showWelcome();
+  if (!S.consent) return showLogin();
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     return toast("This browser can't record. Type instead (the link must be https).", 4000);
   }
@@ -334,10 +352,9 @@ mic.addEventListener("contextmenu", (e) => e.preventDefault());
 
 // ------------------------------------------------------------------ photo of the book
 
-$("#photo").addEventListener("change", async (e) => {
-  const file = e.target.files[0]; e.target.value = "";
-  if (!file) return;
-  if (!S.consent) return showWelcome();
+$("#photo").addEventListener("change", (e) => { const file = e.target.files[0]; e.target.value = ""; if (file) sendPhoto(file); });
+async function sendPhoto(file) {
+  if (!S.consent) return showLogin();
   bubble("out", `<img class="snap" src="${URL.createObjectURL(file)}" alt="book page">`, { ticks: true });
   const wait = typing();
   const fd = new FormData(); fd.append("file", await shrink(file)); fd.append("consent", "yes");
@@ -345,7 +362,7 @@ $("#photo").addEventListener("change", async (e) => {
     const r = await api("/api/photo", { method: "POST", body: fd, timeout: 120000 });
     wait.remove(); photoRows(r);
   } catch (err) { wait.remove(); bubble("in err", esc(err.message)); }
-});
+}
 
 function photoRows(r) {
   if (!r.rows.length) return bubble("in", esc(t("photo_none", "I couldn't find money records in this photo.")));
@@ -376,8 +393,8 @@ function photoRows(r) {
       ev.target.textContent = `✓ ${t("saved_n", "Saved {n}.").replace("{n}", res.saved)}`;
       const done = bubble("in", `${esc(t("saved_n", "Saved {n}.").replace("{n}", res.saved))}` +
         (res.problems.length ? `<div class="en">${esc(res.problems.join("; "))}</div>` : "") +
-        `<div class="rbtns"><button data-go="book">${esc(t("nav_book", "Book"))}</button></div>`);
-      $("[data-go]", done).onclick = () => showTab("book");
+        `<div class="rbtns"><button data-go="home">${esc(t("nav_home", "Home"))}</button></div>`);
+      $("[data-go]", done).onclick = () => showTab("home");
     } catch (e) { ev.target.disabled = false; bubble("in err", esc(e.message)); }
   };
 }
@@ -390,33 +407,68 @@ async function showTab(name) {
   $("#composer").style.display = name === "talk" ? "" : "none";
   if (name !== "customers") $("#app").classList.remove("in-thread");
   else if (typeof C !== "undefined" && C.open) $("#app").classList.add("in-thread");
-  const load = { book: loadBook, debts: loadDebts, customers: () => loadCustomers(), insights: loadInsights, profile: loadProfile }[name];
+  const load = { home: loadHome, customers: () => loadCustomers(), insights: loadInsights, profile: loadProfile }[name];
   if (load) { try { await load(); } catch (e) { toast(e.message); } }
   if (name === "talk") scrollDown();
 }
 document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
 
-async function loadBook() {
-  const d = await api("/api/today"), s = d.summary;
-  $("#bookTitle").textContent = `${t("today", "Today")} · ${day(s.date)}`;
-  const IN = ["sale", "payment_received"], signed = (e) => (IN.includes(e.type) ? "+" : e.type === "credit_sale" ? "" : "−") + naira(e.amount);
-  const due = d.due.map((r) => `<div class="lrow"><div class="main"><div class="t">${esc(r.customer)}</div>
-      <div class="s">${esc(t("owes_you", "owes you {m}").replace("{m}", naira(r.balance)))}</div></div>
-      <button class="textbtn" data-remind="${esc(r.customer)}">${esc(t("remind", "Remind"))}</button></div>`).join("");
-  const list = d.entries.map((e) => `<button class="lrow entry" data-entry='${esc(JSON.stringify(e))}'>
-      <span class="when">${esc(e.created_at.slice(0, 10) === s.date ? e.created_at.slice(11, 16) : day(e.created_at.slice(0, 10)))}</span>
-      <span class="main"><span class="t">${esc([TYPES[e.type]?.[1] || e.type, e.customer].filter(Boolean).join(" · "))}</span>
-        <span class="s">${esc([e.item, e.due_date ? t("due", "Due {d}").replace("{d}", day(e.due_date)) : ""].filter(Boolean).join(" · "))}</span></span>
-      <span class="amt ${IN.includes(e.type) ? "in" : e.type === "credit_sale" ? "" : "out"}">${signed(e)}</span></button>`).join("");
-  $("#bookBody").innerHTML = `
-    <div class="figures">
-      <div><div class="k">${esc(t("sold", "Sold"))}</div><div class="v">${naira(s.sales)}</div></div>
-      <div><div class="k">${esc(t("spent", "Spent"))}</div><div class="v">${naira(s.expenses)}</div></div>
-      <div><div class="k">${esc(t("came_in", "Came in"))}</div><div class="v">${naira(s.cash_sales + s.payments_received)}</div></div>
-    </div>
-    ${due ? `<section class="sect"><h2>${esc(t("remind", "Remind"))}</h2>${due}</section>` : ""}
-    <section class="sect"><h2>${esc(t("recent", "Recent"))}</h2>${list || `<p class="empty">${esc(t("empty_book", "Nothing yet."))}</p>`}</section>`;
+// 🏠 Home: today in one big card, who owes, four big actions, one insight, the last records
+const IN_TYPES = ["sale", "payment_received"], OUT_TYPES = ["expense", "payment_made", "credit_purchase"];
+function recordRow(e, today) {
+  const cls = IN_TYPES.includes(e.type) ? "in" : e.type === "credit_sale" ? "credit" : "out";
+  const sign = cls === "in" ? "+" : cls === "out" ? "−" : "";
+  const arrow = cls === "in" ? "↓" : cls === "out" ? "↑" : "⏳";
+  return `<button class="lrow entry" data-entry='${esc(JSON.stringify(e))}'>
+    <span class="ricon ${cls}">${arrow}</span>
+    <span class="main"><span class="t">${esc([TYPES[e.type]?.[1] || e.type, e.customer].filter(Boolean).join(" · "))}</span>
+      <span class="s">${esc([e.item, e.due_date ? t("due", "Due {d}").replace("{d}", day(e.due_date)) : ""].filter(Boolean).join(" · "))}</span></span>
+    <span class="amt ${cls}"><span class="money">${sign}${naira(e.amount)}</span>
+      <small>${esc(e.created_at.slice(0, 10) === today ? e.created_at.slice(11, 16) : day(e.created_at.slice(0, 10)))}</small></span></button>`;
 }
+
+async function loadHome() {
+  const [d, debts, ins] = await Promise.all([api("/api/today"), api("/api/debts"), api("/api/insights").catch(() => ({}))]);
+  const s = d.summary, profit = s.sales - s.expenses;
+  const owed = debts.owed_to_me.reduce((a, x) => a + x.balance, 0), mine = debts.i_owe.reduce((a, x) => a + x.balance, 0);
+  const late = debts.owed_to_me.filter((x) => x.overdue).length;
+  const f = ins && ins.forecast;
+  $("#homeBody").innerHTML = `
+    <div class="hero">
+      <div class="hrow"><span class="hlabel">${esc(t("today", "Today"))} · ${esc(day(s.date))}</span>
+        <button class="read ask" data-screen="today">${svg("mic", 18)}<span>${esc(t("ask", "Ask"))}</span></button></div>
+      <div class="main-fig ${profit < 0 ? "neg" : ""}">${nm(profit)}</div>
+      <div class="cap">${esc(t("profit_today", "Sold minus spent"))}</div>
+      <div class="pair">
+        <div><div class="k"><span class="arrow in">↓</span>${esc(t("sold", "Sold"))}</div><div class="v">${nm(s.sales)}</div></div>
+        <div><div class="k"><span class="arrow out">↑</span>${esc(t("spent", "Spent"))}</div><div class="v">${nm(s.expenses)}</div></div>
+      </div>
+    </div>
+    <div class="debts">
+      <button class="debt owed" data-go="customers"><span class="k">${esc(t("people_owe", "People owe you"))}</span>
+        <span class="v">${nm(owed)}</span>${late ? `<span class="s">${esc(t("days_late", "{n} days late").replace("{n} days", late + " ×").replace("{n}", late))}</span>` : ""}</button>
+      <button class="debt mine" data-go="customers"><span class="k">${esc(t("you_owe_people", "You owe"))}</span>
+        <span class="v">${nm(mine)}</span></button>
+    </div>
+    <div class="actions">
+      <button class="act main" data-go="talk"><span class="tile">${svg("mic", 26)}</span><span>${esc(t("act_voice", "Say it"))}</span></button>
+      <label class="act"><span class="tile">${svg("camera", 26)}</span><span>${esc(t("act_snap", "Snap book"))}</span>
+        <input type="file" accept="image/*" capture="environment" data-snap></label>
+      <button class="act" data-go="customers"><span class="tile">${svg("bell", 26)}</span><span>${esc(t("act_remind", "Remind"))}</span></button>
+      <button class="act" data-go="profile"><span class="tile">${svg("doc", 26)}</span><span>${esc(t("act_share", "For lender"))}</span></button>
+    </div>
+    ${f ? `<div class="card"><h2>${esc(t("next_week", "Next 7 days"))}<button data-go="insights">${esc(t("see_all", "See all"))}</button></h2>
+      <div class="insight"><span class="ico">${svg("bulb", 24)}</span><span><span class="big">${nm(f.week_sales)}</span>
+        <span class="s" style="display:block">${esc(t("busiest", "Busiest day"))}: <b>${esc(wd(f.busiest_day))}</b></span></span></div></div>` : ""}
+    ${d.due.length ? `<div class="card"><h2>${esc(t("remind", "Remind"))}</h2>${d.due.map((r) => `<div class="lrow"><span class="ricon credit">⏳</span>
+      <span class="main"><span class="t">${esc(r.customer)}</span><span class="s">${esc(t("owes_you", "owes you {m}").replace("{m}", naira(r.balance)))}</span></span>
+      <button class="textbtn" data-remind="${esc(r.customer)}">${esc(t("remind", "Remind"))}</button></div>`).join("")}</div>` : ""}
+    <div class="card"><h2>${esc(t("recent", "Recent"))}</h2>
+      ${d.entries.slice(0, 8).map((e) => recordRow(e, s.date)).join("") || `<p class="empty">${esc(t("empty_book", "Nothing yet."))}</p>`}</div>`;
+  $("#homeBody").querySelector(".ask").onclick = () => openAssist("today");
+  $("#homeBody").querySelector("[data-snap]").onchange = (e) => { const f2 = e.target.files[0]; e.target.value = ""; if (f2) { showTab("talk"); sendPhoto(f2); } };
+}
+document.addEventListener("click", (e) => { const g = e.target.closest("[data-go]"); if (g && g.tagName === "BUTTON" && !g.closest(".msg")) showTab(g.dataset.go); });
 
 // tap a record: details + delete, kept apart from the list so a stray tap can't delete money
 document.addEventListener("click", (ev) => {
@@ -430,25 +482,10 @@ document.addEventListener("click", (ev) => {
   $("#sheetBody").onclick = async (x) => {
     if (x.target.id === "eClose") $("#sheet").hidden = true;
     if (x.target.id === "eDel" && confirm(t("delete", "Delete") + "?")) {
-      await api(`/api/entry/${e.id}`, { method: "DELETE" }); $("#sheet").hidden = true; loadBook();
+      await api(`/api/entry/${e.id}`, { method: "DELETE" }); $("#sheet").hidden = true; loadHome();
     }
   };
 });
-
-async function loadDebts() {
-  const d = await api("/api/debts");
-  const total = d.owed_to_me.reduce((a, x) => a + x.balance, 0), mine = d.i_owe.reduce((a, x) => a + x.balance, 0);
-  const person = (x, remind) => `<div class="item"><div class="ic">${remind ? "🧑🏾" : "🏪"}</div><div class="main">
-      <div class="t">${esc(x.customer)}</div><div class="s">${x.overdue
-        ? `<span class="badge late">${esc(t("days_late", "{n} days late").replace("{n}", x.days_late))}</span>`
-        : `<span class="badge ok">${esc(t("on_time", "on time"))}</span>`}${x.due_date ? " · " + esc(day(x.due_date)) : ""}</div></div>
-      <div class="amt${x.overdue ? " late-amt" : ""}">${naira(x.balance)}</div>${remind ? `<button class="small" data-remind="${esc(x.customer)}">${esc(t("remind", "Remind"))}</button>` : ""}</div>`;
-  $("#debtsBody").innerHTML = `
-    <div class="card"><h2>${esc(t("owe_me", "Owe me"))} <small>· ${d.owed_to_me.length}</small></h2><div class="big">${naira(total)}</div>
-      ${d.owed_to_me.map((x) => person(x, true)).join("") || `<div class="empty">${esc(t("nobody_owes", "Nobody owes you"))}</div>`}</div>
-    <div class="card"><h2>${esc(t("i_owe", "I owe"))} <small>· ${d.i_owe.length}</small></h2><div class="big">${naira(mine)}</div>
-      ${d.i_owe.map((x) => person(x, false)).join("") || `<div class="empty">${esc(t("you_owe_nobody", "You owe nobody"))}</div>`}</div>`;
-}
 
 async function loadInsights() {
   const { forecast: f, top } = await api("/api/insights");
@@ -468,20 +505,57 @@ async function loadInsights() {
     <p class="note">${esc(t("forecast_note", ""))}</p>`;
 }
 
+// 👤 Me: who is logged in, the score + lender statement, the year + tax, then settings
+function meHtml() {
+  const me = S.me || {};
+  return `<div class="idcard"><span class="cav">${esc(initials(me.shop || me.name || "TV"))}</span>
+      <span><b>${esc(me.shop || S.shop || "TradeVoice")}</b><span class="muted">${esc(t("logged_as", "Logged in as {p}").replace("{p}", me.phone || ""))}</span></span></div>`;
+}
+function settingsHtml(empty) {
+  return `<section class="sect"><h2>${esc(t("settings", "Settings"))}</h2><div class="menu">
+    <button data-me="lang">${svg("globe")}<span class="grow">${esc(t("language", "Language"))}</span><span class="val">${esc(LANG_NAMES[S.lang])}</span></button>
+    <button data-me="shop">${svg("shop")}<span class="grow">${esc(t("shop_name", "Shop name"))}</span><span class="val">${esc(S.shop || "")}</span></button>
+    <button data-me="view">${svg("chat")}<span class="grow">WhatsApp view</span><span class="val">${S.view === "wa" ? "✓" : ""}</span></button>
+    ${empty ? `<button data-me="sample">${svg("sparkle")}<span class="grow">${esc(t("sample_data", "Try with sample records"))}</span></button>` : ""}
+    <a href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${svg("doc")}<span class="grow">${esc(t("tax_record", "Year record"))}</span></a>
+    <button data-me="logout">${svg("out")}<span class="grow">${esc(t("logout", "Log out"))}</span></button>
+    <button data-me="delete" class="red">${svg("trash")}<span class="grow">${esc(t("delete_account", "Delete my account and book"))}</span></button>
+  </div><p class="note">${esc(t("privacy", ""))}</p></section>`;
+}
+$("#profileBody").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-me]"); if (!b) return;
+  const k = b.dataset.me;
+  try {
+    if (k === "lang") return $("#speakLang").click();
+    if (k === "view") return setView(S.view === "wa" ? "app" : "wa");
+    if (k === "shop") {
+      const v = prompt(t("shop_name", "Shop name"), S.shop || ""); if (v === null) return;
+      S.shop = v.trim(); store.set("tv_shop", S.shop); S.me = await post("/api/auth/me", { shop: S.shop }); loadWords(); return loadProfile();
+    }
+    if (k === "sample") { await post("/api/demo_data", {}); toast("✓"); return loadProfile(); }
+    if (k === "logout") { await post("/api/auth/logout", {}); S.me = null; return showLogin(); }
+    if (k === "delete" && prompt(t("delete_account", "Delete my account") + " — DELETE") === "DELETE") {
+      await post("/api/auth/delete", { login_id: "-", code: "DELETE" }); S.me = null; toast("✓"); return showLogin();
+    }
+  } catch (err) { toast(err.message); }
+});
+
 async function loadProfile() {
   const { profile: p, year_data: y, tax } = await api(`/api/profile?lang=${encodeURIComponent(S.lang)}`);
-  if (!p) { $("#profileBody").innerHTML = `<p class="empty">${esc(t("empty_profile", "Your book is empty."))}</p>${taxHtml(y, tax)}`; return; }
-  $("#profileBody").innerHTML = `
+  if (!p) { $("#profileBody").innerHTML = `${meHtml()}<p class="empty">${esc(t("empty_profile", "Your book is empty."))}</p>${taxHtml(y, tax)}${settingsHtml(true)}`; return; }
+  $("#profileBody").innerHTML = `${meHtml()}
+    <div class="card"><h2>${esc(t("score", "Record score"))}</h2>
     <div class="hero-fig">${p.score}<span class="of">/100</span> <span class="band">${esc(t("band_" + p.band, p.band))}</span></div>
     <div class="meter"><i style="width:${p.score}%"></i></div>
     <p class="muted">${esc(t("days_avg", "").replace("{d}", p.span_days).replace("{m}", naira(p.avg_daily_sales)))}</p>
-    <a class="primary block" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${esc(t("statement", "Statement for lender / cooperative").replace(/^⬇️\s*/, ""))}</a>
+    <a class="primary" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${svg("doc")}${esc(t("share_lender", "Share with a lender"))}</a></div>
     <section class="sect"><h2>${esc(t("why_score", "Why this score"))}</h2>
       ${p.parts.map((x) => `<div class="part"><div class="pl"><span>${esc(t("sp_" + x.name, x.name))}</span><b>${Math.round(x.points)}/${x.max}</b></div>
         <div class="meter thin"><i style="width:${Math.round((x.points / x.max) * 100)}%"></i></div><div class="s">${esc(x.why)}</div></div>`).join("")}
       <p class="note">${esc(t("score_note", ""))}${p.has_demo_data ? " (demo data)" : ""}</p></section>
     ${yearHtml(y)}
-    ${taxHtml(y, tax)}`;
+    ${taxHtml(y, tax)}
+    ${settingsHtml(false)}`;
 }
 
 // 📅 my year so far: the same numbers as the statement, laid out like the Book screen (no monospace text dump)
@@ -530,7 +604,7 @@ document.addEventListener("click", async (e) => {
       <a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">${esc(t("open_whatsapp", "Open WhatsApp"))}</a>
       <p>${esc(t("draft_note", "TradeVoice prepared this. You send it yourself."))}</p>`);
   }
-  if (del && confirm("Delete this record?")) { await api(`/api/entry/${del}`, { method: "DELETE" }); loadBook(); }
+  if (del && confirm("Delete this record?")) { await api(`/api/entry/${del}`, { method: "DELETE" }); loadHome(); }
 });
 
 // 🎙️ Ask TradeVoice: explains the screen out loud, then answers spoken questions about the trader's own book
@@ -588,7 +662,7 @@ function callState(phase, label) {
 }
 
 async function startCall() {
-  if (!S.consent) return showWelcome();
+  if (!S.consent) return showLogin();
   VC.on = true; VC.idle = 0; VC.fails = 0;
   try {
     VC.stream = VC.stream || await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
@@ -700,40 +774,87 @@ $("#speakLang").onclick = () => {   // one choice changes everything: screens, r
   };
 };
 
-$("#menuBtn").onclick = () => {
-  sheet(`<h2 class="sheet-title">⚙️ ${esc(t("settings", "Settings"))}</h2>
-    <h3>🌍 ${esc(t("language", "Language"))}</h3><div class="opts">${(S.T._langs || ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"])
-      .map((l) => `<button data-lang="${l}" class="${l === S.lang ? "on" : ""}">${LANG_NAMES[l] || l}</button>`).join("")}</div>
-    <h3>🏪 ${esc(t("shop_name", "Shop name"))}</h3><input id="shopIn" value="${esc(S.shop)}" placeholder="Chioma Stores">
-    <h3>🔒 ${esc(t("my_data", "My data"))}</h3>
-    <p>${esc(t("privacy", ""))}</p>
-    <button class="danger" id="wipe">${esc(t("delete_all", "Delete all my records"))}</button>
-    <p><a href="/admin/" style="color:var(--muted)">Advanced dashboard</a> · <a href="/" style="color:var(--muted)">TradeVoice website</a></p>`);
-  $("#sheetBody").onclick = async (e) => {
-    const l = e.target.dataset.lang;
-    if (l) { await setLang(l); $("#sheet").hidden = true; toast(`🌍 ${LANG_NAMES[l] || l}`); }
-    if (e.target.id === "wipe") {
-      const c = prompt("DELETE");
-      if (c === "DELETE") { await post("/api/wipe", { confirm: c }); toast("✓"); $("#sheet").hidden = true; }
-    }
-  };
-  $("#shopIn").onchange = (e) => { S.shop = e.target.value.trim(); store.set("tv_shop", S.shop); };
-};
 const LANG_NAMES = { English: "English", Pidgin: "Pidgin", Yoruba: "Yorùbá", Hausa: "Hausa", Igbo: "Igbo" };
 
-function showWelcome() {
-  const box = $("#welcomeLangs");
-  box.innerHTML = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"].map((l) => `<button data-l="${l}" class="${l === S.lang ? "on" : ""}">${LANG_NAMES[l]}</button>`).join("");
-  box.onclick = async (e) => {
-    if (!e.target.dataset.l) return;
-    await setLang(e.target.dataset.l);
-    box.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.l === S.lang));
-  };
-  $("#welcome").hidden = false;
+// 🔐 log in with your phone number: language -> number -> code (or "Confirm with WhatsApp") -> shop name + consent
+const L = { id: null, poll: null, step: "phone" };
+function showLogin() {
+  if (!$("#login").hidden && L.step !== "phone") return;
+  S.me = null; $("#login").hidden = false; loginLangs(); loginPhone();
 }
-$("#agree").onclick = () => {
-  S.consent = true; store.set("tv_consent", "yes"); $("#welcome").hidden = true; greet();
-};
+function loginLangs() {
+  const box = $("#loginLangs");
+  box.innerHTML = LANGS.map((l) => `<button data-l="${l}" class="${l === S.lang ? "on" : ""}">${LANG_NAMES[l]}</button>`).join("");
+  box.onclick = async (e) => {
+    const l = e.target.dataset.l; if (!l) return;
+    S.lang = l; store.set("tv_lang", l); await loadWords(); loginLangs();
+    ({ phone: loginPhone, code: () => loginCode(L.last), shop: loginShop }[L.step] || loginPhone)();
+  };
+}
+function loginPhone(err = "") {
+  L.step = "phone"; clearInterval(L.poll);
+  $("#loginStep").innerHTML = `<h1>${esc(t("login_title", "Your phone number"))}</h1><p>${esc(t("login_why", ""))}</p>
+    <form id="lf1"><div class="phone"><span class="cc">🇳🇬 +234</span><input id="lphone" type="tel" inputmode="tel" autocomplete="tel"
+      placeholder="0803 123 4567" value="${esc(store.get("tv_phone", ""))}"></div>
+    <div class="lerr">${esc(err)}</div><button class="primary">${esc(t("continue", "Continue"))}</button></form>`;
+  $("#lf1").onsubmit = async (e) => {
+    e.preventDefault();
+    const v = $("#lphone").value.trim(); if (!v) return;
+    const btn = $("#lf1 .primary"); btn.disabled = true;
+    try { const r = await post("/api/auth/start", { phone: v, lang: S.lang }); store.set("tv_phone", v); loginCode(r); }
+    catch (err2) { loginPhone(err2.message); }
+  };
+  setTimeout(() => $("#lphone")?.focus(), 50);
+}
+function loginCode(r, err = "") {
+  L.step = "code"; L.last = r; L.id = r.login_id;
+  $("#loginStep").innerHTML = `<h1>${esc(t("code_title", "Enter the code"))}</h1>
+    <p>${esc(r.sent ? t("code_sent", "").replace("{p}", r.phone) : r.verify_link ? t("code_not_sent", "") : "")}</p>
+    ${r.demo_code ? `<div class="demo">${esc(t("demo_code", "Demo: your code is {c}").replace("{c}", r.demo_code))}</div>` : ""}
+    <form id="lf2"><input id="lcode" class="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••">
+      <div class="lerr">${esc(err)}</div><button class="primary">${esc(t("continue", "Continue"))}</button></form>
+    ${r.verify_link ? `<div class="or">— or —</div><a class="primary wa-go" id="lwa" href="${esc(r.verify_link)}" target="_blank" rel="noopener">${esc(t("verify_wa", "Confirm with WhatsApp"))}</a>
+      <p class="consent">${esc(t("verify_wa_hint", ""))}</p>` : ""}
+    <button class="textbtn" id="lback">${esc(t("change_number", "Change number"))}</button>`;
+  $("#lf2").onsubmit = async (e) => {
+    e.preventDefault();
+    try { const res = await post("/api/auth/verify", { login_id: L.id, code: $("#lcode").value }); loggedIn(res.me); }
+    catch (err2) { loginCode(r, err2.message); }
+  };
+  $("#lcode").oninput = (e) => { if (e.target.value.replace(/\D/g, "").length === 6) $("#lf2").requestSubmit(); };
+  $("#lback").onclick = () => loginPhone();
+  if ($("#lwa")) $("#lwa").onclick = () => { $("#lwa").textContent = t("waiting_wa", "Waiting…"); };
+  clearInterval(L.poll);   // WhatsApp confirmation: check every 2 s while this screen is open
+  L.poll = setInterval(async () => {
+    if (L.step !== "code") return clearInterval(L.poll);
+    try { const res = await post("/api/auth/poll", { login_id: L.id }); if (res.ok) loggedIn(res.me); } catch {}
+  }, 2000);
+  setTimeout(() => $("#lcode")?.focus(), 50);
+}
+function loggedIn(me) {
+  clearInterval(L.poll); S.me = me;
+  if (me.lang && me.lang !== S.lang) { S.lang = me.lang; store.set("tv_lang", me.lang); }
+  if (me.new) return loginShop();
+  finishLogin();
+}
+function loginShop() {
+  L.step = "shop";
+  $("#loginStep").innerHTML = `<h1>${esc(t("shop_q", "What is your shop called?"))}</h1>
+    <form id="lf3"><input id="lshop" autocomplete="organization" placeholder="Chioma Stores" value="${esc(S.shop || "")}">
+    <p class="consent">${esc(t("consent", ""))}</p><button class="primary">${esc(t("start_book", "Open my book"))}</button></form>`;
+  $("#lf3").onsubmit = async (e) => {
+    e.preventDefault();
+    const shop = $("#lshop").value.trim() || "My shop";
+    try { S.me = await post("/api/auth/me", { shop, lang: S.lang }); S.shop = shop; store.set("tv_shop", shop); finishLogin(); }
+    catch (err) { toast(err.message); }
+  };
+}
+async function finishLogin() {
+  L.step = "done"; $("#login").hidden = true;
+  S.consent = true; store.set("tv_consent", "yes");
+  if (S.me && S.me.shop) { S.shop = S.me.shop; store.set("tv_shop", S.shop); }
+  await loadWords(); greet(); showTab("home");
+}
 
 // ------------------------------------------------------------------ start
 
@@ -756,7 +877,7 @@ async function greet() {
 function setView(v) {
   S.view = v === "wa" ? "wa" : "app"; store.set("tv_view", S.view);
   document.body.classList.toggle("wa-view", S.view === "wa");
-  const b = $("#viewBtn");
+  const b = $("#viewBtn"); if (b) b.hidden = S.view !== "wa";
   if (b) { b.innerHTML = svg(S.view === "wa" ? "grid" : "chat", 20); b.title = S.view === "wa" ? "App view" : "WhatsApp view";
            b.setAttribute("aria-label", b.title); }
   if (S.view === "wa") showTab("talk");
@@ -765,8 +886,19 @@ $("#viewBtn").onclick = () => setView(S.view === "wa" ? "app" : "wa");
 setView(store.get("tv_view", "app"));
 
 (async function start() {
-  try { const st = await api("/api/status"); S.voice = st.voice; if (!S.shop) S.shop = st.shop; } catch {}
+  try { const st = await api("/api/status"); S.voice = st.voice; } catch {}
   await loadWords();
   micIcon();
-  if (!S.consent) showWelcome(); else greet();
+  try { S.me = await api("/api/auth/me"); } catch { S.me = null; }
+  if (!S.me) return showLogin();
+  if (S.me.new) { $("#login").hidden = false; loginLangs(); return loginShop(); }
+  finishLogin();
 })();
+
+// 👁 hide amounts (people around the stall can see the phone)
+function setEye(hide) {
+  document.body.classList.toggle("hide-money", hide); store.set("tv_hide", hide ? "1" : "");
+  $("#eyeBtn").innerHTML = svg(hide ? "eyeoff" : "eye", 22); $("#eyeBtn").setAttribute("aria-label", t("hide_amounts", "Hide amounts"));
+}
+$("#eyeBtn").onclick = () => setEye(!document.body.classList.contains("hide-money"));
+setEye(store.get("tv_hide", "") === "1");

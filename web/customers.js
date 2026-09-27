@@ -42,9 +42,10 @@ async function loadCustomers() {
   const box = $("#crows");
   try { C.list = (await api("/api/customers")).customers; } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const owe = C.list.reduce((a, c) => a + c.owes_me, 0), mine = C.list.reduce((a, c) => a + c.i_owe, 0);
-  $("#csum").innerHTML = `<span>${esc(t("owe_me", "Owe me"))} <b>${naira(owe)}</b></span><span>${esc(t("i_owe", "I owe"))} <b>${naira(mine)}</b></span>`;
+  $("#csum").innerHTML = `<div class="o"><span class="k">${esc(t("people_owe", "People owe you"))}</span><b>${nm(owe)}</b></div>
+    <div class="m"><span class="k">${esc(t("you_owe_people", "You owe"))}</span><b>${nm(mine)}</b></div>`;
   $("#csearch").placeholder = t("search", "Search customers");
-  $("#newCust").textContent = t("new_customer", "New customer");
+  $("#newCust").innerHTML = svg("plus", 24); $("#newCust").setAttribute("aria-label", t("new_customer", "New customer"));
   $("#cfilters").innerHTML = [["all", "all"], ["owe", "owe_me"], ["mine", "i_owe"], ["late", "late"]]
     .map(([k, key]) => `<button data-f="${k}" class="${C.filter === k ? "on" : ""}">${esc(t(key, k))}</button>`).join("");
   renderRows();
@@ -64,7 +65,7 @@ function renderRows() {
         <span class="cline"><span class="cname">${esc(c.name)}</span><span class="ctime">${esc(when(c.last_at))}</span></span>
         <span class="cline"><span class="cprev">${esc(preview(c))}</span>
           ${c.unread ? `<span class="unread">${c.unread}</span>` : ""}</span>
-        ${c.same_name || c.owes_me || c.i_owe ? `<span class="cbal ${c.overdue ? "late-amt" : ""}">${esc(balanceLine(c))}${
+        ${c.same_name || c.owes_me || c.i_owe ? `<span class="cbal ${c.overdue ? "late-amt" : c.owes_me > 0 ? "owes" : ""}">${esc(balanceLine(c))}${
           c.overdue ? " · " + esc(t("days_late", "{n} days late").replace("{n}", c.days_late)) : ""}${
           c.same_name && c.phone ? " · " + esc(c.phone) : ""}</span>` : ""}
       </span>
@@ -119,16 +120,16 @@ function renderThread() {
       <button class="icon back" aria-label="${esc(t("back", "Back"))}">${svg("back")}</button>
       <span class="cav">${esc(initials(c.name))}</span>
       <div class="tinfo"><div class="tname">${esc(c.name)}</div>
-        <div class="tsub ${c.overdue ? "late-amt" : ""}">${esc(balanceLine(c))}${c.overdue ? " · " + esc(t("days_late", "{n} days late").replace("{n}", c.days_late)) : ""}</div></div>
+        <div class="tsub ${c.overdue ? "late-amt" : c.owes_me > 0 ? "owes" : ""}">${esc(balanceLine(c))}${c.overdue ? " · " + esc(t("days_late", "{n} days late").replace("{n}", c.days_late)) : ""}</div></div>
       <button class="icon" data-act="contact" aria-label="${esc(t("edit_contact", "Edit contact"))}">${svg("more")}</button>
     </div>
     <div class="tcontext">${context ? `<span>${context}</span>` : ""}
       ${c.phone ? `<span>${esc(c.phone)}</span>` : `<button class="linkbtn" data-act="contact">${esc(t("add_phone", "Add phone"))}</button>`}</div>
     <div class="tmsgs" id="tmsgs">${html}${C.draft ? draftCard() : ""}</div>
     <div class="tactions">
-      <button data-act="pay">${esc(t("record_payment", "Record payment"))}</button>
-      <button data-act="sale">${esc(t("record_sale", "Record sale"))}</button>
-      ${c.owes_me > 0 ? `<button data-act="remind">${esc(t("prepare_reminder", "Prepare reminder"))}</button>` : ""}
+      <button class="gave" data-act="sale">↑ ${esc(t("you_gave", "You gave"))}</button>
+      <button class="got" data-act="pay">↓ ${esc(t("you_got", "You got"))}</button>
+      ${c.owes_me > 0 ? `<button class="remind" data-act="remind">${esc(t("prepare_reminder", "Prepare reminder"))}</button>` : ""}
     </div>
     <form class="tcomposer" id="tform"><input id="tinput" autocomplete="off" placeholder="${esc(t("note_hint", "Write a note"))}">
       <button class="round small-round" aria-label="${esc(t("save", "Save"))}">${svg("send", 20)}</button></form>`;
@@ -139,9 +140,10 @@ function recordCard(e) {
   const bits = [e.item && (e.quantity ? `${e.item} (${e.quantity} ${e.unit || ""})`.replace(" )", ")") : e.item),
                 e.due_date ? t("due", "Due {d}").replace("{d}", day(e.due_date)) : ""].filter(Boolean);
   const IN = ["sale", "payment_received"], sign = IN.includes(e.type) ? "+" : e.type === "credit_sale" ? "" : "−";
-  return `<div class="rec">
+  const side = ["sale", "payment_received", "credit_purchase"].includes(e.type) ? "got" : "gave";  // khata style: gave | got
+  return `<div class="rec ${side}">
     <span class="rmain"><b>${esc(typeLabel(e.type))}</b>${bits.length ? `<br><small>${esc(bits.join(" · "))}</small>` : ""}</span>
-    <span class="amt ${IN.includes(e.type) ? "in" : ""}">${sign}${naira(e.amount)}</span>
+    <span class="amt ${IN.includes(e.type) ? "in" : e.type === "credit_sale" ? "credit" : "out"}"><span class="money">${sign}${naira(e.amount)}</span></span>
     <span class="rtime">${esc(when(e.created_at))}</span></div>`;
 }
 

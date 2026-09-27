@@ -3,57 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0E6B52">
+<meta name="theme-color" content="#FAF7F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1726" media="(prefers-color-scheme: dark)">
 <title>TradeVoice</title>
 <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div id="app">
   <header class="top">
-    <img class="logo" src="/static/logo-light.svg" alt="" width="36" height="36">
+    <img class="logo" src="/static/logo.svg" alt="" width="34" height="34">
     <div class="who">
-      <div class="name">TradeVoice</div>
+      <div class="hi" id="hi">TradeVoice</div>
       <div class="sub" id="sub"></div>
     </div>
-    <button class="pill" id="speakLang" title="I'm speaking"><span>English</span> <i data-icon="chev"></i></button>
-    <button class="icon" id="viewBtn" aria-label="WhatsApp view" title="WhatsApp view"></button>
-    <button class="icon" id="menuBtn" aria-label="Settings" data-icon="more"></button>
+    <button class="icon" id="eyeBtn" aria-label="Hide amounts"></button>
+    <button class="pill" id="speakLang" title="Language"><span>English</span> <i data-icon="chev"></i></button>
+    <button class="icon" id="viewBtn" aria-label="WhatsApp view" title="WhatsApp view" hidden></button>
   </header>
 
   <main>
-    <!-- 💬 chat (home) -->
-    <section id="talk" class="screen active">
+    <!-- 🏠 home: today, who owes, quick actions, insight, recent -->
+    <section id="home" class="screen active"><div id="homeBody"></div></section>
+
+    <!-- 💬 talk: the chat (opened by the big mic) -->
+    <section id="talk" class="screen">
       <div class="chat" id="chat"></div>
     </section>
 
-    <!-- 📒 book -->
-    <section id="book" class="screen">
-      <div class="shead"><h1 id="bookTitle" data-t="today">Today</h1><button class="read ask" data-screen="today"><i data-icon="mic"></i><span>Ask</span></button></div>
-      <div id="bookBody"></div>
-    </section>
-
-    <!-- 👥 customers: list + one conversation per customer -->
+    <!-- 👥 customers: list + one ledger per customer -->
     <section id="customers" class="screen">
       <div class="cwrap">
         <div class="clist">
-          <div class="shead"><h1 data-t="nav_customers">Customers</h1><button class="read ask" data-screen="owes"><i data-icon="mic"></i><span>Ask</span></button>
-            <button class="textbtn" id="newCust">New customer</button></div>
+          <div class="shead"><h1 data-t="nav_customers">Customers</h1>
+            <button class="read ask" data-screen="owes"><i data-icon="mic"></i><span>Ask</span></button></div>
           <div class="csum" id="csum"></div>
-          <input class="csearch" id="csearch" type="search" autocomplete="off">
+          <div class="csearchrow"><input class="csearch" id="csearch" type="search" autocomplete="off">
+            <button class="addbtn" id="newCust" aria-label="New customer"></button></div>
           <div class="cfilters" id="cfilters"></div>
           <div id="crows"></div>
         </div>
         <div class="cthread" id="cthread"></div>
       </div>
-    </section>
-
-    <!-- 🤝 debts (kept for old links; the Customers tab replaces it) -->
-    <section id="debts" class="screen">
-      <div id="debtsBody"></div>
     </section>
 
     <!-- 🔮 insights -->
@@ -62,9 +57,9 @@
       <div id="insightsBody"></div>
     </section>
 
-    <!-- 🏦 profile -->
+    <!-- 👤 me: score, lender, year, tax, settings -->
     <section id="profile" class="screen">
-      <div class="shead"><h1 data-t="score">Record score</h1><button class="read ask" data-screen="profile"><i data-icon="mic"></i><span>Ask</span></button></div>
+      <div class="shead"><h1 data-t="nav_me">Me</h1><button class="read ask" data-screen="profile"><i data-icon="mic"></i><span>Ask</span></button></div>
       <div id="profileBody"></div>
     </section>
   </main>
@@ -82,26 +77,23 @@
     <span id="recHint">Recording… let go to send</span></div>
 
   <nav class="tabs">
-    <button data-tab="talk" class="on"><b data-icon="chat"></b><span data-t="nav_talk">Chat</span></button>
-    <button data-tab="book"><b data-icon="book"></b><span data-t="nav_book">Book</span></button>
+    <button data-tab="home" class="on"><b data-icon="home"></b><span data-t="nav_home">Home</span></button>
     <button data-tab="customers"><b data-icon="users"></b><span data-t="nav_customers">Customers</span></button>
+    <button data-tab="talk" class="fab" aria-label="Talk"><b data-icon="mic"></b><span data-t="talk_btn">Talk</span></button>
     <button data-tab="insights"><b data-icon="chart"></b><span data-t="nav_insights">Insights</span></button>
-    <button data-tab="profile"><b data-icon="bank"></b><span data-t="nav_profile">Profile</span></button>
+    <button data-tab="profile"><b data-icon="person"></b><span data-t="nav_me">Me</span></button>
   </nav>
 </div>
 
-<!-- first open -->
-<div class="overlay" id="welcome" hidden>
-  <div class="welcome">
-    <img class="biglogo" src="/static/logo.svg" alt="TradeVoice" width="104" height="104">
-    <h1 data-t="welcome">Welcome to TradeVoice</h1>
-    <div class="langs" id="welcomeLangs"></div>
-    <p class="consent" data-t="consent"></p>
-    <button class="primary" id="agree" data-t="agree">Agree and continue</button>
+<!-- 🔐 log in with your phone number (then shop name + consent) -->
+<div class="overlay login" id="login" hidden>
+  <div class="lcard">
+    <img class="biglogo" src="/static/logo.svg" alt="TradeVoice" width="72" height="72">
+    <div class="langs" id="loginLangs"></div>
+    <div id="loginStep"></div>
   </div>
 </div>
 
-<!-- menus -->
 <div class="overlay" id="sheet" hidden><div class="sheet" id="sheetBody"></div></div>
 <div class="toast" id="toast"></div>
 <audio id="player" preload="none"></audio>

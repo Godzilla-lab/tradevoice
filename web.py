@@ -35,7 +35,7 @@ app = FastAPI(title="TradeVoice")
 import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, same book)
 
 app.include_router(whatsapp.router)
-AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "0") == "1"  # switched on with the new login screen
+AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "1") == "1"  # AUTH_REQUIRED=0: no login, one shared book (old demo)
 OPEN_API = ("/api/auth/", "/api/ui", "/api/status", "/api/voice_check")
 COOKIE = "tv_auth"
 
