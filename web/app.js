@@ -22,6 +22,24 @@ const TYPES = {
 };
 
 const t = (k, d = "") => S.T[k] || d || k;
+
+// inline SVG icons for buttons/chrome (spec: no emoji as structural icons; emojis stay in message content)
+const I = {
+  speak: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10.5a4 4 0 0 1 8 0v2a4 4 0 0 1-8 0z"/><path d="M14 7.8a5.6 5.6 0 0 1 0 9.4"/></svg>',
+  play: '<svg class="i-pl" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4c0 .8.9 1.3 1.6.9l11-7.2c.6-.4.6-1.4 0-1.8l-11-7.2c-.7-.4-1.6.1-1.6.9z"/></svg>',
+  pause: '<svg class="i-pa" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1.2"/><rect x="14" y="4" width="4" height="16" rx="1.2"/></svg>',
+  yes: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"/></svg>',
+  no: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  down: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v13"/><path d="M6 12l6 6 6-6"/></svg>',
+  wa: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8.5c.6 2.8 3.7 5.9 6.5 6.5l1.3-1.6 2.2 1.1-.6 1.9c-.2.6-.8 1-1.5.9-4.3-.6-8.2-4.5-8.8-8.8-.1-.7.3-1.3.9-1.5l1.9-.6 1.1 2.2z" fill="currentColor"/></svg>',
+  pin: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 4h6l1 7 2 2H6l2-2z"/></svg>',
+  cal: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+  cam: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h3l2-2h6l2 2h3v12H4z"/><circle cx="12" cy="13" r="3.4"/></svg>',
+  warn: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4L2.5 20h19z"/><path d="M12 10v4M12 17.5v.5"/></svg>',
+  user: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/></svg>',
+  shop: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l1-4h14l1 4"/><path d="M5 9v11h14V9"/><path d="M9 20v-6h6v6"/></svg>',
+};
+const stripIc = (s) => esc(s).replace(/^[\u2190-\u2BFF\uFE0F\u274C\u2705]+\s*/u, "");
 const naira = (x) => (x < 0 ? "-₦" : "₦") + Math.round(Math.abs(x || 0)).toLocaleString("en-NG");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (s) => esc(s).replace(/\*(.+?)\*/g, "<b>$1</b>").replace(/_(.+?)_/g, "<i>$1</i>").replace(/\n/g, "<br>");
@@ -50,7 +68,7 @@ const post = (path, data) => api(path, { method: "POST", headers: { "Content-Typ
 async function loadWords() {
   try { S.T = await api(`/api/ui?lang=${encodeURIComponent(S.lang)}`); } catch { S.T = {}; }
   document.querySelectorAll("[data-t]").forEach((el) => { if (S.T[el.dataset.t]) el.textContent = S.T[el.dataset.t]; });
-  document.querySelectorAll(".read").forEach((b) => (b.textContent = t("read", "🔊 Read it to me")));
+  document.querySelectorAll(".read").forEach((b) => (b.innerHTML = I.speak + `<span>${esc(t("read", "Read it to me"))}</span>`));
   $("#text").placeholder = t("message", "Message");
   $("#recHint").textContent = t("recording", "Recording… let go to send");
   $("#sub").textContent = t("online", "online");
@@ -110,7 +128,7 @@ function voiceNote(src, { speakId = null, autoplay = false } = {}) {
   const wrap = document.createElement("div");
   wrap.className = "vn";
   const bars = Array.from({ length: 28 }, () => `<i style="height:${25 + Math.round(Math.random() * 75)}%"></i>`).join("");
-  wrap.innerHTML = `<button class="play" aria-label="Play">▶</button><span class="wave">${bars}</span><span class="len">0:00</span>`;
+  wrap.innerHTML = `<button class="play" aria-label="Play">${I.play}${I.pause}</button><span class="wave">${bars}</span><span class="len">0:00</span>`;
   const audio = new Audio();
   audio.preload = "none";
   const btn = $(".play", wrap), len = $(".len", wrap), waves = [...wrap.querySelectorAll(".wave i")];
@@ -121,7 +139,7 @@ function voiceNote(src, { speakId = null, autoplay = false } = {}) {
     waves.forEach((w, i) => w.classList.toggle("done", i / waves.length < p));
     len.textContent = mmss(audio.currentTime);
   };
-  audio.onended = () => { btn.textContent = "▶"; waves.forEach((w) => w.classList.remove("done")); };
+  audio.onended = () => { wrap.classList.remove("playing"); waves.forEach((w) => w.classList.remove("done")); };
   audio.onerror = () => { wrap.remove(); };
   const play = async () => {
     if (!audio.src) {
@@ -130,8 +148,8 @@ function voiceNote(src, { speakId = null, autoplay = false } = {}) {
     if (audio.paused) {
       document.querySelectorAll("audio").forEach((a) => a !== audio && a.pause());
       voiceNote.current?.pause(); voiceNote.current = audio;
-      audio.play().then(() => (btn.textContent = "❚❚")).catch(() => {});
-    } else { audio.pause(); btn.textContent = "▶"; }
+      audio.play().then(() => wrap.classList.add("playing")).catch(() => {});
+    } else { audio.pause(); wrap.classList.remove("playing"); }
   };
   btn.onclick = play;
   if (autoplay) setTimeout(play, 50);
@@ -141,7 +159,7 @@ function voiceNote(src, { speakId = null, autoplay = false } = {}) {
 function quickReplies() {
   const q = document.createElement("div");
   q.className = "quick";
-  q.innerHTML = `<button data-v="yes">${esc(t("yes_save", "✅ Yes, save"))}</button><button data-v="no">${esc(t("no", "❌ No"))}</button>`;
+  q.innerHTML = `<button data-v="yes">${I.yes}<span>${stripIc(t("yes_save", "Yes, save"))}</span></button><button data-v="no">${I.no}<span>${stripIc(t("no", "No"))}</span></button>`;
   q.onclick = (e) => {
     const v = e.target.dataset.v; if (!v) return;
     q.querySelectorAll("button").forEach((b) => (b.disabled = true));
@@ -154,7 +172,7 @@ function showReply(r, { autoplay = false } = {}) {
   let html = fmt(r.text);
   if (r.english) html += `<div class="en">🇬🇧 ${fmt(r.english)}</div>`;
   if (r.message) {
-    html += `<div class="quote">${fmt(r.message)}</div><a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">📲 Send on WhatsApp</a>`;
+    html += `<div class="quote">${fmt(r.message)}</div><a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">${I.wa}<span>Send on WhatsApp</span></a>`;
   }
   const el = bubble("in", html);
   if (r.speak && S.voice) el.insertBefore(voiceNote(null, { speakId: r.speak, autoplay }), el.querySelector(".meta"));
@@ -272,10 +290,10 @@ function photoRows(r) {
         <input class="f who" value="${esc(x.customer)}" placeholder="name">
       </div>
       ${x.line ? `<div class="from">“${esc(x.line)}”</div>` : ""}
-      ${x.checks.length ? `<div class="chk">⚠️ ${esc(x.checks.join(" · "))}</div>` : ""}
+      ${x.checks.length ? `<div class="chk">${I.warn} ${esc(x.checks.join(" · "))}</div>` : ""}
     </div>`).join("");
-  const el = bubble("in", `📸 I read ${r.rows.length} line${r.rows.length > 1 ? "s" : ""}. Check the names and amounts, untick anything wrong, then save.
-    <div class="rows">${rows}</div><button class="save">${esc(t("save_ticked", "✅ Save ticked"))}</button>`);
+  const el = bubble("in", `${I.cam} I read ${r.rows.length} line${r.rows.length > 1 ? "s" : ""}. Check the names and amounts, untick anything wrong, then save.
+    <div class="rows">${rows}</div><button class="save">${I.yes}<span>${stripIc(t("save_ticked", "Save ticked"))}</span></button>`);
   $(".save", el).onclick = async (ev) => {
     const out = [...el.querySelectorAll(".row")].map((row) => {
       const x = r.rows[row.dataset.i];
@@ -285,7 +303,7 @@ function photoRows(r) {
     ev.target.disabled = true;
     try {
       const res = await post("/api/save_rows", { rows: out });
-      bubble("in", `✅ Saved ${res.saved} record${res.saved === 1 ? "" : "s"}.` + (res.problems.length ? `<div class="en">⚠️ ${esc(res.problems.join("; "))}</div>` : ""));
+      bubble("in", `✅ Saved ${res.saved} record${res.saved === 1 ? "" : "s"}.` + (res.problems.length ? `<div class="en">${I.warn} ${esc(res.problems.join("; "))}</div>` : ""));
     } catch (e) { ev.target.disabled = false; bubble("in err", esc(e.message)); }
   };
 }
@@ -304,14 +322,15 @@ document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => show
 
 async function loadBook() {
   const d = await api("/api/today"), s = d.summary;
-  const due = d.due.map((r) => `<div class="item"><div class="ic">📌</div><div class="main"><div class="t">${esc(r.customer)}</div>
+  const TONE = { sale: "in", payment_received: "in", expense: "out", credit_purchase: "out", payment_made: "out", credit_sale: "credit" };
+  const due = d.due.map((r) => `<div class="item"><div class="ic due">${I.pin}</div><div class="main"><div class="t">${esc(r.customer)}</div>
       <div class="s">${naira(r.balance)}</div></div><button class="small" data-remind="${esc(r.customer)}">${esc(t("remind", "Remind"))}</button></div>`).join("");
   const list = d.entries.map((e) => {
     const [ic, lb] = TYPES[e.type] || ["•", e.type];
     const what = [lb, e.item, e.customer].filter(Boolean).join(" · ");
-    return `<div class="item"><div class="ic">${ic}</div><div class="main"><div class="t">${esc(what)}</div>
+    return `<div class="item"><div class="ic ${TONE[e.type] || ""}">${ic}</div><div class="main"><div class="t">${esc(what)}</div>
       <div class="s">${esc(e.created_at.slice(5, 16).replace("T", " "))}${e.due_date ? " · pay by " + esc(day(e.due_date)) : ""}</div></div>
-      <div class="amt">${naira(e.amount)}</div><button class="x" data-del="${e.id}" aria-label="Delete">✕</button></div>`;
+      <div class="amt">${naira(e.amount)}</div><button class="x" data-del="${e.id}" aria-label="Delete">${I.no}</button></div>`;
   }).join("");
   $("#bookBody").innerHTML = `
     <div class="stats">
@@ -326,7 +345,7 @@ async function loadBook() {
 async function loadDebts() {
   const d = await api("/api/debts");
   const total = d.owed_to_me.reduce((a, x) => a + x.balance, 0), mine = d.i_owe.reduce((a, x) => a + x.balance, 0);
-  const person = (x, remind) => `<div class="item"><div class="ic">${remind ? "🧑🏾" : "🏪"}</div><div class="main">
+  const person = (x, remind) => `<div class="item"><div class="ic ${remind ? "in" : "out"}">${remind ? I.user : I.shop}</div><div class="main">
       <div class="t">${esc(x.customer)}</div><div class="s">${x.overdue
         ? `<span class="badge late">${esc(t("days_late", "{n} days late").replace("{n}", x.days_late))}</span>`
         : `<span class="badge ok">${esc(t("on_time", "on time"))}</span>`}${x.due_date ? " · " + esc(day(x.due_date)) : ""}</div></div>
@@ -348,9 +367,9 @@ async function loadInsights() {
       <div class="note">Cash left after normal spending: <b>${naira(f.expected_cash)}</b></div><div class="bars">${bars}</div></div>
     <div class="card"><h2>${esc(t("busiest", "Busiest day"))}</h2><div class="big">${esc(f.busiest_day)}</div>
       <div class="note">Stock up the day before.</div></div>
-    ${f.due_soon.length ? `<div class="card"><h2>📥 Promised this week</h2>${f.due_soon.map((d) => `<div class="item"><div class="ic">📅</div><div class="main"><div class="t">${esc(d.customer)}</div><div class="s">${esc(day(d.due_date))}</div></div><div class="amt">${naira(d.balance)}</div></div>`).join("")}</div>` : ""}
+    ${f.due_soon.length ? `<div class="card"><h2>📥 Promised this week</h2>${f.due_soon.map((d) => `<div class="item"><div class="ic due">${I.cal}</div><div class="main"><div class="t">${esc(d.customer)}</div><div class="s">${esc(day(d.due_date))}</div></div><div class="amt">${naira(d.balance)}</div></div>`).join("")}</div>` : ""}
     <div class="card"><h2>${esc(t("best_sellers", "Best sellers"))} <small>· 14 days</small></h2>
-      ${top.map((x, i) => `<div class="item"><div class="ic">${["🥇", "🥈", "🥉"][i] || "⭐"}</div><div class="main"><div class="t">${esc(x.item)}</div>
+      ${top.map((x, i) => `<div class="item"><div class="ic rank${i + 1}">${i + 1}</div><div class="main"><div class="t">${esc(x.item)}</div>
         <div class="s">${x.qty && x.unit ? `${Math.round(x.qty)} ${esc(x.unit)}${x.qty !== 1 ? "s" : ""}` : ""}</div></div><div class="amt">${naira(x.revenue)}</div></div>`).join("")}</div>
     <p class="note">Forecast = your average sales for each weekday over the last 4 weeks. Simple and explainable, not a guarantee.</p>`;
 }
@@ -366,7 +385,7 @@ async function loadProfile() {
     <div class="card"><h2>Why this score</h2>${p.parts.map((x) => `<div class="part"><b>${esc(x.name)}</b> · ${Math.round(x.points)}/${x.max}
       <div class="bar"><i style="width:${Math.round((x.points / x.max) * 100)}%"></i></div><div class="why">${esc(x.why)}</div></div>`).join("")}
       <p class="note">A simple published formula over your own records, no hidden AI. It helps you talk to a lender, cooperative or ajo group; it is not a loan decision.${p.has_demo_data ? " Includes demo data for the hackathon." : ""}</p>
-      <a class="btn" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${esc(t("statement", "⬇️ Statement for lender / cooperative"))}</a></div>
+      <a class="btn" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${I.down}<span>${stripIc(t("statement", "Statement for lender / cooperative"))}</span></a></div>
     <div class="card"><h2>📒 My year so far</h2><pre class="year">${esc(year)}</pre></div>`;
 }
 
@@ -378,7 +397,7 @@ document.addEventListener("click", async (e) => {
     const r = await api(`/api/reminder?customer=${encodeURIComponent(who)}&lang=${lang}&shop=${encodeURIComponent(S.shop)}`);
     if (!r.message) return toast(`${who} doesn't owe you anything 🎉`);
     sheet(`<h3>📲 ${esc(t("remind", "Remind"))} ${esc(who)}</h3><div class="quote">${fmt(r.message)}</div>
-      <a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">Send on WhatsApp</a>
+      <a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">${I.wa}<span>Send on WhatsApp</span></a>
       <p>WhatsApp opens with the message ready. You choose the contact and press send yourself.</p>`);
   }
   if (del && confirm("Delete this record?")) { await api(`/api/entry/${del}`, { method: "DELETE" }); loadBook(); }
@@ -403,13 +422,13 @@ function sheet(html) {
 $("#sheet").onclick = (e) => { if (e.target.id === "sheet") $("#sheet").hidden = true; };
 
 $("#speakLang").onclick = () => {
-  sheet(`<h3>🗣️ ${esc(t("i_speak", "I'm speaking"))}</h3><div class="opts">${SPEAK_LANGS.map(([k, lb]) =>
+  sheet(`<h3>${esc(t("i_speak", "I'm speaking"))}</h3><div class="opts">${SPEAK_LANGS.map(([k, lb]) =>
     `<button data-speak="${k}" class="${k === S.speak ? "on" : ""}">${lb}</button>`).join("")}</div>
     <p>For voice notes. Typing works in any language, and you can switch any time in the same chat.</p>`);
   $("#sheetBody").onclick = (e) => {
     const k = e.target.dataset.speak; if (!k) return;
     S.speak = k; store.set("tv_speak", k); $("#sheet").hidden = true; loadWords();
-    toast(`🗣️ ${SPEAK_LANGS.find((l) => l[0] === k)[1]}`);
+    toast(SPEAK_LANGS.find((l) => l[0] === k)[1]);
   };
 };
 
@@ -425,7 +444,7 @@ $("#menuBtn").onclick = () => {
     <p><a href="/admin/" style="color:var(--muted)">Open the full dashboard (advanced)</a></p>`);
   $("#sheetBody").onclick = async (e) => {
     const l = e.target.dataset.lang;
-    if (l) { await setLang(l); $("#sheet").hidden = true; toast(`🌍 ${l}`); }
+    if (l) { await setLang(l); $("#sheet").hidden = true; toast(l); }
     if (e.target.id === "wipe") {
       const c = prompt("Type DELETE to erase all your records");
       if (c === "DELETE") { await post("/api/wipe", { confirm: c }); toast("All records deleted"); $("#sheet").hidden = true; }
@@ -460,8 +479,8 @@ async function greet() {
   chat.appendChild(ex);
   try {
     const d = await api("/api/today");
-    d.due.forEach((r) => bubble("in", `📌 ${esc(t("remind", "Remind"))}: <b>${esc(r.customer)}</b> · ${naira(r.balance)}
-      <div class="quick" style="margin-top:6px"><button data-remind="${esc(r.customer)}">📲 ${esc(t("remind", "Remind"))}</button></div>`));
+    d.due.forEach((r) => bubble("in", `📌 <b>${esc(r.customer)}</b> · ${naira(r.balance)}
+      <div class="quick" style="margin-top:6px"><button data-remind="${esc(r.customer)}">${I.wa}<span>${esc(t("remind", "Remind"))}</span></button></div>`));
   } catch {}
 }
 
