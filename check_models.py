@@ -43,7 +43,7 @@ def try_model(model, content, max_tokens=200, kind="llm"):
     """Return (ok, line). model "local" = our own Brev GPU model (LOCAL_LLM_URL / LOCAL_VISION_URL)."""
     start = time.perf_counter()
     try:
-        c = llm._client(kind, 60, 0, model) if model == "local" else client
+        c = llm._client(kind, 60, 0, model) if model == "local" else client  # "local" = the Brev server for this kind
         r = c.chat.completions.create(model=llm._local_name(kind) if model == "local" else model,
                                       messages=[{"role": "user", "content": content}],
                                       max_tokens=max_tokens, temperature=0)
@@ -78,7 +78,7 @@ def check_configured():
         print(" ", try_model("local", TEXT_Q)[1])
     print("Vision models (VISION_MODELS):")
     for m in llm.VISION_MODELS:
-        print(" ", try_model(m, IMAGE_Q)[1])
+        print(" ", try_model(m, IMAGE_Q, kind="vision")[1])
     if os.getenv("LOCAL_VISION_URL"):
         print(f"Photo reader on our Brev GPU (LOCAL_VISION_URL, {llm.LOCAL_VISION_MODEL}):")
         print(" ", try_model("local", IMAGE_Q, kind="vision")[1])
