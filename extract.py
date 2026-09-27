@@ -79,7 +79,7 @@ _PAYMENT_KW = ("don pay", "don bring", "ti pay", "has paid", "have paid", "paid 
 _CREDIT_KW = ("owe", "owes", "owing", "go pay", "will pay", "on credit", "na credit", "credit", "later", "balance remain",
               "never pay", "no pay", "pay by", "pay on", "pay next",
               "gbese", "je mi", "yoo san", "o ma san",      # yo: debt, owes me, will pay
-              "bashi", "za ta biya", "za ya biya",          # ha: debt, will pay
+              "bashi", "za ta biya", "za ya biya", "zai biya", "za ta pay", "za ya pay", "zai pay",  # ha: debt, will pay
               "ugwo", "ji m", "ga-akwu", "ga akwu")         # ig: debt, owes me, will pay
 _EXPENSE_RE = re.compile(r"\b(i|we)\s+(buy|bought|pay for|paid for|spend|spent|restock|restocked)\b"
                          r"|\b(i|we)\s+(pay|paid)\s+(n|₦)?\d"
@@ -320,6 +320,9 @@ def parse_type(text):
     if re.search(r"\bpay me\b.*\bwey (?:he|she|e) (?:owe|dey owe)\b", t):  # "Emeka pay me 20k wey he owe"
         return "payment_received"
     if any(k in t for k in _PAYMENT_KW):
+        return "payment_received"
+    # ha: "ta/ya biya" = she/he paid, but "za ta/ya biya", "zai biya" = will pay (a promise, so credit)
+    if re.search(r"\b(ta|ya) biya\b", t) and not re.search(r"\bza (ta|ya) biya\b", t):
         return "payment_received"
     if _EXPENSE_RE.search(t) and not _SELL_RE.search(t):
         return "expense"
