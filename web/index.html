@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#0E6B52">
 <title>TradeVoice</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230E6B52'/><text x='50' y='66' font-size='50' text-anchor='middle'>🗣️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -32,9 +34,22 @@
       <div id="bookBody"></div>
     </section>
 
-    <!-- 🤝 debts -->
+    <!-- 👥 customers: list + one conversation per customer -->
+    <section id="customers" class="screen">
+      <div class="cwrap">
+        <div class="clist">
+          <div class="chead"><div class="csum" id="csum"></div><button class="small" id="newCust">+ New customer</button></div>
+          <input class="csearch" id="csearch" type="search" autocomplete="off">
+          <div class="cfilters" id="cfilters"></div>
+          <button class="read slim" data-screen="owes">🔊 Read it to me</button>
+          <div id="crows"></div>
+        </div>
+        <div class="cthread" id="cthread"></div>
+      </div>
+    </section>
+
+    <!-- 🤝 debts (kept for old links; the Customers tab replaces it) -->
     <section id="debts" class="screen">
-      <button class="read" data-screen="owes">🔊 Read it to me</button>
       <div id="debtsBody"></div>
     </section>
 
@@ -66,7 +81,7 @@
   <nav class="tabs">
     <button data-tab="talk" class="on"><b>💬</b><span data-t="nav_talk">Chat</span></button>
     <button data-tab="book"><b>📒</b><span data-t="nav_book">Book</span></button>
-    <button data-tab="debts"><b>🤝</b><span data-t="nav_debts">Debts</span></button>
+    <button data-tab="customers"><b>👥</b><span data-t="nav_customers">Customers</span></button>
     <button data-tab="insights"><b>🔮</b><span data-t="nav_insights">Insights</span></button>
     <button data-tab="profile"><b>🏦</b><span data-t="nav_profile">Profile</span></button>
   </nav>
@@ -88,5 +103,6 @@
 <div class="toast" id="toast"></div>
 <audio id="player" preload="none"></audio>
 <script src="/static/app.js"></script>
+<script src="/static/customers.js"></script>
 </body>
 </html>

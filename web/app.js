@@ -21,7 +21,8 @@ const TYPES = {
   expense: ["💸", "Spent"], credit_purchase: ["📦", "Bought on credit (I owe)"], payment_made: ["↩️", "I paid back"],
 };
 
-const t = (k, d = "") => S.T[k] || d || k;
+// every screen word comes from ui_text.py (/api/ui); a missing word falls back to English, never to the key
+const t = (k, d = "") => S.T[k] || d || "";
 const naira = (x) => (x < 0 ? "-₦" : "₦") + Math.round(Math.abs(x || 0)).toLocaleString("en-NG");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (s) => esc(s).replace(/\*(.+?)\*/g, "<b>$1</b>").replace(/_(.+?)_/g, "<i>$1</i>").replace(/\n/g, "<br>");
@@ -42,12 +43,12 @@ async function api(path, opts = {}) {
   try {
     r = await fetch(path, { ...opts, signal: ctl.signal, headers: { ...HDR, ...(opts.headers || {}) } });
   } catch (e) {
-    throw new Error(e.name === "AbortError" ? "No answer from the server (took too long). Try again, or type it."
-                                            : "Can't reach TradeVoice. Check your internet.");
+    throw new Error(e.name === "AbortError" ? t("error", "No answer from the server. Try again.")
+                                            : t("offline", "Can't reach TradeVoice. Check your internet."));
   } finally { clearTimeout(timer); }
   let body = null;
   try { body = await r.json(); } catch {}
-  if (!r.ok) throw new Error((body && (body.error || body.detail)) || `Error ${r.status}`);
+  if (!r.ok) throw new Error((body && (body.error || (typeof body.detail === "string" && body.detail))) || t("error", "Something went wrong."));
   return body;
 }
 const post = (path, data) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -63,6 +64,10 @@ async function loadWords() {
   $("#sub").textContent = t("online", "online");
   $("#speakLang span").textContent = SPEAK_LANGS.find((l) => l[0] === S.speak)?.[1] || S.speak;
   document.documentElement.lang = { Yoruba: "yo", Hausa: "ha", Igbo: "ig", Pidgin: "pcm" }[S.lang] || "en";
+  document.documentElement.dir = (S.T._dir) || "ltr";
+  Object.keys(TYPES).forEach((k) => { if (S.T["t_" + k]) TYPES[k][1] = S.T["t_" + k]; });
+  const cur = document.querySelector(".tabs button.on")?.dataset.tab;
+  if (cur && cur !== "talk") showTab(cur);  // redraw the open screen in the new language
 }
 
 function setLang(lang) {
@@ -176,7 +181,7 @@ function showReply(r, { autoplay = false } = {}) {
   let html = fmt(r.text);
   if (r.english) html += `<div class="en">🇬🇧 ${fmt(r.english)}</div>`;
   if (r.message) {
-    html += `<div class="quote">${fmt(r.message)}</div><a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">📲 Send on WhatsApp</a>`;
+    html += `<div class="quote">${fmt(r.message)}</div><a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">📲 ${esc(t("open_whatsapp", "Open WhatsApp"))}</a><div class="en">${esc(t("draft_note", ""))}</div>`;
   }
   const el = bubble("in", html);
   if (r.speak && S.voice) el.insertBefore(voiceNote(null, { speakId: r.speak, autoplay }), el.querySelector(".meta"));
@@ -248,7 +253,7 @@ function stopRec(cancel = false) {
 async function finishRec() {
   state = "idle";
   const ms = Date.now() - recStart;
-  if (cancelRec) return toast("Cancelled");
+  if (cancelRec) return toast(t("cancelled", "Cancelled"));
   if (ms < 700) return toast(t("hold", "Hold 🎤 to talk"));
   const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
   const ext = (rec.mimeType || "").includes("mp4") ? ".m4a" : (rec.mimeType || "").includes("ogg") ? ".ogg" : ".webm";
@@ -310,7 +315,7 @@ $("#photo").addEventListener("change", async (e) => {
 });
 
 function photoRows(r) {
-  if (!r.rows.length) return bubble("in", "I couldn't find money records in this photo. Try a flat page, in good light, whole page in view.");
+  if (!r.rows.length) return bubble("in", esc(t("photo_none", "I couldn't find money records in this photo.")));
   const opts = (sel) => Object.entries(TYPES).map(([k, [ic, lb]]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${ic} ${lb}</option>`).join("");
   const rows = r.rows.map((x, i) => `
     <div class="row" data-i="${i}">
@@ -323,7 +328,7 @@ function photoRows(r) {
       ${x.line ? `<div class="from">“${esc(x.line)}”</div>` : ""}
       ${x.checks.length ? `<div class="chk">⚠️ ${esc(x.checks.join(" · "))}</div>` : ""}
     </div>`).join("");
-  const el = bubble("in", `📸 I read ${r.rows.length} line${r.rows.length > 1 ? "s" : ""}. Check the names and amounts, untick anything wrong, then save.
+  const el = bubble("in", `📸 ${esc(t("photo_read", "I read {n} lines.").replace("{n}", r.rows.length))}
     <div class="rows">${rows}</div><button class="save">${esc(t("save_ticked", "✅ Save ticked"))}</button>`);
   $(".save", el).onclick = async (ev) => {
     const out = [...el.querySelectorAll(".row")].map((row) => {
@@ -334,7 +339,7 @@ function photoRows(r) {
     ev.target.disabled = true;
     try {
       const res = await post("/api/save_rows", { rows: out });
-      bubble("in", `✅ Saved ${res.saved} record${res.saved === 1 ? "" : "s"}.` + (res.problems.length ? `<div class="en">⚠️ ${esc(res.problems.join("; "))}</div>` : ""));
+      bubble("in", `✅ ${esc(t("saved_n", "Saved {n}.").replace("{n}", res.saved))}` + (res.problems.length ? `<div class="en">⚠️ ${esc(res.problems.join("; "))}</div>` : ""));
     } catch (e) { ev.target.disabled = false; bubble("in err", esc(e.message)); }
   };
 }
@@ -345,7 +350,9 @@ async function showTab(name) {
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === name));
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
   $("#composer").style.display = name === "talk" ? "" : "none";
-  const load = { book: loadBook, debts: loadDebts, insights: loadInsights, profile: loadProfile }[name];
+  if (name !== "customers") $("#app").classList.remove("in-thread");
+  else if (typeof C !== "undefined" && C.open) $("#app").classList.add("in-thread");
+  const load = { book: loadBook, debts: loadDebts, customers: () => loadCustomers(), insights: loadInsights, profile: loadProfile }[name];
   if (load) { try { await load(); } catch (e) { toast(e.message); } }
   if (name === "talk") scrollDown();
 }
@@ -359,7 +366,7 @@ async function loadBook() {
     const [ic, lb] = TYPES[e.type] || ["•", e.type];
     const what = [lb, e.item, e.customer].filter(Boolean).join(" · ");
     return `<div class="item"><div class="ic">${ic}</div><div class="main"><div class="t">${esc(what)}</div>
-      <div class="s">${esc(e.created_at.slice(5, 16).replace("T", " "))}${e.due_date ? " · pay by " + esc(day(e.due_date)) : ""}</div></div>
+      <div class="s">${esc(e.created_at.slice(5, 16).replace("T", " "))}${e.due_date ? " · " + esc(t("due", "Due {d}").replace("{d}", day(e.due_date))) : ""}</div></div>
       <div class="amt">${naira(e.amount)}</div><button class="x" data-del="${e.id}" aria-label="Delete">✕</button></div>`;
   }).join("");
   $("#bookBody").innerHTML = `
@@ -368,8 +375,8 @@ async function loadBook() {
       <div class="stat"><div class="k">${esc(t("spent", "Spent"))}</div><div class="v">${naira(s.expenses)}</div></div>
       <div class="stat"><div class="k">${esc(t("came_in", "Came in"))}</div><div class="v">${naira(s.cash_sales + s.payments_received)}</div></div>
     </div>
-    ${due ? `<div class="card"><h2>📌 Today</h2>${due}</div>` : ""}
-    <div class="card"><h2>${esc(t("recent", "Recent"))}</h2>${list || '<div class="empty">Nothing yet. Go to Chat and tell me a sale.</div>'}</div>`;
+    ${due ? `<div class="card"><h2>📌 ${esc(t("today", "Today"))}</h2>${due}</div>` : ""}
+    <div class="card"><h2>${esc(t("recent", "Recent"))}</h2>${list || `<div class="empty">${esc(t("empty_book", "Nothing yet."))}</div>`}</div>`;
 }
 
 async function loadDebts() {
@@ -382,9 +389,9 @@ async function loadDebts() {
       <div class="amt${x.overdue ? " late-amt" : ""}">${naira(x.balance)}</div>${remind ? `<button class="small" data-remind="${esc(x.customer)}">${esc(t("remind", "Remind"))}</button>` : ""}</div>`;
   $("#debtsBody").innerHTML = `
     <div class="card"><h2>${esc(t("owe_me", "Owe me"))} <small>· ${d.owed_to_me.length}</small></h2><div class="big">${naira(total)}</div>
-      ${d.owed_to_me.map((x) => person(x, true)).join("") || '<div class="empty">Nobody owes you 🎉</div>'}</div>
+      ${d.owed_to_me.map((x) => person(x, true)).join("") || `<div class="empty">${esc(t("nobody_owes", "Nobody owes you"))}</div>`}</div>
     <div class="card"><h2>${esc(t("i_owe", "I owe"))} <small>· ${d.i_owe.length}</small></h2><div class="big">${naira(mine)}</div>
-      ${d.i_owe.map((x) => person(x, false)).join("") || '<div class="empty">You owe nobody 🎉</div>'}</div>`;
+      ${d.i_owe.map((x) => person(x, false)).join("") || `<div class="empty">${esc(t("you_owe_nobody", "You owe nobody"))}</div>`}</div>`;
 }
 
 async function loadInsights() {
@@ -394,14 +401,14 @@ async function loadInsights() {
   const bars = f.plan.map((p) => `<div class="${p.weekday === f.busiest_day ? "peak" : ""}"><span style="height:${Math.round((p.sales / max) * 100)}%"></span>${esc(p.weekday.slice(0, 3))}</div>`).join("");
   $("#insightsBody").innerHTML = `
     <div class="card"><h2>${esc(t("next_week", "Next 7 days"))}</h2><div class="big">${naira(f.week_sales)}</div>
-      <div class="note">Cash left after normal spending: <b>${naira(f.expected_cash)}</b></div><div class="bars">${bars}</div></div>
+      <div class="note">${esc(t("cash_left", "Cash left after normal spending"))}: <b>${naira(f.expected_cash)}</b></div><div class="bars">${bars}</div></div>
     <div class="card"><h2>${esc(t("busiest", "Busiest day"))}</h2><div class="big">${esc(f.busiest_day)}</div>
-      <div class="note">Stock up the day before.</div></div>
-    ${f.due_soon.length ? `<div class="card"><h2>📥 Promised this week</h2>${f.due_soon.map((d) => `<div class="item"><div class="ic">📅</div><div class="main"><div class="t">${esc(d.customer)}</div><div class="s">${esc(day(d.due_date))}</div></div><div class="amt">${naira(d.balance)}</div></div>`).join("")}</div>` : ""}
+      <div class="note">${esc(t("stock_tip", "Stock up the day before."))}</div></div>
+    ${f.due_soon.length ? `<div class="card"><h2>📥 ${esc(t("promised_week", "Promised this week"))}</h2>${f.due_soon.map((d) => `<div class="item"><div class="ic">📅</div><div class="main"><div class="t">${esc(d.customer)}</div><div class="s">${esc(day(d.due_date))}</div></div><div class="amt">${naira(d.balance)}</div></div>`).join("")}</div>` : ""}
     <div class="card"><h2>${esc(t("best_sellers", "Best sellers"))} <small>· 14 days</small></h2>
       ${top.map((x, i) => `<div class="item"><div class="ic">${["🥇", "🥈", "🥉"][i] || "⭐"}</div><div class="main"><div class="t">${esc(x.item)}</div>
         <div class="s">${x.qty && x.unit ? `${Math.round(x.qty)} ${esc(x.unit)}${x.qty !== 1 ? "s" : ""}` : ""}</div></div><div class="amt">${naira(x.revenue)}</div></div>`).join("")}</div>
-    <p class="note">Forecast = your average sales for each weekday over the last 4 weeks. Simple and explainable, not a guarantee.</p>`;
+    <p class="note">${esc(t("forecast_note", ""))}</p>`;
 }
 
 async function loadProfile() {
@@ -412,11 +419,11 @@ async function loadProfile() {
     <div class="card" style="text-align:center"><h2>${esc(t("score", "Record score"))}</h2>
       <div class="ring" style="background:conic-gradient(var(--accent) ${deg}deg, var(--line) 0)"><div>${p.score}<small>/100 · ${esc(p.band)}</small></div></div>
       <div class="note">${p.span_days} days of records · average daily sales ${naira(p.avg_daily_sales)}</div></div>
-    <div class="card"><h2>Why this score</h2>${p.parts.map((x) => `<div class="part"><b>${esc(x.name)}</b> · ${Math.round(x.points)}/${x.max}
+    <div class="card"><h2>${esc(t("why_score", "Why this score"))}</h2>${p.parts.map((x) => `<div class="part"><b>${esc(x.name)}</b> · ${Math.round(x.points)}/${x.max}
       <div class="bar"><i style="width:${Math.round((x.points / x.max) * 100)}%"></i></div><div class="why">${esc(x.why)}</div></div>`).join("")}
-      <p class="note">A simple published formula over your own records, no hidden AI. It helps you talk to a lender, cooperative or ajo group; it is not a loan decision.${p.has_demo_data ? " Includes demo data for the hackathon." : ""}</p>
+      <p class="note">${esc(t("score_note", ""))}${p.has_demo_data ? " (demo data)" : ""}</p>
       <a class="btn" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${esc(t("statement", "⬇️ Statement for lender / cooperative"))}</a></div>
-    <div class="card"><h2>📒 My year so far</h2><pre class="year">${esc(year)}</pre></div>`;
+    <div class="card"><h2>📒 ${esc(t("my_year", "My year so far"))}</h2><pre class="year">${esc(year)}</pre></div>`;
 }
 
 // remind buttons (Book + Debts): show the message first, then WhatsApp
@@ -425,10 +432,10 @@ document.addEventListener("click", async (e) => {
   if (who) {
     const lang = ["English", "Pidgin", "Yoruba"].includes(S.lang) ? S.lang : "Pidgin";
     const r = await api(`/api/reminder?customer=${encodeURIComponent(who)}&lang=${lang}&shop=${encodeURIComponent(S.shop)}`);
-    if (!r.message) return toast(`${who} doesn't owe you anything 🎉`);
+    if (!r.message) return toast(t("remind_none", "{n} doesn't owe you anything").replace("{n}", who));
     sheet(`<h3>📲 ${esc(t("remind", "Remind"))} ${esc(who)}</h3><div class="quote">${fmt(r.message)}</div>
-      <a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">Send on WhatsApp</a>
-      <p>WhatsApp opens with the message ready. You choose the contact and press send yourself.</p>`);
+      <a class="wa" href="${esc(r.link)}" target="_blank" rel="noopener">${esc(t("open_whatsapp", "Open WhatsApp"))}</a>
+      <p>${esc(t("draft_note", "TradeVoice prepared this. You send it yourself."))}</p>`);
   }
   if (del && confirm("Delete this record?")) { await api(`/api/entry/${del}`, { method: "DELETE" }); loadBook(); }
 });
@@ -463,29 +470,29 @@ $("#speakLang").onclick = () => {
 };
 
 $("#menuBtn").onclick = () => {
-  sheet(`<h3>🌍 ${esc(t("app_language", "App language"))}</h3><div class="opts">${(S.T._langs || ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"])
-      .map((l) => `<button data-lang="${l}" class="${l === S.lang ? "on" : ""}">${l}</button>`).join("")}</div>
+  sheet(`<h2 class="sheet-title">⚙️ ${esc(t("settings", "Settings"))}</h2>
+    <h3>🌍 ${esc(t("language", "Language"))}</h3><div class="opts">${(S.T._langs || ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"])
+      .map((l) => `<button data-lang="${l}" class="${l === S.lang ? "on" : ""}">${LANG_NAMES[l] || l}</button>`).join("")}</div>
     <h3>🏪 ${esc(t("shop_name", "Shop name"))}</h3><input id="shopIn" value="${esc(S.shop)}" placeholder="Chioma Stores">
     <h3>🔒 ${esc(t("my_data", "My data"))}</h3>
-    <p>Voice notes and photos are read and deleted straight away; only the records are kept. Speech is turned into text by Intron;
-      the AI that understands your notes and reads your photos runs on our own NVIDIA Brev GPU. Nothing is saved until you say yes.
-      Reminders are only sent if you press send.</p>
-    <button class="danger" id="wipe">Delete all my records</button>
-    <p><a href="/admin/" style="color:var(--muted)">Open the full dashboard (advanced)</a></p>`);
+    <p>${esc(t("privacy", ""))}</p>
+    <button class="danger" id="wipe">${esc(t("delete_all", "Delete all my records"))}</button>
+    <p><a href="/admin/" style="color:var(--muted)">Advanced dashboard</a> · <a href="/" style="color:var(--muted)">TradeVoice website</a></p>`);
   $("#sheetBody").onclick = async (e) => {
     const l = e.target.dataset.lang;
-    if (l) { await setLang(l); $("#sheet").hidden = true; toast(`🌍 ${l}`); }
+    if (l) { await setLang(l); $("#sheet").hidden = true; toast(`🌍 ${LANG_NAMES[l] || l}`); }
     if (e.target.id === "wipe") {
-      const c = prompt("Type DELETE to erase all your records");
-      if (c === "DELETE") { await post("/api/wipe", { confirm: c }); toast("All records deleted"); $("#sheet").hidden = true; }
+      const c = prompt("DELETE");
+      if (c === "DELETE") { await post("/api/wipe", { confirm: c }); toast("✓"); $("#sheet").hidden = true; }
     }
   };
   $("#shopIn").onchange = (e) => { S.shop = e.target.value.trim(); store.set("tv_shop", S.shop); };
 };
+const LANG_NAMES = { English: "English", Pidgin: "Pidgin", Yoruba: "Yorùbá", Hausa: "Hausa", Igbo: "Igbo" };
 
 function showWelcome() {
   const box = $("#welcomeLangs");
-  box.innerHTML = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"].map((l) => `<button data-l="${l}" class="${l === S.lang ? "on" : ""}">${l}</button>`).join("");
+  box.innerHTML = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"].map((l) => `<button data-l="${l}" class="${l === S.lang ? "on" : ""}">${LANG_NAMES[l]}</button>`).join("");
   box.onclick = async (e) => {
     if (!e.target.dataset.l) return;
     await setLang(e.target.dataset.l);

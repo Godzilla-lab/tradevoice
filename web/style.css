@@ -221,3 +221,90 @@ pre.year { white-space: pre-wrap; font-size: 12.5px; margin: 0; }
 .top .avatar { background: rgba(255,255,255,.16); }
 .quick.choices { flex-direction: column; align-items: stretch; max-width: 85%; }
 .quick.choices button { text-align: left; font-weight: 500; color: var(--ink); }
+
+/* ---------------- customers + conversations (same tokens, same geometry) ---------------- */
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Noto Sans", Helvetica, Arial, sans-serif; }
+#customers { padding: 0; }
+.cwrap { height: 100%; display: flex; }
+.clist { flex: 1; min-width: 0; overflow-y: auto; padding: 12px 12px 20px; background: var(--panel); }
+.cthread { display: none; flex: 1; min-width: 0; flex-direction: column; background: var(--bg);
+  background-image: radial-gradient(var(--pattern) 1.2px, transparent 1.2px); background-size: 18px 18px; }
+#customers.open .clist { display: none; }
+#customers.open .cthread { display: flex; }
+#app.in-thread .top, #app.in-thread .tabs { display: none; }
+.chead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.csum { flex: 1; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; color: var(--muted); }
+.csum b { color: var(--ink); }
+.csearch { width: 100%; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bar); color: var(--ink); margin-bottom: 8px; }
+.cfilters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.cfilters button { border: 1px solid var(--line); background: var(--panel); border-radius: 16px; padding: 5px 12px;
+  font-size: 13.5px; color: var(--muted); }
+.cfilters button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.read.slim { font-size: 15px; padding: 9px; margin-bottom: 6px; }
+.crow { display: flex; gap: 12px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line);
+  background: none; padding: 11px 4px; align-items: flex-start; }
+.crow:hover, .crow.sel { background: var(--bar); }
+.cav { width: 44px; height: 44px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 700;
+  font-size: 15px; background: rgba(14,107,82,.12); color: var(--accent); }
+.cmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cline { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.cname { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctime { font-size: 12px; color: var(--muted); flex: none; }
+.cprev { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cbal { font-size: 12.5px; color: var(--muted); }
+.unread { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent);
+  color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.thead { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 4px; background: var(--head);
+  color: var(--head-ink); padding-top: max(8px, env(safe-area-inset-top)); }
+.thead .cav { width: 38px; height: 38px; background: rgba(255,255,255,.16); color: var(--head-ink); }
+.thead .icon { color: var(--head-ink); }
+.tinfo { flex: 1; min-width: 0; }
+.tname { font-weight: 600; font-size: 16.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tsub { font-size: 12.5px; opacity: .9; }
+.thead .tsub.late-amt { color: #ffd4cf; opacity: 1; }
+.tcontext { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 7px 14px; font-size: 13px;
+  color: var(--muted); background: var(--panel); border-bottom: 1px solid var(--line); }
+.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 13px; padding: 0; }
+.tmsgs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 12px 10px; }
+.rec { align-self: center; display: flex; gap: 10px; align-items: center; max-width: 92%; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 14px; box-shadow: var(--shadow); }
+.rec small { color: var(--muted); }
+.rec .ric { font-size: 18px; }
+.rec .rmain { flex: 1; min-width: 0; }
+.rec .rtime { font-size: 11.5px; color: var(--muted); align-self: flex-end; }
+.rec.draft { border-color: var(--accent); }
+.msg.tv { border-left: 3px solid var(--accent); }
+.tvlabel { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 4px; }
+.msg .rtext { white-space: pre-wrap; }
+textarea.rtext { width: 100%; font: inherit; font-size: 15px; border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+  background: var(--panel); color: var(--ink); }
+.rbtns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.rbtns button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px;
+  padding: 7px 12px; font-size: 14px; font-weight: 600; }
+.rbtns .wa-btn, .rbtns .primary-sm { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tactions { display: flex; gap: 6px; overflow-x: auto; padding: 8px 10px 2px; background: var(--bar); }
+.tactions button { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 18px;
+  padding: 7px 12px; font-size: 13.5px; }
+.tcomposer { display: flex; gap: 6px; padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); background: var(--bar); }
+.tcomposer input { flex: 1; min-width: 0; font: inherit; font-size: 16px; border: 1px solid var(--line); border-radius: 22px;
+  padding: 10px 14px; background: var(--panel); color: var(--ink); }
+.small-round { width: 44px; height: 44px; font-size: 18px; }
+.sheet label { display: block; font-size: 13.5px; color: var(--muted); margin-bottom: 2px; }
+.sheet label input { margin-top: 4px; }
+.sheet-title { font-size: 18px; margin: 0 0 8px; }
+.sheet .primary { margin-top: 4px; }
+
+/* desktop / tablet: conversation list beside the open conversation; other screens stay readable width */
+@media (min-width: 900px) {
+  #app { max-width: 1120px; }
+  .cwrap { display: grid; grid-template-columns: 360px 1fr; }
+  .clist { border-right: 1px solid var(--line); }
+  #customers.open .clist { display: block; }
+  .cthread { display: flex; }
+  #app.in-thread .top, #app.in-thread .tabs { display: flex; }
+  .thead .back { display: none; }
+  #talk .chat, #book, #insights, #profile, #debts { max-width: 760px; margin-left: auto; margin-right: auto; width: 100%; }
+}
+[dir="rtl"] .msg.in { border-top-left-radius: 8px; border-top-right-radius: 0; }
+[dir="rtl"] .msg.out { border-top-right-radius: 8px; border-top-left-radius: 0; }

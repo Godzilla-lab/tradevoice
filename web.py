@@ -23,6 +23,7 @@ import ledger
 import photo
 import tts
 import ui_text
+from extract import TYPES
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHOP_NAME = os.getenv("SHOP_NAME", "Chioma Stores")
@@ -140,6 +141,146 @@ def save_rows(body: Rows):
     return photo.save(body.rows)
 
 
+# ---------------------------------------------------------------- customers + their conversations
+
+def _customer_or_404(cid):
+    c = ledger.customer_summary(cid)
+    if not c:
+        raise HTTPException(404, "customer not found (it may have been deleted)")
+    return c
+
+
+@app.get("/api/customers")
+def customers():
+    rows = ledger.conversations()
+    names = {}
+    for r in rows:
+        names[ledger.customer_key(r["name"])] = names.get(ledger.customer_key(r["name"]), 0) + 1
+    for r in rows:
+        r["same_name"] = names[ledger.customer_key(r["name"])] > 1
+    return {"customers": rows}
+
+
+class NewCustomer(BaseModel):
+    name: str
+    phone: str | None = None
+    notes: str | None = None
+
+
+@app.post("/api/customers")
+def new_customer(c: NewCustomer):
+    if not c.name.strip():
+        raise HTTPException(400, "name needed")
+    return ledger.customer_summary(ledger.create_customer(c.name, c.phone, c.notes))
+
+
+@app.get("/api/customers/{cid}")
+def customer(cid: int):
+    return {"customer": _customer_or_404(cid), "thread": ledger.thread(cid)}
+
+
+class CustomerEdit(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    notes: str | None = None
+
+
+@app.patch("/api/customers/{cid}")
+def edit_customer(cid: int, e: CustomerEdit):
+    _customer_or_404(cid)
+    ledger.update_customer(cid, **{k: v for k, v in e.model_dump().items() if v is not None})
+    return ledger.customer_summary(cid)
+
+
+@app.delete("/api/customers/{cid}")
+def remove_customer(cid: int):
+    return {"deleted": bool(ledger.delete_customer(cid))}
+
+
+@app.post("/api/customers/{cid}/read")
+def mark_read(cid: int):
+    _customer_or_404(cid)
+    ledger.update_customer(cid, last_read_at=ledger._now())
+    return {"ok": True}
+
+
+class CustRecord(BaseModel):
+    type: str
+    amount: float
+    item: str | None = None
+    due_date: str | None = None
+    raw_text: str | None = None
+
+
+@app.post("/api/customers/{cid}/record")
+def customer_record(cid: int, r: CustRecord):
+    """Record a sale / payment for THIS customer (by id). Balances update everywhere at once."""
+    _customer_or_404(cid)
+    if r.type not in TYPES or r.amount <= 0:
+        raise HTTPException(400, "needs a type and an amount")
+    ledger.add_entry({"type": r.type, "amount": r.amount, "item": (r.item or "").strip() or None,
+                      "due_date": r.due_date or None, "customer_id": cid}, raw_text=r.raw_text or "", engine="customer")
+    return {"customer": ledger.customer_summary(cid), "thread": ledger.thread(cid)}
+
+
+class CustSay(BaseModel):
+    text: str
+
+
+@app.post("/api/customers/{cid}/say")
+def customer_say(cid: int, m: CustSay):
+    """Typed in a customer's conversation: something with money ("paid 10k") -> a draft to confirm;
+    anything else -> saved as a note."""
+    cust = _customer_or_404(cid)
+    from extract import extract, parse_amount
+
+    if parse_amount(m.text) is not None:
+        import re
+
+        from extract import fold
+
+        rec, meta = extract(f"{cust['name']} {m.text}")
+        t = fold(m.text)
+        # inside THIS customer's conversation, "paid 5k" means they paid me; "I paid 5k" means I paid them back
+        if re.search(r"\b(i|we)\s+(don\s+|have\s+)?(paid|pay|settle|settled|cleared)\b", t):
+            rec["type"] = "payment_made"
+        elif re.search(r"\b(paid|pay|pays|don pay|settle|settled|cleared|brought|bring|collect|collected|received|receive|ti san|biya|kwuru|kwuola)\b", t):
+            rec["type"] = "payment_received"
+        elif re.search(r"\b(owe|credit|go pay|will pay|later)\b", t) and rec["type"] == "sale":
+            rec["type"] = "credit_sale"
+        return {"draft": {k: rec.get(k) for k in ("type", "amount", "item", "due_date")}, "engine": meta["engine"]}
+    ledger.add_message(cid, m.text.strip(), sender="trader", kind="note")
+    return {"thread": ledger.thread(cid)}
+
+
+class Remind(BaseModel):
+    lang: str = "Pidgin"
+    shop: str | None = None
+
+
+@app.post("/api/customers/{cid}/reminder")
+def customer_reminder(cid: int, b: Remind):
+    """TradeVoice drafts the reminder; the trader edits it and sends it from their own WhatsApp."""
+    cust = _customer_or_404(cid)
+    msg, link = insights.reminder(cust["name"], b.lang if b.lang in insights.TEMPLATES else "Pidgin",
+                                  b.shop or SHOP_NAME, customer_id=cid)
+    if not msg:
+        return {"message": None}
+    mid = ledger.add_message(cid, msg, sender="tradevoice", kind="reminder", status="draft")
+    return {"message": msg, "link": link, "id": mid, "phone": cust.get("phone"), "thread": ledger.thread(cid)}
+
+
+class MsgEdit(BaseModel):
+    content: str | None = None
+    status: str | None = None
+
+
+@app.patch("/api/messages/{mid}")
+def edit_message(mid: int, e: MsgEdit):
+    ledger.set_message(mid, **{k: v for k, v in e.model_dump().items() if v is not None})
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------- screens
 
 @app.get("/api/today")
@@ -215,7 +356,9 @@ def wipe(w: Wipe):
 
 @app.get("/api/ui")
 def ui(lang: str = "English"):
-    return {k: ui_text.t(k, lang) for k in ui_text.UI} | {"_langs": ui_text.LANGS}
+    return {k: ui_text.t(k, lang) for k in ui_text.UI} | {"_langs": ui_text.LANGS,
+                                                          "_dir": ui_text.DIRECTION.get(lang, "ltr"),
+                                                          "_code": ui_text.CODES.get(lang, "en")}
 
 
 @app.get("/api/status")
