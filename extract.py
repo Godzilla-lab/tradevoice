@@ -50,18 +50,22 @@ _AMOUNT_RE = re.compile(
     r"(?P<suf>k|thousand|grand|million|mil|m)?(?![a-z])(?P<naira>\s*naira)?",
     re.IGNORECASE,
 )
-_UNITS = (r"bags?|cartons?|crates?|pieces?|pcs|tins?|packs?|packets?|paints?|derica|mudu|"
+_UNITS = (r"bags?|cartons?|crates?|pieces?|pcs|pairs?|tins?|packs?|packets?|paints?|derica|mudu|"
           r"kg|kilos?|litres?|liters?|yards?|dozens?|sachets?|bottles?|tubers?|baskets?|rolls?|tubes?")
-_QTY_RE = re.compile(rf"\b(\d+(?:\.\d+)?)\s*({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b)[a-z]+)?)",
+_QTY_RE = re.compile(rf"\b(\d+(?:\.\d+)?)\s*({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b|wey\b|wen\b|and\b|that\b|which\b|na\b|dey\b|dem\b|he\b|she\b|i\b|we\b|on\b|at\b)[a-z]+)?)",
                      re.IGNORECASE)
 _QTY_WORDS = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
               "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "half": 0.5}
-_QTY_WORD_RE = re.compile(rf"\b({'|'.join(_QTY_WORDS)})\s+({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b)[a-z]+)?)",
+_QTY_WORD_RE = re.compile(rf"\b({'|'.join(_QTY_WORDS)})\s+({_UNITS})\s+(?:of\s+)?([a-z]+(?:\s(?!for\b|to\b|give\b|wey\b|wen\b|and\b|that\b|which\b|na\b|dey\b|dem\b|he\b|she\b|i\b|we\b|on\b|at\b)[a-z]+)?)",
                           re.IGNORECASE)  # speech says "two bags of rice", not "2 bags"
 _HONORIFIC = (r"mama|papa|iya|baba|alhaji|alhaja|madam|oga|aunty|auntie|uncle|mr\.?|mrs\.?|"
               r"chief|brother|sister|bros|mallam|mallama|iyawo|hajiya|hajia|dr\.?|customer")
 _NOT_NAMES = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-              "today", "tomorrow", "next", "week", "month", "i", "naira", "the", "me", "am", "am"}
+              "today", "tomorrow", "next", "week", "month", "i", "naira", "the", "me", "am", "am",
+              # verbs a trader says right after "Alhaji" / "Mama": never part of the name
+              "collect", "collected", "carry", "carried", "take", "took", "buy", "bought", "pay", "paid", "owe", "owes",
+              "dey", "don", "go", "give", "gave", "bring", "brought", "sell", "sold", "get", "come", "send", "sent",
+              "want", "say", "suppose", "never", "still", "just", "has", "have", "will", "wey", "and", "for"}
 _FILLERS = {"ehn", "abeg", "sha", "um", "so", "okay", "o", "se", "to", "wai", "dai", "ngwa", "kwa", "ni", "fun",
             "don", "go", "no", "na", "ti", "ta", "ya", "has", "paid", "carry", "take", "took"}
 _WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -190,10 +194,35 @@ def _words_amount(text):
     return None
 
 
+_NOT = r"(?:no\s+be|not|isn'?t|is\s+not|ba|kii?\s+se|abughi|abụghị)"
+
+
+def _corrected(text):
+    """'2000 no be 20000' / '20k not 25k' -> 2000 / 20k ; 'no be 20000, na 2000' / 'not 25k but 20k' -> the second.
+    Traders fix a number the way they talk; the number they keep is the one that counts."""
+    spans = []
+    for m in _AMOUNT_RE.finditer(text):
+        v = float(m.group("num").replace(",", "")) * _SUFFIX.get((m.group("suf") or "").lower(), 1)
+        if (v >= 100 or m.group("suf") or m.group("cur")) and not re.match(rf"\s*({_UNITS}|pairs?)\b", text[m.end():m.end() + 12], re.I):
+            spans.append((m.start(), m.end(), v))
+    low = text.lower()
+    for (s1, e1, v1), (s2, e2, v2) in zip(spans, spans[1:]):
+        between = low[e1:s2]
+        if re.fullmatch(rf"[\s,.;:-]*{_NOT}[\s,.;:-]*", between):
+            return v1                                          # "A no be B"
+        if (re.fullmatch(r"[\s,.;:-]*(?:na|but|it'?s|e be|i mean|sai|ni)?[\s,.;:-]*", between)
+                and re.search(rf"{_NOT}[\s,]*$", low[max(0, s1 - 12):s1])):
+            return v2                                          # "no be B, na A"
+    return None
+
+
 def parse_amount(text):
     """Return the most likely naira amount in the text, or None. Ignores phone numbers; after a self-correction
-    ('10k, sorry no, 12k') only the corrected part counts; falls back to amounts said in words."""
+    ('10k, sorry no, 12k' / '2000 no be 20000') only the corrected part counts; falls back to amounts said in words."""
     text = _PHONE_RE.sub(" ", text or "")
+    fixed = _corrected(text)
+    if fixed is not None:
+        return fixed
     c = _CORRECT_RE.search(text.lower())
     if c:
         tail = _digits_amount(text[c.end():]) or _words_amount(text[c.end():])
@@ -310,6 +339,10 @@ def parse_customer(text):
     m = re.search(rf"\b({_HONORIFIC})\s+([^\W\d_]+)", text, re.IGNORECASE)
     if m and fold(m.group(2)) not in _NOT_NAMES | _FILLERS and m.group(1).lower() != "customer":
         return f"{m.group(1).title()} {m.group(2).title()}"
+    # "Alhaji collect 5 bags…": the title alone is how the trader names this person
+    m = re.match(rf"\s*((?i:alhaji|alhaja|oga|madam|hajiya|hajia|mallam|chief|aunty|auntie|uncle|bros))\b(?=\s+[a-z])", text)
+    if m:
+        return m.group(1).title()
     return None
 
 
@@ -496,7 +529,8 @@ def _check_guard(rec, rules, text, today):
     said = _amount_values(text) | ({float(unit_total(text))} if unit_total(text) else set())
     # cases where the rules are more reliable than the AI: "each", a self-correction, amounts said only in words
     digits = _digits_amount(_PHONE_RE.sub(" ", text))
-    special = unit_total(text) or (parse_amount(text) if _CORRECT_RE.search(text.lower()) or digits is None else None)
+    special = (unit_total(text) or _corrected(_PHONE_RE.sub(" ", text or ""))  # "2000 no be 20000": the kept number wins
+               or (parse_amount(text) if _CORRECT_RE.search(text.lower()) or digits is None else None))
     amt = rec.get("amount")
     # no amount was said at all (not in digits, not in words): the AI must not make one up, ask instead
     if amt is not None and rules["amount"] is None and float(amt) not in said:

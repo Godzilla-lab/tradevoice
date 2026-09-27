@@ -18,7 +18,7 @@ import askbook
 import insights
 import ledger
 import tts
-from extract import extract, fold, parse_amount, parse_due
+from extract import extract, fold, parse_amount, parse_due, rule_extract, type_is_explicit
 
 LANGS = askbook.LANGS
 
@@ -50,6 +50,17 @@ SAY = {
               "Yoruba": "Ohun tí mo gbọ́: {s} Sọ *bẹ́ẹ̀ni* kí n kọ ọ́ sílẹ̀, tàbí sọ ohun tí kò tọ̀nà.",
               "Hausa": "Abin da na ji: {s} Ka ce *eh* in adana, ko ka faɗi abin da za a gyara.",
               "Igbo": "Ihe m nụrụ: {s} Kwuo *ee* ka m chekwaa ya, ma ọ bụ gwa m ihe m ga-agbanwe."},
+    "updated": {"English": "OK, I changed it.", "Pidgin": "OK, I don change am.", "Yoruba": "Ó dáa, mo ti yí i padà.",
+                "Hausa": "To, na canza shi.", "Igbo": "Ọ dị mma, agbanweela m ya."},
+    "dropped": {"English": "(The one before was not saved.)", "Pidgin": "(The one wey dey before, I no save am.)",
+                "Yoruba": "(Èyí tó ṣáájú, mi ò kọ ọ́ sílẹ̀.)", "Hausa": "(Na baya, ban adana shi ba.)",
+                "Igbo": "(Nke gara aga, echekwaghị m ya.)"},
+    "check_amount": {"English": "Please check the amount.", "Pidgin": "Abeg check the money well.",
+                     "Yoruba": "Jọ̀wọ́ ṣàyẹ̀wò iye owó náà.", "Hausa": "Da fatan ka duba adadin kuɗin.",
+                     "Igbo": "Biko lelee ego ole ahụ."},
+    "check_it": {"English": "Please check it before saving.", "Pidgin": "Abeg check am before you save.",
+                 "Yoruba": "Jọ̀wọ́ ṣàyẹ̀wò rẹ̀ kí o tó kọ ọ́.", "Hausa": "Da fatan ka duba kafin ka adana.",
+                 "Igbo": "Biko lelee ya tupu i chekwaa."},
     "how_much": {"English": "How much was it?", "Pidgin": "Na how much?", "Yoruba": "Èló ni?",
                  "Hausa": "Nawa ne?", "Igbo": "Ego ole?"},
     "saved": {"English": "Saved ✅ {s}", "Pidgin": "I don save am ✅ {s}", "Yoruba": "Mo ti kọ ọ́ sílẹ̀ ✅ {s}",
@@ -244,7 +255,51 @@ def _confirm(state, today):
                 english=SAY["saved"]["English"].format(s=tts.entry_sentence(rec, "English", money=_money)) + extra_en)
 
 
+# a message that fixes the draft waiting for "yes" (not a new record): "2000 no be 20000", "I mean 25k", "make am rice"
+CORRECT = re.compile(r"\b(no be|not|i mean|i talk say|i said|correct(ion)?|change (it|am)|make (it|am)|mistake|sorry|"
+                     r"abeg|rara|ko se|kii se|a'?a|ba haka|mba|o bughi|instead)\b")
+
+
+def _correct(text, lang, state, today):
+    """Change only what the trader said again; keep the rest of the draft."""
+    rec, new = state["pending"], rule_extract(text, today)
+    amount = parse_amount(text)
+    if amount is not None:
+        rec["amount"] = amount
+    nc = new.get("customer")
+    if nc and not (rec.get("customer") and _same(nc, rec["customer"])):
+        rec["customer"], rec["customer_id"] = nc, None
+    for k in ("item", "quantity", "unit", "due_date"):
+        if new.get(k):
+            rec[k] = new[k]
+    if type_is_explicit(text):
+        rec["type"] = new["type"]
+    rec["note"], rec["confidence"] = None, max(rec.get("confidence") or 0, 0.8)
+    state["pending_text"] = (state.get("pending_text", "") + " / " + text).strip(" /")
+    if rec.get("amount") in (None, ""):
+        return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
+    return _heard(rec, lang, updated=True)
+
+
+def _same(a, b):
+    return bool(askbook.same_person(a, b) or askbook.same_person(b, a))
+
+
+def _is_correction(text, t, state):
+    rec = state.get("pending")
+    if not rec:
+        return False
+    new_customer = rule_extract(text).get("customer")
+    other_person = bool(new_customer and rec.get("customer") and not _same(new_customer, rec["customer"]))
+    # "Mama Tunde has not paid 20k" while Iya Bisi's draft waits = a new record, not a fix
+    if CORRECT.search(t) and (not other_person or parse_amount(text) is None):
+        return True
+    # just a number (or "make am 25k") while a draft waits = the right amount
+    return parse_amount(text) is not None and len(t.split()) <= 4 and not new_customer
+
+
 def _record(text, lang, state, vocab, today):
+    had_draft = bool(state.get("pending") and state["pending"].get("amount") not in (None, ""))
     rec, meta = extract(text, today=today, vocab=vocab)
     if not rec.get("customer"):
         rec["customer"] = _pronoun_person(text, state, today=today)  # "she don pay 10k" = who we talked about
@@ -256,15 +311,35 @@ def _record(text, lang, state, vocab, today):
         return ask
     if rec.get("amount") in (None, ""):
         return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
-    return _heard(rec, lang, note=rec.get("note"))
+    return _heard(rec, lang, note=rec.get("note"), dropped=had_draft)
 
 
-def _heard(rec, lang, note=None):
+def friendly_note(note, lang):
+    """The guards' technical reason goes to the log; the trader gets one short line in their language, and only
+    when something really needs a second look (an amount the rules fixed for sure needs none)."""
+    if not note:
+        return None
+    print(f"draft note: {note}")
+    if not re.search(r"check|not said|no amount|unreadable|two things|unclear|not sure", note, re.I):
+        return None
+    return SAY["check_amount" if "amount" in note.lower() else "check_it"][lang]
+
+
+def _heard(rec, lang, note=None, updated=False, dropped=False):
     written = SAY["heard"][lang].format(s=tts.entry_sentence(rec, lang, money=_money))
-    if note:
-        written += f"\n⚠️ {note}"
-    return _out(written, lang, spoken=tts.confirmation_text(rec, lang, saved=False),
-                english=SAY["heard"]["English"].format(s=tts.entry_sentence(rec, "English", money=_money)))
+    if updated:
+        written = SAY["updated"][lang] + " " + written
+    friendly = friendly_note(note, lang)
+    if friendly:
+        written += "\n⚠️ " + friendly
+    if dropped:
+        written += "\n" + SAY["dropped"][lang]
+    english = SAY["heard"]["English"].format(s=tts.entry_sentence(rec, "English", money=_money))
+    if updated:
+        english = SAY["updated"]["English"] + " " + english
+    if dropped:
+        english += "\n" + SAY["dropped"]["English"]
+    return _out(written, lang, spoken=tts.confirmation_text(rec, lang, saved=False), english=english)
 
 
 def _when(text, today):
@@ -376,6 +451,8 @@ def reply(text, state=None, today=None, shop="your shop"):
     if pending and pending.get("amount") in (None, "") and parse_amount(text) and len(t.split()) <= 4:
         pending["amount"] = parse_amount(text)  # answer to "How much?"
         return _heard(pending, lang)
+    if pending and _is_correction(text, t, state):
+        return _correct(text, lang, state, today)
     if REMIND.search(t):
         return _remind(text, lang, state, vocab, today, shop)
     amount = parse_amount(text)

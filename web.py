@@ -127,7 +127,7 @@ def _draft(state):
     return {"type": rec.get("type"), "amount": rec.get("amount"), "customer": rec.get("customer"),
             "new_customer": bool(rec.get("customer")) and not known, "item": rec.get("item"),
             "quantity": rec.get("quantity"), "unit": rec.get("unit"), "due_date": rec.get("due_date"),
-            "note": rec.get("note"), "unsure": unsure}
+            "note": converse.friendly_note(rec.get("note"), state.get("lang") or "English"), "unsure": unsure}
 
 
 def _reply_json(r, state, heard=None):
