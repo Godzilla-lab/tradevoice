@@ -45,16 +45,16 @@ UI = {
     "i_speak": ["I'm speaking", "I dey talk", "Mo ń sọ", "Ina magana da", "Ana m asụ"],
     "yes_save": ["✅ Yes, save", "✅ Yes, save am", "✅ Bẹ́ẹ̀ni, kọ ọ́", "✅ Eh, adana", "✅ Ee, chekwaa"],
     "no": ["❌ No", "❌ No", "❌ Rárá", "❌ A'a", "❌ Mba"],
-    "hello": ["Hello 👋 I'm your book. Tell me what you sold, who owes you, or ask me anything. Hold 🎤 to talk, or 📎 "
+    "hello": ["Hello 👋 I'm your book. Tell me what you sold, who owes you, or ask me anything. Hold 🎤 to talk, or 📷 "
               "to snap your notebook.",
               "Hello 👋 Na me be your book. Tell me wetin you sell, who dey owe you, or ask me anything. Hold 🎤 make "
-              "you talk, or 📎 to snap your book.",
+              "you talk, or 📷 to snap your book.",
               "Ẹ n lẹ́ o 👋 Èmi ni ìwé rẹ. Sọ ọjà tí o tà, ẹni tó jẹ ọ́, tàbí béèrè ohunkóhun. Tẹ 🎤 mọ́lẹ̀ láti sọ̀rọ̀, "
-              "tàbí 📎 láti ya fọ́tò ìwé rẹ.",
+              "tàbí 📷 láti ya fọ́tò ìwé rẹ.",
               "Sannu 👋 Ni ne littafinka. Faɗa min abin da ka sayar, wanda ke da bashinka, ko ka tambaye ni komai. "
-              "Riƙe 🎤 don yin magana, ko 📎 don ɗaukar hoton littafinka.",
+              "Riƙe 🎤 don yin magana, ko 📷 don ɗaukar hoton littafinka.",
               "Ndewo 👋 Abụ m akwụkwọ gị. Gwa m ihe i rere, onye ji gị ụgwọ, ma ọ bụ jụọ m ihe ọ bụla. Jide 🎤 ka i "
-              "kwuo okwu, ma ọ bụ 📎 iji see foto akwụkwọ gị."],
+              "kwuo okwu, ma ọ bụ 📷 iji see foto akwụkwọ gị."],
     "reading_photo": ["Reading your photo…", "I dey read your photo…", "Mo ń ka fọ́tò rẹ…", "Ina karanta hotonka…",
                       "A na m agụ foto gị…"],
     "save_ticked": ["✅ Save ticked", "✅ Save the ones wey I tick", "✅ Kọ àwọn tí mo yàn", "✅ Adana waɗanda aka zaɓa",

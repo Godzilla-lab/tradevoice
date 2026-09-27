@@ -33,7 +33,7 @@ function preview(c) {
   const l = c.last;
   if (!l) return "";
   if (c.last_is_message) return (l.kind === "reminder" ? "TradeVoice: " : `${t("you", "You")}: `) + l.content;
-  return `${TYPE_ICON[l.type] || ""} ${typeLabel(l.type)} ${naira(l.amount)}${l.item ? " · " + l.item : ""}`;
+  return `${typeLabel(l.type)} ${naira(l.amount)}${l.item ? " · " + l.item : ""}`;
 }
 
 // ------------------------------------------------------------------ list
@@ -44,7 +44,7 @@ async function loadCustomers() {
   const owe = C.list.reduce((a, c) => a + c.owes_me, 0), mine = C.list.reduce((a, c) => a + c.i_owe, 0);
   $("#csum").innerHTML = `<span>${esc(t("owe_me", "Owe me"))} <b>${naira(owe)}</b></span><span>${esc(t("i_owe", "I owe"))} <b>${naira(mine)}</b></span>`;
   $("#csearch").placeholder = t("search", "Search customers");
-  $("#newCust").textContent = "+ " + t("new_customer", "New customer");
+  $("#newCust").textContent = t("new_customer", "New customer");
   $("#cfilters").innerHTML = [["all", "all"], ["owe", "owe_me"], ["mine", "i_owe"], ["late", "late"]]
     .map(([k, key]) => `<button data-f="${k}" class="${C.filter === k ? "on" : ""}">${esc(t(key, k))}</button>`).join("");
   renderRows();
@@ -116,30 +116,32 @@ function renderThread() {
   if (!ev.length) html = `<div class="empty">${esc(t("empty_thread", "Nothing here yet.").replace("{n}", c.name))}</div>`;
   $("#cthread").innerHTML = `
     <div class="thead">
-      <button class="icon back" aria-label="${esc(t("back", "Back"))}">←</button>
+      <button class="icon back" aria-label="${esc(t("back", "Back"))}">${svg("back")}</button>
       <span class="cav">${esc(initials(c.name))}</span>
       <div class="tinfo"><div class="tname">${esc(c.name)}</div>
         <div class="tsub ${c.overdue ? "late-amt" : ""}">${esc(balanceLine(c))}${c.overdue ? " · " + esc(t("days_late", "{n} days late").replace("{n}", c.days_late)) : ""}</div></div>
-      <button class="icon" data-act="contact" aria-label="${esc(t("edit_contact", "Edit contact"))}">⋮</button>
+      <button class="icon" data-act="contact" aria-label="${esc(t("edit_contact", "Edit contact"))}">${svg("more")}</button>
     </div>
     <div class="tcontext">${context ? `<span>${context}</span>` : ""}
-      ${c.phone ? `<span>📞 ${esc(c.phone)}</span>` : `<button class="linkbtn" data-act="contact">📞 ${esc(t("add_phone", "Add phone"))}</button>`}</div>
+      ${c.phone ? `<span>${esc(c.phone)}</span>` : `<button class="linkbtn" data-act="contact">${esc(t("add_phone", "Add phone"))}</button>`}</div>
     <div class="tmsgs" id="tmsgs">${html}${C.draft ? draftCard() : ""}</div>
     <div class="tactions">
-      <button data-act="pay">💰 ${esc(t("record_payment", "Record payment"))}</button>
-      <button data-act="sale">🛒 ${esc(t("record_sale", "Record sale"))}</button>
-      ${c.owes_me > 0 ? `<button data-act="remind">📲 ${esc(t("prepare_reminder", "Prepare reminder"))}</button>` : ""}
+      <button data-act="pay">${esc(t("record_payment", "Record payment"))}</button>
+      <button data-act="sale">${esc(t("record_sale", "Record sale"))}</button>
+      ${c.owes_me > 0 ? `<button data-act="remind">${esc(t("prepare_reminder", "Prepare reminder"))}</button>` : ""}
     </div>
     <form class="tcomposer" id="tform"><input id="tinput" autocomplete="off" placeholder="${esc(t("note_hint", "Write a note"))}">
-      <button class="round small-round" aria-label="${esc(t("save", "Save"))}">➤</button></form>`;
+      <button class="round small-round" aria-label="${esc(t("save", "Save"))}">${svg("send", 20)}</button></form>`;
   const m = $("#tmsgs"); requestAnimationFrame(() => (m.scrollTop = m.scrollHeight));
 }
 
 function recordCard(e) {
   const bits = [e.item && (e.quantity ? `${e.item} (${e.quantity} ${e.unit || ""})`.replace(" )", ")") : e.item),
                 e.due_date ? t("due", "Due {d}").replace("{d}", day(e.due_date)) : ""].filter(Boolean);
-  return `<div class="rec"><span class="ric">${TYPE_ICON[e.type] || "•"}</span>
-    <span class="rmain"><b>${esc(typeLabel(e.type))}</b> ${naira(e.amount)}${bits.length ? `<br><small>${esc(bits.join(" · "))}</small>` : ""}</span>
+  const IN = ["sale", "payment_received"], sign = IN.includes(e.type) ? "+" : e.type === "credit_sale" ? "" : "−";
+  return `<div class="rec">
+    <span class="rmain"><b>${esc(typeLabel(e.type))}</b>${bits.length ? `<br><small>${esc(bits.join(" · "))}</small>` : ""}</span>
+    <span class="amt ${IN.includes(e.type) ? "in" : ""}">${sign}${naira(e.amount)}</span>
     <span class="rtime">${esc(when(e.created_at))}</span></div>`;
 }
 
@@ -160,7 +162,7 @@ function reminderBubble(e, c) {
 
 function draftCard() {
   const d = C.draft;
-  return `<div class="rec draft"><span class="ric">${TYPE_ICON[d.type] || "•"}</span>
+  return `<div class="rec draft">
     <span class="rmain"><b>${esc(typeLabel(d.type))}</b> ${naira(d.amount)}${d.item ? `<br><small>${esc(d.item)}</small>` : ""}
       <br><small>${esc(t("check_save", "Check, then save"))}</small></span>
     <span class="rbtns"><button data-act="draftno">${esc(t("cancel", "Cancel"))}</button>
@@ -218,7 +220,9 @@ $("#cthread").addEventListener("click", async (e) => {
     if (act === "draftno") { C.draft = null; return renderThread(); }
     if (act === "draftyes") {
       const d = C.draft; C.draft = null;
-      return refreshThread(await post(`/api/customers/${c.id}/record`, d));
+      const res = await post(`/api/customers/${c.id}/record`, d);
+      toast(`${typeLabel(d.type)} ${naira(d.amount)} · ${balanceLine(res.customer)}`, 3500);
+      return refreshThread(res);
     }
   } catch (err) { toast(err.message || t("error", "Something went wrong.")); }
 });
@@ -253,11 +257,13 @@ function recordSheet(c, type) {
     if (b.id === "rSave") {
       const amount = parseFloat(($("#rAmt").value || "").replace(/[₦,\s]/g, "").replace(/k$/i, "000"));
       if (!(amount > 0)) return toast(t("amount", "Amount (₦)"));
-      b.disabled = true;
+      b.disabled = true; b.textContent = "…";
       try {
         const r = await post(`/api/customers/${c.id}/record`, { type: kind, amount, item: $("#rItem")?.value || null,
                                                                 due_date: kind === "credit_sale" ? dueV || null : null });
         $("#sheet").hidden = true; refreshThread(r);
+        // confirm what changed, in words: the action, then the new balance
+        toast(`${typeLabel(kind)} ${naira(amount)} · ${balanceLine(r.customer)}`, 3500);
       } catch (err) { b.disabled = false; toast(err.message); }
     }
   };

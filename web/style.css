@@ -309,3 +309,85 @@ textarea.rtext { width: 100%; font: inherit; font-size: 15px; border: 1px solid 
 [dir="rtl"] .msg.in { border-top-left-radius: 8px; border-top-right-radius: 0; }
 [dir="rtl"] .msg.out { border-top-right-radius: 8px; border-top-left-radius: 0; }
 .bars em { font-style: normal; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; }
+
+/* ================= restraint pass: hierarchy by type and spacing, not by boxes =================
+   spacing scale: 4 / 8 / 12 / 16 / 24 / 32. Type scale: 12.5 label · 15 body · 17 row title · 20 h1 · 30 key figure */
+.ic { display: block; }
+.screen { padding: 16px 16px 32px; }
+.shead { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; }
+.shead h1 { flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+/* read aloud: always there for people who prefer listening, but secondary to the content */
+.read { width: auto; display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 7px 12px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--accent); font-size: 14px; font-weight: 600;
+  border-radius: 20px; box-shadow: none; }
+.read .ic { width: 18px; height: 18px; }
+.textbtn { border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 14.5px; padding: 6px 4px; }
+/* key figures: one row, separated by hairlines */
+.figures { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+.figures > div { padding: 12px 0 12px 12px; border-left: 1px solid var(--line); min-width: 0; }
+.figures > div:first-child { border-left: 0; padding-left: 0; }
+.figures .k { font-size: 12.5px; color: var(--muted); }
+.figures .v { font-size: 19px; font-weight: 700; margin-top: 2px; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.sect { margin-top: 24px; }
+.sect h2, details.sect summary h2 { font-size: 12.5px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .04em; margin: 0 0 4px; display: inline; }
+.sect h2 { display: block; }
+.sect h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+details.sect summary { cursor: pointer; list-style: none; padding: 8px 0; }
+details.sect summary::-webkit-details-marker { display: none; }
+details.sect summary::after { content: " +"; color: var(--muted); }
+details.sect[open] summary::after { content: " −"; }
+.lrow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 0; border: 0;
+  border-bottom: 1px solid var(--line); background: none; text-align: left; color: inherit; font: inherit; }
+button.lrow { cursor: pointer; }
+.lrow .when { width: 44px; flex: none; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lrow .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lrow .t { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lrow .s { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lrow .s:empty { display: none; }
+.lrow .amt { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.amt.in { color: var(--ok); }
+.hero-fig { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.hero-fig .of { font-size: 17px; color: var(--muted); font-weight: 600; }
+.hero-fig .band { font-size: 15px; font-weight: 600; color: var(--accent); margin-left: 6px; }
+.muted { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+.muted b { color: var(--ink); }
+.meter { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 10px 0 6px; }
+.meter i { display: block; height: 100%; background: var(--accent); }
+.meter.thin { height: 4px; margin: 6px 0 4px; }
+.part { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.part .pl { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+.part .s { font-size: 13px; color: var(--muted); }
+a.primary.block { display: block; text-align: center; text-decoration: none; margin-top: 16px; border-radius: 10px;
+  font-size: 16px; padding: 12px; }
+.bars { height: 110px; margin: 16px 0 8px; }
+.bars span { border-radius: 3px 3px 0 0; }
+.empty { padding: 24px 0; text-align: left; }
+pre.year { font-size: 12.5px; line-height: 1.5; }
+/* header: brand mark, shop name, speaking-language control; no fake "online" status */
+.avatar.mark { color: #fff; background: rgba(255,255,255,.16); }
+.bigavatar.mark { color: #fff; background: var(--accent); }
+.bigavatar.mark .ic { width: 56px; height: 56px; }
+.pill { display: inline-flex; align-items: center; gap: 4px; font-size: 13.5px; padding: 6px 10px; }
+.top .icon { padding: 6px; }
+.round { display: grid; place-items: center; }
+.attach { display: grid; place-items: center; color: var(--muted); opacity: 1; }
+/* tabs: icon + label, colour marks the current tab (no pill behind it) */
+.tabs button b { padding: 0; background: none !important; display: grid; place-items: center; height: 26px; }
+.tabs button.on { color: var(--accent); }
+/* customers list header: quiet totals, text filters */
+.csum { display: flex; gap: 16px; font-size: 14px; color: var(--muted); margin: -8px 0 12px; }
+.cfilters { gap: 16px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.cfilters button { border: 0; border-radius: 0; background: none; padding: 6px 0 8px; font-size: 14px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.cfilters button.on { border-bottom-color: var(--accent); color: var(--accent); }
+.clist { padding: 16px 16px 24px; }
+/* one elevation language: hairline borders, no stacked shadows */
+.msg, .rec, .quick button, .chips button, .day { box-shadow: none; }
+.rec { background: var(--bar); border-color: var(--line); }
+.clist .read span { display: none; }
+.clist .read { padding: 7px 9px; }
+.rec .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+.top .logo { width: 36px; height: 36px; flex: none; display: block; }
+.biglogo { display: block; margin: 0 auto 16px; }

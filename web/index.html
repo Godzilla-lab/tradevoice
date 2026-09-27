@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0E6B52">
 <title>TradeVoice</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230E6B52'/><text x='50' y='66' font-size='50' text-anchor='middle'>🗣️</text></svg>">
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
@@ -13,13 +14,13 @@
 <body>
 <div id="app">
   <header class="top">
-    <div class="avatar">🗣️</div>
+    <img class="logo" src="/static/logo-light.svg" alt="" width="36" height="36">
     <div class="who">
       <div class="name">TradeVoice</div>
-      <div class="sub" id="sub">online</div>
+      <div class="sub" id="sub"></div>
     </div>
-    <button class="pill" id="speakLang" title="I'm speaking">🗣️ <span>English</span> ▾</button>
-    <button class="icon" id="menuBtn" aria-label="Menu">⋮</button>
+    <button class="pill" id="speakLang" title="I'm speaking"><span>English</span> <i data-icon="chev"></i></button>
+    <button class="icon" id="menuBtn" aria-label="Settings" data-icon="more"></button>
   </header>
 
   <main>
@@ -30,7 +31,7 @@
 
     <!-- 📒 book -->
     <section id="book" class="screen">
-      <button class="read" data-screen="today">🔊 Read it to me</button>
+      <div class="shead"><h1 id="bookTitle" data-t="today">Today</h1><button class="read" data-screen="today"><i data-icon="speaker"></i><span>Read it to me</span></button></div>
       <div id="bookBody"></div>
     </section>
 
@@ -38,10 +39,11 @@
     <section id="customers" class="screen">
       <div class="cwrap">
         <div class="clist">
-          <div class="chead"><div class="csum" id="csum"></div><button class="small" id="newCust">+ New customer</button></div>
+          <div class="shead"><h1 data-t="nav_customers">Customers</h1><button class="read" data-screen="owes"><i data-icon="speaker"></i><span>Read it to me</span></button>
+            <button class="textbtn" id="newCust">New customer</button></div>
+          <div class="csum" id="csum"></div>
           <input class="csearch" id="csearch" type="search" autocomplete="off">
           <div class="cfilters" id="cfilters"></div>
-          <button class="read slim" data-screen="owes">🔊 Read it to me</button>
           <div id="crows"></div>
         </div>
         <div class="cthread" id="cthread"></div>
@@ -55,13 +57,13 @@
 
     <!-- 🔮 insights -->
     <section id="insights" class="screen">
-      <button class="read" data-screen="insights">🔊 Read it to me</button>
+      <div class="shead"><h1 data-t="next_week">Next 7 days</h1><button class="read" data-screen="insights"><i data-icon="speaker"></i><span>Read it to me</span></button></div>
       <div id="insightsBody"></div>
     </section>
 
     <!-- 🏦 profile -->
     <section id="profile" class="screen">
-      <button class="read" data-screen="profile">🔊 Read it to me</button>
+      <div class="shead"><h1 data-t="score">Record score</h1><button class="read" data-screen="profile"><i data-icon="speaker"></i><span>Read it to me</span></button></div>
       <div id="profileBody"></div>
     </section>
   </main>
@@ -69,28 +71,28 @@
   <footer class="composer" id="composer">
     <div class="box">
       <input id="text" autocomplete="off" placeholder="Message" enterkeyhint="send">
-      <label class="icon attach" title="Snap your book">📎
+      <label class="icon attach" title="Snap your book" data-icon="camera">
         <input type="file" id="photo" accept="image/*" capture="environment" hidden>
       </label>
     </div>
-    <button class="round" id="mic" aria-label="Hold to talk">🎤</button>
+    <button class="round" id="mic" aria-label="Hold to talk" data-icon="mic"></button>
   </footer>
   <div class="recbar" id="recbar"><span class="dot"></span><span id="recTime">0:00</span>
     <span id="recHint">Recording… let go to send</span></div>
 
   <nav class="tabs">
-    <button data-tab="talk" class="on"><b>💬</b><span data-t="nav_talk">Chat</span></button>
-    <button data-tab="book"><b>📒</b><span data-t="nav_book">Book</span></button>
-    <button data-tab="customers"><b>👥</b><span data-t="nav_customers">Customers</span></button>
-    <button data-tab="insights"><b>🔮</b><span data-t="nav_insights">Insights</span></button>
-    <button data-tab="profile"><b>🏦</b><span data-t="nav_profile">Profile</span></button>
+    <button data-tab="talk" class="on"><b data-icon="chat"></b><span data-t="nav_talk">Chat</span></button>
+    <button data-tab="book"><b data-icon="book"></b><span data-t="nav_book">Book</span></button>
+    <button data-tab="customers"><b data-icon="users"></b><span data-t="nav_customers">Customers</span></button>
+    <button data-tab="insights"><b data-icon="chart"></b><span data-t="nav_insights">Insights</span></button>
+    <button data-tab="profile"><b data-icon="bank"></b><span data-t="nav_profile">Profile</span></button>
   </nav>
 </div>
 
 <!-- first open -->
 <div class="overlay" id="welcome" hidden>
   <div class="welcome">
-    <div class="bigavatar">🗣️</div>
+    <img class="biglogo" src="/static/logo.svg" alt="TradeVoice" width="104" height="104">
     <h1 data-t="welcome">Welcome to TradeVoice</h1>
     <div class="langs" id="welcomeLangs"></div>
     <p class="consent" data-t="consent"></p>

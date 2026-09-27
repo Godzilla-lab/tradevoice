@@ -23,6 +23,32 @@ const TYPES = {
 
 // every screen word comes from ui_text.py (/api/ui); a missing word falls back to English, never to the key
 const t = (k, d = "") => S.T[k] || d || "";
+
+// One icon style for the interface (thin line, currentColor). Emoji stay only inside conversation text.
+const ICONS = {
+  mark: '<path d="M8 10v4M12 7v10M16 9v6" stroke-width="2.2"/>',
+  chat: '<path d="M4.5 5.5h15v10.5h-9.5l-5.5 4z"/>',
+  book: '<path d="M6 4.5h11.5v15H7.5A1.5 1.5 0 0 1 6 18z"/><path d="M6 18a1.5 1.5 0 0 1 1.5-1.5h10"/><path d="M9.5 8.5h5"/>',
+  users: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5a6 6 0 0 1 12 0"/><path d="M15.5 5.3a3.2 3.2 0 0 1 0 6.4M17.5 13.8a6 6 0 0 1 3.5 5.7"/>',
+  chart: '<path d="M4 20h16M7 16.5v-5M12 16.5V6.5M17 16.5v-8"/>',
+  bank: '<path d="M3.5 9.5 12 4l8.5 5.5"/><path d="M6 10v7M10 10v7M14 10v7M18 10v7M4 19.5h16"/>',
+  mic: '<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>',
+  camera: '<path d="M4 8.5h3.2l1.8-2.5h6l1.8 2.5H20v10.5H4z"/><circle cx="12" cy="13.5" r="3.3"/>',
+  send: '<path d="M5 12h12M12 6l6 6-6 6"/>',
+  speaker: '<path d="M4.5 9.5h3.5l4.5-4v13l-4.5-4H4.5z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/>',
+  more: '<circle cx="12" cy="5.5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="18.5" r="1.2"/>',
+  chev: '<path d="M7 10l5 5 5-5"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>',
+};
+const svg = (n, size = 22) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ""}</svg>`;
+function mountIcons(root = document) {
+  root.querySelectorAll("[data-icon]").forEach((el) => {
+    const n = el.dataset.icon, size = n === "chev" ? 16 : n === "mark" ? 26 : 22;
+    if (el.tagName === "LABEL") { const keep = el.querySelector("input"); el.innerHTML = svg(n, size); if (keep) el.appendChild(keep); }
+    else el.innerHTML = svg(n, size);
+  });
+}
+mountIcons();
 const naira = (x) => (x < 0 ? "-₦" : "₦") + Math.round(Math.abs(x || 0)).toLocaleString("en-NG");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (s) => esc(s).replace(/\*(.+?)\*/g, "<b>$1</b>").replace(/_(.+?)_/g, "<i>$1</i>").replace(/\n/g, "<br>");
@@ -60,16 +86,19 @@ const post = (path, data) => api(path, { method: "POST", headers: { "Content-Typ
 async function loadWords() {
   try { S.T = await api(`/api/ui?lang=${encodeURIComponent(S.lang)}`); } catch { S.T = {}; }
   document.querySelectorAll("[data-t]").forEach((el) => { if (S.T[el.dataset.t]) el.textContent = S.T[el.dataset.t]; });
-  document.querySelectorAll(".read").forEach((b) => (b.textContent = t("read", "🔊 Read it to me")));
+  const readWord = t("read", "Read it to me").replace(/^🔊\s*/, "");
+  document.querySelectorAll(".read span").forEach((b) => (b.textContent = readWord));
+  document.querySelectorAll(".read").forEach((b) => b.setAttribute("aria-label", readWord));
   $("#text").placeholder = t("message", "Message");
   $("#recHint").textContent = t("recording", "Recording… let go to send");
-  $("#sub").textContent = t("online", "online");
+  $("#sub").textContent = S.shop || "";  // whose book this is; not a fake "online" status
   $("#speakLang span").textContent = SPEAK_LANGS.find((l) => l[0] === S.speak)?.[1] || S.speak;
   document.documentElement.lang = { Yoruba: "yo", Hausa: "ha", Igbo: "ig", Pidgin: "pcm" }[S.lang] || "en";
   document.documentElement.dir = (S.T._dir) || "ltr";
   Object.keys(TYPES).forEach((k) => { if (S.T["t_" + k]) TYPES[k][1] = S.T["t_" + k]; });
   const cur = document.querySelector(".tabs button.on")?.dataset.tab;
   if (cur && cur !== "talk") showTab(cur);  // redraw the open screen in the new language
+  mountIcons();
 }
 
 function setLang(lang) {
@@ -211,7 +240,11 @@ const mic = $("#mic"), input = $("#text");
 let rec = null, stream = null, chunks = [], recStart = 0, recTimer = null, startX = 0;
 let state = "idle", held = false, pressAt = 0, tapMode = false, cancelRec = false;
 
-function micIcon() { mic.textContent = input.value.trim() ? "➤" : "🎤"; }
+function micIcon() {
+  const want = input.value.trim() ? "send" : "mic";
+  if (mic.dataset.icon !== want) { mic.dataset.icon = want; mic.innerHTML = svg(want); }
+  mic.setAttribute("aria-label", want === "send" ? t("save", "Send") : t("hold", "Hold to talk"));
+}
 input.addEventListener("input", micIcon);
 input.addEventListener("keydown", (e) => { if (e.key === "Enter") { sendText(input.value); input.value = ""; micIcon(); } });
 
@@ -362,24 +395,42 @@ document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => show
 
 async function loadBook() {
   const d = await api("/api/today"), s = d.summary;
-  const due = d.due.map((r) => `<div class="item"><div class="ic">📌</div><div class="main"><div class="t">${esc(r.customer)}</div>
-      <div class="s">${naira(r.balance)}</div></div><button class="small" data-remind="${esc(r.customer)}">${esc(t("remind", "Remind"))}</button></div>`).join("");
-  const list = d.entries.map((e) => {
-    const [ic, lb] = TYPES[e.type] || ["•", e.type];
-    const what = [lb, e.item, e.customer].filter(Boolean).join(" · ");
-    return `<div class="item"><div class="ic">${ic}</div><div class="main"><div class="t">${esc(what)}</div>
-      <div class="s">${esc(e.created_at.slice(5, 16).replace("T", " "))}${e.due_date ? " · " + esc(t("due", "Due {d}").replace("{d}", day(e.due_date))) : ""}</div></div>
-      <div class="amt">${naira(e.amount)}</div><button class="x" data-del="${e.id}" aria-label="Delete">✕</button></div>`;
-  }).join("");
+  $("#bookTitle").textContent = `${t("today", "Today")} · ${day(s.date)}`;
+  const IN = ["sale", "payment_received"], signed = (e) => (IN.includes(e.type) ? "+" : e.type === "credit_sale" ? "" : "−") + naira(e.amount);
+  const due = d.due.map((r) => `<div class="lrow"><div class="main"><div class="t">${esc(r.customer)}</div>
+      <div class="s">${esc(t("owes_you", "owes you {m}").replace("{m}", naira(r.balance)))}</div></div>
+      <button class="textbtn" data-remind="${esc(r.customer)}">${esc(t("remind", "Remind"))}</button></div>`).join("");
+  const list = d.entries.map((e) => `<button class="lrow entry" data-entry='${esc(JSON.stringify(e))}'>
+      <span class="when">${esc(e.created_at.slice(0, 10) === s.date ? e.created_at.slice(11, 16) : day(e.created_at.slice(0, 10)))}</span>
+      <span class="main"><span class="t">${esc([TYPES[e.type]?.[1] || e.type, e.customer].filter(Boolean).join(" · "))}</span>
+        <span class="s">${esc([e.item, e.due_date ? t("due", "Due {d}").replace("{d}", day(e.due_date)) : ""].filter(Boolean).join(" · "))}</span></span>
+      <span class="amt ${IN.includes(e.type) ? "in" : e.type === "credit_sale" ? "" : "out"}">${signed(e)}</span></button>`).join("");
   $("#bookBody").innerHTML = `
-    <div class="stats">
-      <div class="stat"><div class="k">${esc(t("sold", "Sold"))}</div><div class="v">${naira(s.sales)}</div></div>
-      <div class="stat"><div class="k">${esc(t("spent", "Spent"))}</div><div class="v">${naira(s.expenses)}</div></div>
-      <div class="stat"><div class="k">${esc(t("came_in", "Came in"))}</div><div class="v">${naira(s.cash_sales + s.payments_received)}</div></div>
+    <div class="figures">
+      <div><div class="k">${esc(t("sold", "Sold"))}</div><div class="v">${naira(s.sales)}</div></div>
+      <div><div class="k">${esc(t("spent", "Spent"))}</div><div class="v">${naira(s.expenses)}</div></div>
+      <div><div class="k">${esc(t("came_in", "Came in"))}</div><div class="v">${naira(s.cash_sales + s.payments_received)}</div></div>
     </div>
-    ${due ? `<div class="card"><h2>📌 ${esc(t("today", "Today"))}</h2>${due}</div>` : ""}
-    <div class="card"><h2>${esc(t("recent", "Recent"))}</h2>${list || `<div class="empty">${esc(t("empty_book", "Nothing yet."))}</div>`}</div>`;
+    ${due ? `<section class="sect"><h2>${esc(t("remind", "Remind"))}</h2>${due}</section>` : ""}
+    <section class="sect"><h2>${esc(t("recent", "Recent"))}</h2>${list || `<p class="empty">${esc(t("empty_book", "Nothing yet."))}</p>`}</section>`;
 }
+
+// tap a record: details + delete, kept apart from the list so a stray tap can't delete money
+document.addEventListener("click", (ev) => {
+  const row = ev.target.closest(".lrow.entry"); if (!row) return;
+  const e = JSON.parse(row.dataset.entry);
+  sheet(`<h3>${esc(TYPES[e.type]?.[1] || e.type)} · ${naira(e.amount)}</h3>
+    <p>${esc([e.customer, e.item, e.quantity ? `${e.quantity} ${e.unit || ""}` : "", e.due_date ? t("due", "Due {d}").replace("{d}", day(e.due_date)) : "",
+             e.created_at.replace("T", " ").slice(0, 16)].filter(Boolean).join(" · "))}</p>
+    <button class="primary" id="eClose">OK</button><p></p>
+    <button class="danger" id="eDel">${esc(t("delete", "Delete"))}</button>`);
+  $("#sheetBody").onclick = async (x) => {
+    if (x.target.id === "eClose") $("#sheet").hidden = true;
+    if (x.target.id === "eDel" && confirm(t("delete", "Delete") + "?")) {
+      await api(`/api/entry/${e.id}`, { method: "DELETE" }); $("#sheet").hidden = true; loadBook();
+    }
+  };
+});
 
 async function loadDebts() {
   const d = await api("/api/debts");
@@ -398,34 +449,35 @@ async function loadDebts() {
 
 async function loadInsights() {
   const { forecast: f, top } = await api("/api/insights");
-  if (!f) { $("#insightsBody").innerHTML = `<div class="empty">${esc(t("empty_insights", "Record a few more days."))}</div>`; return; }
+  if (!f) { $("#insightsBody").innerHTML = `<p class="empty">${esc(t("empty_insights", "Record a few more days."))}</p>`; return; }
   const max = Math.max(...f.plan.map((p) => p.sales), 1);
-  const bars = f.plan.map((p) => `<div class="${p.weekday === f.busiest_day ? "peak" : ""}"><span style="height:${Math.round((p.sales / max) * 100)}%"></span><em>${esc(S.lang === "English" || S.lang === "Pidgin" ? p.weekday.slice(0, 3) : wd(p.weekday))}</em></div>`).join("");
+  const short = S.lang === "English" || S.lang === "Pidgin";
+  const bars = f.plan.map((p) => `<div class="${p.weekday === f.busiest_day ? "peak" : ""}"><span style="height:${Math.round((p.sales / max) * 100)}%"></span><em>${esc(short ? p.weekday.slice(0, 3) : wd(p.weekday))}</em></div>`).join("");
   $("#insightsBody").innerHTML = `
-    <div class="card"><h2>${esc(t("next_week", "Next 7 days"))}</h2><div class="big">${naira(f.week_sales)}</div>
-      <div class="note">${esc(t("cash_left", "Cash left after normal spending"))}: <b>${naira(f.expected_cash)}</b></div><div class="bars">${bars}</div></div>
-    <div class="card"><h2>${esc(t("busiest", "Busiest day"))}</h2><div class="big">${esc(wd(f.busiest_day))}</div>
-      <div class="note">${esc(t("stock_tip", "Stock up the day before."))}</div></div>
-    ${f.due_soon.length ? `<div class="card"><h2>📥 ${esc(t("promised_week", "Promised this week"))}</h2>${f.due_soon.map((d) => `<div class="item"><div class="ic">📅</div><div class="main"><div class="t">${esc(d.customer)}</div><div class="s">${esc(day(d.due_date))}</div></div><div class="amt">${naira(d.balance)}</div></div>`).join("")}</div>` : ""}
-    <div class="card"><h2>${esc(t("best_sellers", "Best sellers"))} <small>· 14 days</small></h2>
-      ${top.map((x, i) => `<div class="item"><div class="ic">${["🥇", "🥈", "🥉"][i] || "⭐"}</div><div class="main"><div class="t">${esc(x.item)}</div>
-        <div class="s">${x.qty && x.unit ? `${Math.round(x.qty)} ${esc(x.unit)}${x.qty !== 1 ? "s" : ""}` : ""}</div></div><div class="amt">${naira(x.revenue)}</div></div>`).join("")}</div>
+    <div class="hero-fig">${naira(f.week_sales)}</div>
+    <p class="muted">${esc(t("cash_left", "Cash left after normal spending"))}: <b>${naira(f.expected_cash)}</b></p>
+    <div class="bars">${bars}</div>
+    <p class="muted">${esc(t("busiest", "Busiest day"))}: <b>${esc(wd(f.busiest_day))}</b>. ${esc(t("stock_tip", ""))}</p>
+    ${f.due_soon.length ? `<section class="sect"><h2>${esc(t("promised_week", "Promised this week"))}</h2>${f.due_soon.map((d) => `<div class="lrow"><span class="when">${esc(day(d.due_date))}</span><span class="main"><span class="t">${esc(d.customer)}</span></span><span class="amt">${naira(d.balance)}</span></div>`).join("")}</section>` : ""}
+    <section class="sect"><h2>${esc(t("best_sellers", "Best sellers"))} <small>· 14 days</small></h2>
+      ${top.map((x, i) => `<div class="lrow"><span class="when">${i + 1}</span><span class="main"><span class="t">${esc(x.item)}</span>
+        <span class="s">${x.qty && x.unit ? `${Math.round(x.qty)} ${esc(x.unit)}${x.qty !== 1 ? "s" : ""}` : ""}</span></span><span class="amt">${naira(x.revenue)}</span></div>`).join("")}</section>
     <p class="note">${esc(t("forecast_note", ""))}</p>`;
 }
 
 async function loadProfile() {
   const { profile: p, year } = await api("/api/profile");
-  if (!p) { $("#profileBody").innerHTML = `<div class="empty">${esc(t("empty_profile", "Your book is empty."))}</div>`; return; }
-  const deg = Math.round((p.score / 100) * 360);
+  if (!p) { $("#profileBody").innerHTML = `<p class="empty">${esc(t("empty_profile", "Your book is empty."))}</p>`; return; }
   $("#profileBody").innerHTML = `
-    <div class="card" style="text-align:center"><h2>${esc(t("score", "Record score"))}</h2>
-      <div class="ring" style="background:conic-gradient(var(--accent) ${deg}deg, var(--line) 0)"><div>${p.score}<small>/100 · ${esc(t("band_" + p.band, p.band))}</small></div></div>
-      <div class="note">${esc(t("days_avg", "{d} days of records · average daily sales {m}").replace("{d}", p.span_days).replace("{m}", naira(p.avg_daily_sales)))}</div></div>
-    <div class="card"><h2>${esc(t("why_score", "Why this score"))}</h2>${p.parts.map((x) => `<div class="part"><b>${esc(t("sp_" + x.name, x.name))}</b> · ${Math.round(x.points)}/${x.max}
-      <div class="bar"><i style="width:${Math.round((x.points / x.max) * 100)}%"></i></div><div class="why">${esc(x.why)}</div></div>`).join("")}
-      <p class="note">${esc(t("score_note", ""))}${p.has_demo_data ? " (demo data)" : ""}</p>
-      <a class="btn" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${esc(t("statement", "⬇️ Statement for lender / cooperative"))}</a></div>
-    <div class="card"><h2>📒 ${esc(t("my_year", "My year so far"))}</h2><pre class="year">${esc(year)}</pre></div>`;
+    <div class="hero-fig">${p.score}<span class="of">/100</span> <span class="band">${esc(t("band_" + p.band, p.band))}</span></div>
+    <div class="meter"><i style="width:${p.score}%"></i></div>
+    <p class="muted">${esc(t("days_avg", "").replace("{d}", p.span_days).replace("{m}", naira(p.avg_daily_sales)))}</p>
+    <a class="primary block" href="/api/statement?shop=${encodeURIComponent(S.shop)}" download target="_blank" rel="noopener">${esc(t("statement", "Statement for lender / cooperative").replace(/^⬇️\s*/, ""))}</a>
+    <section class="sect"><h2>${esc(t("why_score", "Why this score"))}</h2>
+      ${p.parts.map((x) => `<div class="part"><div class="pl"><span>${esc(t("sp_" + x.name, x.name))}</span><b>${Math.round(x.points)}/${x.max}</b></div>
+        <div class="meter thin"><i style="width:${Math.round((x.points / x.max) * 100)}%"></i></div><div class="s">${esc(x.why)}</div></div>`).join("")}
+      <p class="note">${esc(t("score_note", ""))}${p.has_demo_data ? " (demo data)" : ""}</p></section>
+    <details class="sect"><summary><h2>${esc(t("my_year", "My year so far"))}</h2></summary><pre class="year">${esc(year)}</pre></details>`;
 }
 
 // remind buttons (Book + Debts): show the message first, then WhatsApp
