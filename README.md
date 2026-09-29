@@ -117,12 +117,6 @@ TradeVoice is a working prototype, not a finished product.
 - Pay links need a Paystack account; the record score is not validated against real loan outcomes.
 - Sample data (`src/seed_demo.py`) is synthetic and uses made-up names.
 
-## Credits
-Built in September 2026 at **Come Build with AI** (GOMYCODE × NVIDIA). Speech by
-[Intron](https://www.intron.io/); language and vision models (Qwen2.5) served with vLLM on
-[NVIDIA Brev](https://brev.nvidia.com/); WhatsApp Cloud API by Meta; payments by Paystack. Built with help from
-Claude (Anthropic) as a coding assistant. Hackathon materials (pitch, submission, team guide) are in
-[`docs/hackathon/`](docs/hackathon/).
 
 ## License
 MIT
