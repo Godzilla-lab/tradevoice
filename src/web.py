@@ -1,6 +1,6 @@
 """TradeVoice web app: a phone-style front end (web/) over the same Python brains as the Gradio app.
 
-    python web.py                  -> http://localhost:8000   (old Gradio screens stay at /admin)
+    python src/web.py                  -> http://localhost:8000   (old Gradio screens stay at /admin)
     public link on Brev:  cloudflared tunnel --url http://localhost:8000   (see README)
 
 The API only moves data; every number still comes from ledger.py / insights.py, every reply from converse.py.
@@ -28,7 +28,7 @@ import tts
 import ui_text
 from extract import TYPES
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root (web/ lives there)
 SHOP_NAME = os.getenv("SHOP_NAME", "Chioma Stores")
 VOICE_LANGS = {"English": "English / Pidgin", "Pidgin": "English / Pidgin", "Yoruba": "Yoruba", "Hausa": "Hausa",
                "Igbo": "Igbo"}

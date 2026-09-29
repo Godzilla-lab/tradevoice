@@ -13,7 +13,7 @@ for k in list(os.environ):
 os.environ.update(DB_PATH=os.path.join(tempfile.mkdtemp(), "shared.db"), BOOKS_DIR=tempfile.mkdtemp(),
                   ACCOUNTS_DB=os.path.join(tempfile.mkdtemp(), "a.db"), AUTH_DEMO="1", TRADEVOICE_ADMIN="0",
                   AUTH_REQUIRED="1", AUTO_REMINDERS="0")
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from fastapi.testclient import TestClient  # noqa: E402
 
 import ledger  # noqa: E402

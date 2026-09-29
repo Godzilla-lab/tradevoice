@@ -1,4 +1,4 @@
-"""Why isn't the WhatsApp bot answering? Run on Brev:  .venv/bin/python check_whatsapp.py
+"""Why isn't the WhatsApp bot answering? Run on Brev:  .venv/bin/python scripts/check_whatsapp.py
 Checks every link in the chain and says which one is broken. Never prints tokens or secrets."""
 import os
 import re
@@ -6,7 +6,10 @@ import subprocess
 
 import requests
 
-import settings  # noqa: F401  (loads .env)
+import sys  # noqa: E402
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
+import settings  # noqa: E402,F401  (loads .env)
 
 OK, BAD = "✅", "❌"
 GRAPH = f"https://graph.facebook.com/{os.getenv('WHATSAPP_GRAPH_VERSION', 'v23.0')}"
@@ -60,13 +63,13 @@ try:
     r = requests.get("http://localhost:8000/whatsapp/webhook", timeout=10,
                      params={"hub.mode": "subscribe", "hub.verify_token": verify, "hub.challenge": "12345"})
     say(r.text == "12345", "The app answers the webhook check",
-        "Restart the app: tmux kill-session -t app; tmux new -d -s app '.venv/bin/python web.py'")
+        "Restart the app: tmux kill-session -t app; tmux new -d -s app '.venv/bin/python src/web.py'")
     st = requests.get("http://localhost:8000/api/status", timeout=10).json()
     say(st.get("whatsapp"), "The running app has WhatsApp switched on", "Restart the app (it reads .env when it starts)")
     seen = st.get("whatsapp_seen") or {}
 except Exception as e:  # noqa: BLE001
     say(False, f"The app is not running on port 8000 ({type(e).__name__})",
-        "tmux new -d -s app '.venv/bin/python web.py'")
+        "tmux new -d -s app '.venv/bin/python src/web.py'")
     seen = {}
 
 print("\n4) The public link")

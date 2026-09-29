@@ -1,6 +1,6 @@
 """TradeVoice: voice & photo bookkeeping, debt tracking and money insights for Nigerian market traders.
 
-python app.py            (GRADIO_SHARE=1 for a public link, e.g. when running on Brev)
+python src/app.py            (GRADIO_SHARE=1 for a public link, e.g. when running on Brev)
 """
 import datetime as dt
 import os

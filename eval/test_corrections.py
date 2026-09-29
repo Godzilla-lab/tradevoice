@@ -12,7 +12,7 @@ for k in list(os.environ):
     if k.endswith("API_KEY") or k.startswith("LOCAL_"):
         os.environ.pop(k)
 os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(), "t.db")
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import converse  # noqa: E402
 import extract  # noqa: E402
 

@@ -6,7 +6,7 @@ Some NVIDIA / Hugging Face pages were blocked for our research tool, so several 
 ## What changed in our setup because of this research
 | Finding | What we did |
 |---|---|
-| `meta/llama-3.3-70b-instruct` model card says it **will be deprecated on 25 Aug 2026** | All AI calls go through `llm.py`, which tries a list of models and uses the first one that works. Default order: `nvidia/nemotron-3-super-120b-a12b` → Llama 3.3 70B → Llama 3.1 70B. **Run `python check_models.py` with your key.** |
+| `meta/llama-3.3-70b-instruct` model card says it **will be deprecated on 25 Aug 2026** | All AI calls go through `llm.py`, which tries a list of models and uses the first one that works. Default order: `nvidia/nemotron-3-super-120b-a12b` → Llama 3.3 70B → Llama 3.1 70B. **Run `python scripts/check_models.py` with your key.** |
 | Newer NVIDIA vision model `nvidia/nemotron-nano-12b-v2-vl` is built for documents/receipts (tops OCRBench v2) | Vision default order: Nemotron Nano 12B v2 VL → Llama 3.2 90B Vision → 11B |
 | Inline images on NVIDIA's API must be small (~180 KB, ⚠️ UNVERIFIED); OpenAI `image_url` data-URL format is the current format | Photos are resized to ≤1024 px JPEG (~20–170 KB) and sent as `image_url` |
 | Nemotron models may print reasoning (`<think>…</think>`) before the answer | `llm.clean()` strips it before reading the JSON |

@@ -33,7 +33,7 @@ import re
 import sys
 import unicodedata
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from tts import naira_words  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "cases_hard.jsonl")

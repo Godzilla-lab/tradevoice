@@ -12,7 +12,7 @@ notebook**. TradeVoice turns that into clean records, shows **who owes them and 
 WhatsApp reminder in Pidgin/English/Yoruba**, **forecasts next week's cash**, and builds a **record score + statement**
 they can take to a lender. Voice notes are heard by **Intron** (Nigerian speech AI); the AI brain and photo reader run on our own **NVIDIA Brev GPU**.
 
-Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
+Try it: `python src/seed_demo.py --wipe && python src/app.py` (see README Quick start).
 
 ## 2. Roles (fill in names)
 | Role | Person | Owns |
@@ -29,7 +29,7 @@ Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
 ## 3. BEFORE the event (Thu–Sat)
 - [ ] Everyone: clone the repo and run it (README → Quick start). Tell the group if anything breaks.
 - [ ] Everyone: make an account at **build.nvidia.com** → generate an API key (`nvapi-...`). Test it: put it in `.env`
-      and run `python check_models.py`. It shows which NVIDIA models work (one is being deprecated); then
+      and run `python scripts/check_models.py`. It shows which NVIDIA models work (one is being deprecated); then
       `python eval/run_eval.py`. The engine line should say `llm:<model>`, not `rules`.
 - [ ] Engineer: make a **Brev** account and read the Brev getting-started guide + `docs/RESEARCH.md` (Brev section). Do NOT start paid GPUs yet;
       the event vouchers come at 10:15.
@@ -61,7 +61,7 @@ Try it: `python seed_demo.py --wipe && python app.py` (see README Quick start).
 | 08:30 | Check in, join the event channels | All |
 | 09:45–10:00 | **Submit final roster form** (primary prize: *Kredete Financial Inclusion Award*) | Lead |
 | 10:15 | Get the Brev voucher → activate | Engineer |
-| 10:15–11:15 | Brev workshop. Create GPU instance, clone repo, install, **start the two vLLM model servers first** (README → Run on NVIDIA Brev), `check_models.py`, start `GRADIO_SHARE=1 python app.py` | Engineer |
+| 10:15–11:15 | Brev workshop. Create GPU instance, clone repo, install, **start the two vLLM model servers first** (README → Run on NVIDIA Brev), `check_models.py`, start `GRADIO_SHARE=1 python src/app.py` | Engineer |
 | 11:15–11:30 | Sprint 1: team checks the public link works on phones | All |
 | 11:30 | Mentor checkpoint: show the live link + ask about Brev usage expectations | Lead |
 | 11:45–13:00 | Sprint 2: real voice notes through Brev (English/Pidgin **and** Yoruba/Hausa/Igbo); fix errors; tune prompts; photo reading working | Engineer, Testing |

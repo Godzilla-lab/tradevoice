@@ -8,3 +8,5 @@ eval/tts_samples/*
 !eval/tts_samples/scores.txt
 eval/results/
 eval/tts_samples/audition/
+books/
+cloudflared

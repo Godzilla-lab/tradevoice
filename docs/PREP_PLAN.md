@@ -4,7 +4,7 @@ Idea **not final**: send opinions + alternatives by **Fri 9pm**; we pick ONE ide
 Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 
 ## Everyone (all 4)
-- [ ] Read: `TEAM_GUIDE.md` → `README.md` → `docs/TESTING.md` → `docs/WHATSAPP.md` → `docs/RULES_CHECKLIST.md` → `docs/RESEARCH.md` → `docs/PITCH.md`
+- [ ] Read: `docs/TEAM_GUIDE.md` → `README.md` → `docs/TESTING.md` → `docs/WHATSAPP.md` → `docs/RULES_CHECKLIST.md` → `docs/RESEARCH.md` → `docs/PITCH.md`
 - [ ] Run the app (README → Quick start), try: *I sell 2 crates of eggs give Oga Emeka, 10,800, he go pay Monday*
 - [ ] NVIDIA API key from build.nvidia.com (**never share it**)
 - [ ] 5 voice notes in your language (fake names) → send to Person 4 with the text
@@ -25,7 +25,7 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 
 ## 2️⃣ AI + NVIDIA Brev: ______
 - [ ] Brev account; read Brev notes in `docs/RESEARCH.md`
-- [x] `python check_models.py` → post results
+- [x] `python scripts/check_models.py` → post results
 - [x] `python eval/lang_check.py` → post language scoreboard (`docs/RESULTS.md`)
 - [ ] `python eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5` → post summary (`docs/TESTING.md`)
 - [ ] One real notebook photo through the app → post screenshot
@@ -71,7 +71,7 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] Real handwritten notebook page through Snap your book → `eval/photos/hand1_mixed.jpg` + `.txt`
 - [ ] Try in the app: "I collect 5 carton indomie from Oga Emeka on credit, 60k, I go pay am Monday" · Who I owe ·
   Ask my book by voice (English + one local language) · 📒 My year so far
-- [ ] `python check_models.py` on Brev (is gemma back?)
+- [ ] `python scripts/check_models.py` on Brev (is gemma back?)
 - [ ] **Speech check (Intron):** team voice notes (`eval/audio/<id>.m4a`) →
   `python eval/run_eval.py --cases eval/cases_lang.jsonl --audio eval/audio --asr intron`, once with
   `INTRON_EN_CODE=pcm` and once with `=en` (one project saw 645 vs 64,500 naira from that setting). Keep the better one;

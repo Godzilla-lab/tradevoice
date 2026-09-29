@@ -19,7 +19,7 @@ for k in list(os.environ):
         os.environ.pop(k)
 os.environ.update(WHATSAPP_TOKEN="test", WHATSAPP_PHONE_ID="123", WHATSAPP_VERIFY_TOKEN="tv-verify",
                   WHATSAPP_APP_SECRET="s3cret", TRADEVOICE_ADMIN="0")
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from fastapi.testclient import TestClient  # noqa: E402
 
 import ledger  # noqa: E402

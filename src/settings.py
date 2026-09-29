@@ -1,9 +1,9 @@
-"""Load .env automatically (so `python app.py` works without `set -a; source .env; set +a`).
+"""Load .env automatically (so `python src/app.py` works without `set -a; source .env; set +a`).
 The .env file wins over values inherited from the shell or tmux: tmux keeps the .env from when Brev started, so
 an edited key (a new WhatsApp token) would otherwise be ignored until tmux restarts. Never prints values."""
 import os
 
-_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")  # .env lives at the repo root
 
 
 def load(path=_PATH):

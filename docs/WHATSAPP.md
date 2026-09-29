@@ -192,7 +192,7 @@ forwards it. That keeps the trader in control (Responsible AI). Automatic remind
    - consent + per-trader language setting
    - "dashboard" command and "👉 See more" links → link token (new `links` table: token, owner, expires_at);
      `app.py` reads `?t=` and `?tab=` to open the right trader and tab
-3. **Run both** on Brev: `uvicorn whatsapp:app --port 8000` + `python app.py` (Gradio). Tunnel only port 8000 for Meta.
+3. **Run both** on Brev: `uvicorn whatsapp:app --port 8000` + `python src/app.py` (Gradio). Tunnel only port 8000 for Meta.
 4. **Tests:** fake webhook payloads (text/voice/photo/button) against the handler, plus the real 5-phone test.
 
 New `.env` values: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`

@@ -84,26 +84,34 @@ Works on a laptop with no GPU and no keys (offline rules; no photo reading or sp
 git clone https://github.com/Godzilla-lab/tradevoice.git && cd tradevoice
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python web.py                       # http://localhost:8000  (Me → "Try with sample records" for demo data)
+python src/web.py                       # http://localhost:8000  (Me → "Try with sample records" for demo data)
 ```
 With AI, speech and WhatsApp: copy `.env.example` to `.env` and add your own keys (never commit it). On NVIDIA Brev,
-`bash start_brev.sh` starts both models, the app and a public link; `python check_models.py` and
-`python check_whatsapp.py` test every part and say what to fix. Full setup and every setting:
+`bash scripts/start_brev.sh` starts both models, the app and a public link; `python scripts/check_models.py` and
+`python scripts/check_whatsapp.py` test every part and say what to fix. Full setup and every setting:
 [`docs/TECHNICAL.md`](docs/TECHNICAL.md) · WhatsApp: [`docs/WHATSAPP.md`](docs/WHATSAPP.md).
 
-## Code map (main files)
-| File | What it does |
-|---|---|
-| `web.py`, `web/` | The app: Home · Customers · Talk · Insights · Me, 5 languages, dark mode, offline queue |
-| `whatsapp.py` | WhatsApp bot (Meta Cloud API): voice notes, photos, Yes/No buttons, voice-note replies |
-| `converse.py` | One conversation over one book: record, confirm, correct, ask, remind |
-| `extract.py`, `llm.py` | Words → transaction (LLM first, rules as fallback and amount check) |
-| `asr.py`, `tts.py` | Hearing (Intron) and speaking (Intron, Spitch, MMS) |
-| `vision.py`, `photo.py` | Notebook photo → lines to check and save |
-| `ledger.py`, `insights.py`, `assistant.py` | The book, the maths, and exact answers to questions |
-| `extras.py` | Lender link, pay links (Paystack), reminders, receipts, PIN, CSV |
-| `ui_text.py`, `tax.py` | Every screen word in 5 languages; sourced tax information |
-| `eval/` | All tests and test sentences |
+## Project layout
+```
+tradevoice/
+├── src/            the Python app (run: python src/web.py)
+│   ├── web.py          web server + API; serves web/ and the WhatsApp webhook
+│   ├── whatsapp.py     WhatsApp bot (Meta Cloud API): voice notes, photos, Yes/No buttons, voice replies
+│   ├── converse.py     one conversation over one book: record, confirm, correct, ask, remind
+│   ├── extract.py      words → transaction (LLM first, rules as fallback and amount check); llm.py
+│   ├── asr.py, tts.py  hearing (Intron) and speaking (Intron, Spitch, MMS)
+│   ├── vision.py, photo.py              notebook photo → lines to check and save
+│   ├── ledger.py, insights.py, assistant.py   the book, the maths, exact answers to questions
+│   ├── extras.py       lender link, pay links (Paystack), reminders, receipts, PIN, CSV
+│   ├── accounts.py     one private book per phone
+│   ├── ui_text.py, tax.py   every screen word in 5 languages; sourced tax information
+│   └── app.py, asr_server/  old Gradio screens (/admin) and an optional speech server
+├── web/            the front end: HTML, CSS, JavaScript, service worker, icons
+├── eval/           tests (python eval/run_all.py) and 464 test sentences
+├── scripts/        start_brev.sh, check_models.py, check_whatsapp.py
+├── docs/           pitch deck, submission, technical notes, research, team guide
+└── requirements*.txt, .env.example, vercel.json
+```
 
 ## Honesty notes
 - Starter code was prepared before the event with an AI coding assistant (Claude) and open-source parts; this is
@@ -111,6 +119,6 @@ With AI, speech and WhatsApp: copy `.env.example` to `.env` and add your own key
 - Demo data (`seed_demo.py`) is synthetic, uses made-up names, and is marked as sample data in the app.
 - Yorùbá, Hausa and Igbo wording still needs a native-speaker check.
 
-Team docs: [`TEAM_GUIDE.md`](TEAM_GUIDE.md) · [`docs/PREP_PLAN.md`](docs/PREP_PLAN.md) · [`docs/RULES_CHECKLIST.md`](docs/RULES_CHECKLIST.md)
+Team docs: [`docs/TEAM_GUIDE.md`](docs/TEAM_GUIDE.md) · [`docs/PREP_PLAN.md`](docs/PREP_PLAN.md) · [`docs/RULES_CHECKLIST.md`](docs/RULES_CHECKLIST.md)
 
 License: MIT

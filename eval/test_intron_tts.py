@@ -11,7 +11,7 @@ for k in list(os.environ):
     if k.endswith("API_KEY") or k.startswith(("TTS_", "INTRON_")):
         os.environ.pop(k)
 os.environ["INTRON_API_KEY"] = "test-key"
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import requests  # noqa: E402
 
 import tts  # noqa: E402

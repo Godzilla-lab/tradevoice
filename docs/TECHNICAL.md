@@ -9,7 +9,7 @@ Nigerian market traders sell on credit and keep records in their heads or in a n
 don't know their real profit, and without records they can't get a loan from a microfinance bank or cooperative.
 
 ## What TradeVoice does
-**You talk. TradeVoice keeps the book.** (`python web.py`) A trader logs in with their phone number, taps the big
+**You talk. TradeVoice keeps the book.** (`python src/web.py`) A trader logs in with their phone number, taps the big
 mic and says what happened. TradeVoice shows what it understood (customer, amount, item, credit or paid, pay-by date,
 with a "?" on anything it isn't sure of), the trader taps **Save**, and the book updates. Home shows money in and out
 today and the money to collect; Customers is a ledger per person ("You gave / You got"); Ask answers questions from
@@ -59,6 +59,8 @@ Customers are never identified by name alone: two "Feranmi"s stay two customers,
 deterministic and explainable, so the AI can never invent a number in your books.
 
 ## Code map
+App modules are in `src/`, the front end in `web/`, tests in `eval/`, helper scripts (`check_models.py`, `check_whatsapp.py`, `start_brev.sh`) in `scripts/`.
+
 | File | What it does |
 |---|---|
 | `web.py` + `web/` | 📱 **The app**: no login (each phone gets its own book; phone-number login kept for later), Home · Customers · big mic (Talk) · Insights · Me, confirmation card before anything is saved, 5 languages, dark mode, offline voice-note queue (`web/sw.js`), WhatsApp view. `web.py` is a small API over the same modules. Design: `docs/UI_RESEARCH.md` |
@@ -93,8 +95,8 @@ deterministic and explainable, so the AI can never invent a number in your books
 git clone https://github.com/Godzilla-lab/tradevoice.git && cd tradevoice
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python seed_demo.py --wipe      # demo history (optional)
-python app.py                   # open http://localhost:7860
+python src/seed_demo.py --wipe      # demo history (optional)
+python src/app.py                   # open http://localhost:7860
 python eval/run_eval.py         # accuracy report (hard traps: --cases eval/cases_hard.jsonl, see docs/TESTING.md)
 ```
 Tick the consent box, then try typing `I sell 2 crates of eggs give Oga Emeka, 10,800, he go pay Monday`.
@@ -103,8 +105,8 @@ With AI switched on:
 ```bash
 cp .env.example .env            # put your nvapi-... key in it
 set -a; source .env; set +a
-python check_models.py          # which NVIDIA models work with your key
-python app.py
+python scripts/check_models.py          # which NVIDIA models work with your key
+python src/app.py
 ```
 
 ## Run on NVIDIA Brev (event day)
@@ -142,21 +144,21 @@ python app.py
 4. Check and start:
    ```bash
    set -a; source .env; set +a
-   python check_models.py        # "AI brain on our Brev GPU ✅" and "Photo reader on our Brev GPU ✅"
-   python web.py                 # the WhatsApp-style web app on port 8000 (old Gradio screens at /admin)
+   python scripts/check_models.py        # "AI brain on our Brev GPU ✅" and "Photo reader on our Brev GPU ✅"
+   python src/web.py                 # the WhatsApp-style web app on port 8000 (old Gradio screens at /admin)
    # second terminal: a public https link (phones only allow the microphone on https)
    curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
    chmod +x cloudflared && ./cloudflared tunnel --url http://localhost:8000   # prints https://….trycloudflare.com
    ```
-   That trycloudflare link is the demo link for judges' phones (no login). Backup: `GRADIO_SHARE=1 python app.py`
+   That trycloudflare link is the demo link for judges' phones (no login). Backup: `GRADIO_SHARE=1 python src/app.py`
    prints a public `….gradio.live` link for the old Gradio screens. Brev's own tunnels sit behind a Cloudflare
    login, so judges' phones can't open them directly.
 **Optional nicer link on Vercel** (e.g. `tradevoice.vercel.app`): Vercel serves only the pages in `web/`; every
 `/api` call is passed to our server by `vercel.json`. When the server's public link changes, update the two
 `destination` lines in `vercel.json` and push (Vercel redeploys by itself).
 
-**After a stop/start, one command brings everything back:** `bash start_brev.sh` (both models, web app, public
-link, model check); `bash start_brev.sh stop` before stopping the machine. For a link that stays the same across
+**After a stop/start, one command brings everything back:** `bash scripts/start_brev.sh` (both models, web app, public
+link, model check); `bash scripts/start_brev.sh stop` before stopping the machine. For a link that stays the same across
 restarts, put `NGROK_AUTHTOKEN` and `NGROK_DOMAIN` (the free static domain from dashboard.ngrok.com) in `.env`.
 5. **Stop the instance whenever you're not using it.** Screenshot the Brev console (GPU type, runtime, cost) and
    `nvidia-smi` showing both models for the submission.
@@ -193,6 +195,6 @@ Stretch: package the setup as a **Brev Launchable** (one-click template) so anyo
   in `docs/SUBMISSION.md`, and the commit history shows what was built on the day.
 - Demo history from `seed_demo.py` is synthetic and marked as such in the app and on the statement.
 - The 20 test phrases in `eval/cases.jsonl` were written together with the rules, so their score is optimistic. We
-  report results on new phrases written by teammates (see `TEAM_GUIDE.md`).
+  report results on new phrases written by teammates (see `docs/TEAM_GUIDE.md`).
 
 License: MIT

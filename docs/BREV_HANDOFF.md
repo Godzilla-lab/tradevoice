@@ -41,8 +41,8 @@ Brev runs the AI brain (LLM) and the photo reader (VLM). Speech-to-text is Intro
    ```
 5. **Demo data + start everything**
    ```bash
-   .venv/bin/python seed_demo.py --wipe
-   bash start_brev.sh
+   .venv/bin/python src/seed_demo.py --wipe
+   bash scripts/start_brev.sh
    ```
    First start downloads the models (5–10 min). It ends with **🟢 TradeVoice is up: https://…**
 
@@ -61,16 +61,16 @@ Brev runs the AI brain (LLM) and the photo reader (VLM). Speech-to-text is Intro
 ## If something goes wrong
 | Problem | Fix |
 |---|---|
-| "out of memory" when the photo reader starts (L4) | `bash start_brev.sh stop`, add `VLM_GPU=0.5` and `VLM_LEN=4096` to `.env`, run `bash start_brev.sh` again |
+| "out of memory" when the photo reader starts (L4) | `bash scripts/start_brev.sh stop`, add `VLM_GPU=0.5` and `VLM_LEN=4096` to `.env`, run `bash scripts/start_brev.sh` again |
 | Error about `--limit-mm-per-prompt` | Tell the AI lead (older vLLM; one-word fix) |
 | A part didn't start | `tmux attach -t llm` (or `vision`, `app`, `link`) to see the error; leave with Ctrl+B then D. Send the last 20 lines to the AI lead |
 | Mic doesn't work on the phone | The link must start with https:// |
 
 ## When finished (credits!)
 ```bash
-bash start_brev.sh stop
+bash scripts/start_brev.sh stop
 ```
-Then press **Stop** on the machine in the Brev console. Next time: start the machine, `cd tradevoice && bash start_brev.sh`.
+Then press **Stop** on the machine in the Brev console. Next time: start the machine, `cd tradevoice && bash scripts/start_brev.sh`.
 
 ## Don'ts
 - Don't paste keys or `.env` anywhere; don't `git add .env`.

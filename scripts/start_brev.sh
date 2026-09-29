@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # One command to bring TradeVoice up on Brev after the machine was stopped:
-#   bash start_brev.sh          (stop everything: bash start_brev.sh stop)
+#   bash scripts/start_brev.sh          (stop everything: bash scripts/start_brev.sh stop)
 # Starts: AI brain (vLLM :8001), photo reader (vLLM :8002), web app (:8000), public link.
 # Public link: set NGROK_AUTHTOKEN + NGROK_DOMAIN in .env for a FIXED link that survives restarts;
 # otherwise a new https://….trycloudflare.com link is printed each time.
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."   # run from the repo root (.env, books and the databases live there)
 set -a; [ -f .env ] && source .env; set +a
 VLLM=${VLLM:-$HOME/vllm-env/bin/vllm}
 PY=${PY:-.venv/bin/python}
@@ -32,7 +32,7 @@ tmux has-session -t vision 2>/dev/null || tmux new -d -s vision \
    --limit-mm-per-prompt '{\"image\":1}' 2>&1 | tee /tmp/vision.log"
 wait_for http://localhost:8002/v1/models "photo reader" vision
 
-tmux has-session -t app 2>/dev/null || tmux new -d -s app "$PY web.py 2>&1 | tee /tmp/app.log"
+tmux has-session -t app 2>/dev/null || tmux new -d -s app "$PY src/web.py 2>&1 | tee /tmp/app.log"
 wait_for http://localhost:8000/api/status "web app" app
 
 if [ -n "${NGROK_AUTHTOKEN:-}" ] && [ -n "${NGROK_DOMAIN:-}" ]; then
@@ -48,8 +48,8 @@ else
   for _ in $(seq 1 30); do LINK=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/link.log 2>/dev/null | head -1) && [ -n "$LINK" ] && break; sleep 2; done
 fi
 
-$PY check_models.py || true
+$PY scripts/check_models.py || true
 echo
 echo "🟢 TradeVoice is up:  ${LINK:-(link not ready: tmux attach -t link)}"
 echo "   Screens: tmux attach -t llm | vision | app | link   (leave with Ctrl+B then D)"
-echo "   When done: bash start_brev.sh stop, then STOP the machine in the Brev console."
+echo "   When done: bash scripts/start_brev.sh stop, then STOP the machine in the Brev console."

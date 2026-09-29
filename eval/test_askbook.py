@@ -12,7 +12,7 @@ os.environ["TV_NO_DOTENV"] = "1"  # never let the real .env keys into a test
 os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(), "t.db")
 os.environ.pop("NVIDIA_API_KEY", None)
 os.environ.pop("LOCAL_LLM_URL", None)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import askbook  # noqa: E402
 import ledger  # noqa: E402
 

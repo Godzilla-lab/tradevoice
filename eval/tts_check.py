@@ -11,7 +11,7 @@ import os
 import shutil
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import settings  # noqa: E402,F401  (loads .env)
 import tts  # noqa: E402
 

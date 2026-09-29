@@ -1,8 +1,8 @@
 """Check which NVIDIA API models work with your key BEFORE the event.
 
-python check_models.py            # test our configured LLM_MODELS / VISION_MODELS
-python check_models.py --search   # ask NVIDIA which models exist, try the likely ones, print what works
-python check_models.py --search gemma,qwen,llama   # only models whose id contains these words
+python scripts/check_models.py            # test our configured LLM_MODELS / VISION_MODELS
+python scripts/check_models.py --search   # ask NVIDIA which models exist, try the likely ones, print what works
+python scripts/check_models.py --search gemma,qwen,llama   # only models whose id contains these words
 
 Put the working ones first in LLM_MODELS / VISION_MODELS in your .env (search mode prints the lines).
 """
@@ -15,7 +15,10 @@ import time
 from openai import OpenAI
 from PIL import Image, ImageDraw
 
-import settings  # noqa: F401  (loads .env)
+import sys  # noqa: E402
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
+import settings  # noqa: E402,F401  (loads .env)
 import llm
 
 # Families worth trying for our job (chat + JSON; vision for photos). Skips embedding/reward/guard/etc. models.
@@ -82,7 +85,7 @@ def check_configured():
     if os.getenv("LOCAL_VISION_URL"):
         print(f"Photo reader on our Brev GPU (LOCAL_VISION_URL, {llm.LOCAL_VISION_MODEL}):")
         print(" ", try_model("local", IMAGE_Q, kind="vision")[1])
-    print("\nNothing works? Run:  python check_models.py --search")
+    print("\nNothing works? Run:  python scripts/check_models.py --search")
 
 
 def search(words):

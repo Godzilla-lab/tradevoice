@@ -1,6 +1,6 @@
 """Seed ~3 weeks of clearly-flagged demo history so the credit profile has something to show.
 
-python seed_demo.py          (python seed_demo.py --wipe to clear first)
+python src/seed_demo.py          (python src/seed_demo.py --wipe to clear first)
 Disclose in the submission that the demo history is synthetic.
 """
 import datetime as dt

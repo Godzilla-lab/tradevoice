@@ -7,7 +7,7 @@ import os
 import sys
 from unittest import mock
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import extract  # noqa: E402
 
 TODAY = dt.date(2026, 9, 27)  # a Sunday
