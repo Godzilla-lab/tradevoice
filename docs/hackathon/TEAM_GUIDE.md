@@ -21,7 +21,7 @@ Try it: `python src/seed_demo.py --wipe && python src/app.py` (see README Quick 
 | ⚙️ **Brev + AI engineer** | ______ | Brev instance, AI brain + photo reader on the GPU (vLLM), API keys (Intron, Spitch, NVIDIA), public demo link, Brev screenshots + cost |
 | 🧪 **Testing + data** | ______ | Voice-note recordings, new test phrases, `run_eval.py` results, failure-mode list |
 | 🎨 **Product + demo** | ______ | App polish, demo script, 90-second video, project card |
-| 📲 **WhatsApp** | ______ | Meta setup before Sunday; on the day builds `whatsapp.py` (docs/WHATSAPP.md §5) |
+| 📲 **WhatsApp** | ______ | Meta setup before Sunday; on the day builds `whatsapp.py` (../WHATSAPP.md §5) |
 | 🗣️ **Voice + responsible AI** | ______ | Yoruba/Pidgin wording check, privacy/consent/bias section, the talking in the video |
 
 (Fewer than 5 people? Merge roles: Lead + Product, Engineer + Testing.)
@@ -31,7 +31,7 @@ Try it: `python src/seed_demo.py --wipe && python src/app.py` (see README Quick 
 - [ ] Everyone: make an account at **build.nvidia.com** → generate an API key (`nvapi-...`). Test it: put it in `.env`
       and run `python scripts/check_models.py`. It shows which NVIDIA models work (one is being deprecated); then
       `python eval/run_eval.py`. The engine line should say `llm:<model>`, not `rules`.
-- [ ] Engineer: make a **Brev** account and read the Brev getting-started guide + `docs/RESEARCH.md` (Brev section). Do NOT start paid GPUs yet;
+- [ ] Engineer: make a **Brev** account and read the Brev getting-started guide + `../RESEARCH.md` (Brev section). Do NOT start paid GPUs yet;
       the event vouchers come at 10:15.
 - [ ] Testing: **write 15 NEW test phrases** (without looking at `extract.py`) in `eval/cases_team.jsonl`, same format
       as `eval/cases.jsonl` but with ids `t01`, `t02`…. Run: `python eval/run_eval.py --cases eval/cases_team.jsonl`. Mix English, Pidgin, big and small amounts, "45k", "N12,500", names, dates.
@@ -46,11 +46,11 @@ Try it: `python src/seed_demo.py --wipe && python src/app.py` (see README Quick 
       keywords at the top of `extract.py`. They were written by a non-native speaker.
 - [ ] Testing: write handwritten pages in Yoruba / Hausa / Igbo / Pidgin → `eval/photos/` (see the README there), then run
       `python eval/lang_check.py`. It prints a scoreboard of **which model reads and understands each language best**.
-      Put the winners first in `LLM_MODELS` / `VISION_MODELS` in `.env`. Paste the table into `docs/SUBMISSION.md`.
+      Put the winners first in `LLM_MODELS` / `VISION_MODELS` in `.env`. Paste the table into `SUBMISSION.md`.
 - [ ] Product: rehearse the demo flow (Section 6) until it takes under 60 seconds.
-- [ ] **WhatsApp owner: do the Meta WhatsApp setup in `docs/WHATSAPP.md` §2 by Saturday** (test number, 5 allowlisted
+- [ ] **WhatsApp owner: do the Meta WhatsApp setup in `../WHATSAPP.md` §2 by Saturday** (test number, 5 allowlisted
       phones, permanent token, webhook + tunnel test). Also set up the 360dialog sandbox as a 10-min backup.
-- [ ] Lead: pick the **team name**. Fill in `docs/SUBMISSION.md` team section.
+- [ ] Lead: pick the **team name**. Fill in `SUBMISSION.md` team section.
 
 ⚠️ **Rule:** the judges score what we build *on the day*. Prep = setup, tests, data, rehearsal. Save real feature work
 (Brev deployment, tuning, test results, video) for Sunday and **commit often on Sunday** so the history shows it.
@@ -69,8 +69,8 @@ Try it: `python src/seed_demo.py --wipe && python src/app.py` (see README Quick 
 | 13:45 | Submission briefing: note exactly what they want | Lead |
 | 14:00–15:30 | Sprint 3: run `run_eval.py` on new phrases + audio; fill results table; polish UI; screenshot Brev | Testing, Product |
 | 15:30 | Checkpoint: every link opens on a phone not on our Wi-Fi | Lead |
-| 15:45–16:45 | **Record the 90-second video** (docs/PITCH.md). Write project card | Product, Voice |
-| 16:45–17:15 | Fill disclosure + Brev explanation + test results (docs/SUBMISSION.md) | Lead, Engineer |
+| 15:45–16:45 | **Record the 90-second video** (PITCH.md). Write project card | Product, Voice |
+| 16:45–17:15 | Fill disclosure + Brev explanation + test results (SUBMISSION.md) | Lead, Engineer |
 | **17:15** | **SUBMIT** (deadline 17:30; don't wait for the last minute) | Lead |
 | 17:30 | Keep the confirmation. **Stop the Brev instance** only after the judges are done if they need the live link | Engineer |
 | 19:15 | If we're top 3: live demo (Section 6) | Product |
@@ -78,7 +78,7 @@ Try it: `python src/seed_demo.py --wipe && python src/app.py` (see README Quick 
 ## 5. How we score points (100)
 | Criterion | Pts | How TradeVoice earns it | Owner |
 |---|---|---|---|
-| Problem + user value | 20 | Real, local pain: 94.8% of SMEs have bank accounts but only 20.2% have loans (weak records). One clear user: market trader. Stats in `docs/RESEARCH.md` | Voice |
+| Problem + user value | 20 | Real, local pain: 94.8% of SMEs have bank accounts but only 20.2% have loans (weak records). One clear user: market trader. Stats in `../RESEARCH.md` | Voice |
 | Functional execution | 20 | Live public link; voice → entry → debtors works end to end; photo → table works | Engineer |
 | AI quality + NVIDIA Brev | 20 | Whisper **self-hosted on Brev GPU** (privacy + cost reason), NVIDIA Nemotron text + vision models, automatic model fallback; explain *why* each. Bonus: Brev Launchable | Engineer |
 | Testing + reliability | 15 | Accuracy on new phrases + voice notes + photos; latency; fallback to offline rules; amount cross-check; confirm step | Testing |
@@ -94,7 +94,7 @@ Try it: `python src/seed_demo.py --wipe && python src/app.py` (see README Quick 
 6. **Credit profile**: score 82/100 → download statement.
 
 ## 7. Rules we must not break
-See [`docs/RULES_CHECKLIST.md`](docs/RULES_CHECKLIST.md). The big ones:
+See [`RULES_CHECKLIST.md`](RULES_CHECKLIST.md). The big ones:
 - Team of up to 5. Everyone on **one team only**. Roster by **10:00**.
 - **Use our Brev credits in the project** and **explain how** in the submission.
 - Submit **prototype + 90-second video + project card + AI/tools disclosure** by **17:30**.

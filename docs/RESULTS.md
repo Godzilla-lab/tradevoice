@@ -1,6 +1,6 @@
 # 📊 Test results log
 
-Record every real run here (date, who, command, numbers). These numbers go into `docs/SUBMISSION.md` and the video.
+Record every real run here (date, who, command, numbers). These numbers go into `docs/hackathon/SUBMISSION.md` and the video.
 ⚠️ Test phrases in `eval/cases*.jsonl` were written by our team/Claude, not native speakers yet. Say so when quoting them.
 
 ## 25 Sep 2026: first real NVIDIA API runs (MacBook, build.nvidia.com free tier)

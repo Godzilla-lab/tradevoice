@@ -4,7 +4,7 @@ Idea **not final**: send opinions + alternatives by **Fri 9pm**; we pick ONE ide
 Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 
 ## Everyone (all 4)
-- [ ] Read: `docs/TEAM_GUIDE.md` → `README.md` → `docs/TESTING.md` → `docs/WHATSAPP.md` → `docs/RULES_CHECKLIST.md` → `docs/RESEARCH.md` → `docs/PITCH.md`
+- [ ] Read: `TEAM_GUIDE.md` → `README.md` → `../TESTING.md` → `../WHATSAPP.md` → `RULES_CHECKLIST.md` → `../RESEARCH.md` → `PITCH.md`
 - [ ] Run the app (README → Quick start), try: *I sell 2 crates of eggs give Oga Emeka, 10,800, he go pay Monday*
 - [ ] NVIDIA API key from build.nvidia.com (**never share it**)
 - [ ] 5 voice notes in your language (fake names) → send to Person 4 with the text
@@ -15,7 +15,7 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 ## 1️⃣ Lead + pitch: ______
 - [ ] Ask organisers: prep code allowed if disclosed? Who owns the project?
 - [ ] Saturday: interview **5 traders** at a market (how they track debts, would they use a WhatsApp bot, what stops them, loans)
-- [ ] Team name + roster details; draft video script + project card (`docs/PITCH.md`)
+- [ ] Team name + roster details; draft video script + project card (`PITCH.md`)
 - [ ] **Sunday:** roster 9:45 (primary prize: Kredete), timekeeping, record video 15:45–16:45, **submit 17:15**
 
 ## 🔊 Voice replies (Person 2 or 4)
@@ -24,26 +24,26 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 - [ ] Any language scoring < 3 → don't demo its voice; fix wording in `tts.py` TEMPLATES if they suggest better phrasing
 
 ## 2️⃣ AI + NVIDIA Brev: ______
-- [ ] Brev account; read Brev notes in `docs/RESEARCH.md`
+- [ ] Brev account; read Brev notes in `../RESEARCH.md`
 - [x] `python scripts/check_models.py` → post results
-- [x] `python eval/lang_check.py` → post language scoreboard (`docs/RESULTS.md`)
-- [ ] `python eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5` → post summary (`docs/TESTING.md`)
+- [x] `python eval/lang_check.py` → post language scoreboard (`../RESULTS.md`)
+- [ ] `python eval/run_eval.py --cases eval/cases_hard.jsonl --sleep 1.5` → post summary (`../TESTING.md`)
 - [ ] One real notebook photo through the app → post screenshot
 - [ ] **Sunday:** voucher 10:15 → GPU → start the 2 vLLM servers (AI brain + photo reader) → `check_models.py` → public app link → Brev screenshots → stop GPU when idle
 
 ## 3️⃣ WhatsApp: ______
-- [ ] Meta developer app + **test number** + add 4 phones + 1 spare (`docs/WHATSAPP.md` §2)
+- [ ] Meta developer app + **test number** + add 4 phones + 1 spare (`../WHATSAPP.md` §2)
 - [ ] ✅ test number sends `hello_world` · ✅ permanent token · save IDs + App Secret privately
 - [ ] Backup: 360dialog sandbox ("START" to +55 11 4673-3492)
 - [ ] Saturday: ✅ webhook + tunnel test on laptop
-- [ ] **Sunday:** build `whatsapp.py` (`docs/WHATSAPP.md` §5), commands, "See more" links, test from all phones by 15:30
+- [ ] **Sunday:** build `whatsapp.py` (`../WHATSAPP.md` §5), commands, "See more" links, test from all phones by 15:30
 
 ## 4️⃣ Testing + responsible AI: ______
 - [ ] 15 new test phrases in `eval/cases_team.jsonl` **without reading the code**
 - [ ] Collect voice notes → `eval/audio/` (named by test id); photos → `eval/photos/` (+ .txt)
 - [ ] Native speakers check `eval/cases_lang.jsonl` + Yoruba reminder
 - [ ] Competitor research (Kippa, Bumpa, debt-book apps): what's different about us
-- [ ] **Sunday:** run evals on Brev, fill results + Responsible AI in `docs/SUBMISSION.md`, film the phone for the video
+- [ ] **Sunday:** run evals on Brev, fill results + Responsible AI in `SUBMISSION.md`, film the phone for the video
 
 ## Checkpoints (post ✅/❌ in the group)
 **Friday night:** app runs for everyone · WhatsApp hello works · model check posted · organiser answers · opinions in
@@ -60,7 +60,7 @@ Roster by **10:00 Sunday**, submit by **17:15** (deadline 17:30).
 
 ## Before Sunday (must, ~20 min)
 - [ ] `.env` model order: `LLM_MODELS=nvidia/nemotron-3-ultra-550b-a55b,nvidia/nemotron-3-super-120b-a12b,google/gemma-4-31b-it`
-  and `VISION_MODELS=meta/llama-3.2-11b-vision-instruct,google/gemma-4-31b-it` (gemma times out; see `docs/RESULTS.md`)
+  and `VISION_MODELS=meta/llama-3.2-11b-vision-instruct,google/gemma-4-31b-it` (gemma times out; see `../RESULTS.md`)
 - [ ] WhatsApp: 5 phones registered on the Meta test number (team + 1 spare for a judge)
 - [ ] Organisers: is pre-event code allowed if disclosed? Who owns the project? Is using NVIDIA's cloud models
   (build.nvidia.com) alongside Brev OK, or must all AI run on Brev?

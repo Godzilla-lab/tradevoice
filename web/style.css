@@ -424,8 +424,8 @@ label.agree input { width: 26px; height: 26px; min-height: 0; flex: none; accent
 .cf-type .ricon { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; font-weight: 800; }
 dl.cf { margin: 10px 0 0; border-top: 1px solid var(--line); }
 dl.cf > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
-dl.cf dt { color: var(--muted); font-size: 14.5px; }
-dl.cf dd { margin: 0; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+dl.cf dt { color: var(--muted); font-size: 14.5px; flex: 0 0 auto; white-space: nowrap; }
+dl.cf dd { margin: 0; font-weight: 700; text-align: right; overflow-wrap: anywhere; min-width: 0; }
 .q { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--late-soft);
   color: var(--late); font-size: 13px; margin-left: 4px; vertical-align: 2px; }
 .tag { display: inline-block; font-size: 12px; font-weight: 700; background: var(--accent-soft); border-radius: 6px; padding: 1px 6px; margin-left: 4px; }

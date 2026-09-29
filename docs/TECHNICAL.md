@@ -1,6 +1,6 @@
 # TradeVoice: technical notes (full feature table, code map, Brev setup, all settings)
 
-The short version for judges is the [README](../README.md).
+The short version is the [README](../README.md).
 
 ---
 
@@ -192,9 +192,9 @@ Stretch: package the setup as a **Brev Launchable** (one-click template) so anyo
 
 ## Honesty notes
 - The starter code was prepared before the event with an AI coding assistant (Claude) and open-source parts. It is disclosed
-  in `docs/SUBMISSION.md`, and the commit history shows what was built on the day.
+  in `docs/hackathon/SUBMISSION.md`, and the commit history shows what was built on the day.
 - Demo history from `seed_demo.py` is synthetic and marked as such in the app and on the statement.
 - The 20 test phrases in `eval/cases.jsonl` were written together with the rules, so their score is optimistic. We
-  report results on new phrases written by teammates (see `docs/TEAM_GUIDE.md`).
+  report results on new phrases written by teammates (see `docs/hackathon/TEAM_GUIDE.md`).
 
 License: MIT

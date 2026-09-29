@@ -1,41 +1,38 @@
+<div align="center">
+
+<img src="web/logo.svg" width="72" alt="TradeVoice logo">
+
 # TradeVoice
 
-**Records that speak your language.** Voice-first bookkeeping for Nigerian market traders, on WhatsApp and the web,
-in English, Pidgin, Yorùbá, Hausa and Igbo.
+**Records that speak your language.**
 
-Built at **Come Build with AI** (GOMYCODE × NVIDIA, 27 September 2026) · Primary prize: **Kredete Financial Inclusion Award**
+Voice-first bookkeeping for market traders. Say what you sold, in English, Pidgin, Yorùbá, Hausa or Igbo,
+on WhatsApp or the web, and TradeVoice keeps the book.
 
-| | |
-|---|---|
-| 🌐 Live app | [link] |
-| 💬 WhatsApp bot | [number] (send "hi") |
-| 🎬 90-second video | [link] |
-| 📑 Pitch deck | [link] · slide text and demo script: [`docs/PITCH_DECK.md`](docs/PITCH_DECK.md) |
-| 📦 Submission details (AI disclosure, Brev usage, tests) | [`docs/SUBMISSION.md`](docs/SUBMISSION.md) |
+<img src="docs/images/confirm.png" width="200" alt="Confirmation card"> <img src="docs/images/home.png" width="200" alt="Home screen"> <img src="docs/images/yoruba.png" width="200" alt="A question answered in Yorùbá"> <img src="docs/images/customer.png" width="200" alt="A customer's balance and history">
 
----
+</div>
 
-## The problem
-A trader sells on credit all day: *"Mama Tunde, take it, pay me Friday."* Those debts live in her head, a torn
+## Why
+A market trader sells on credit all day: *"Mama Tunde, take it, pay me Friday."* Those debts live in her head, a
 notebook or a WhatsApp chat. She forgets who owes her, doesn't know her real profit, and when she asks a lender for a
-loan she has no records to show. **No records, no credit.**
+loan, she has no records to show. Bookkeeping apps expect typing, forms and English. TradeVoice expects none of them.
 
-## What TradeVoice does
-The trader **just says what happened**, as a voice note, a photo of her notebook, or a typed message:
+## What it does
+**Speak, snap or type.** *"I sell Mama Tunde two bags of rice for forty-five thousand. She go pay Friday."* TradeVoice
+shows what it understood (customer, amount, item, quantity, credit or paid, due date), marks anything it isn't sure
+of, and saves **only when the trader taps Save**. Corrections like *"no be 20k, na 2k"* fix the same record.
 
-> 🎙 *"I sell Mama Tunde two bags of rice for forty-five thousand. She go pay Friday."*
-
-TradeVoice shows what it understood (**customer, amount, item, quantity, credit or paid, due date**), marks anything
-it is unsure of, and saves **only when the trader taps Save**. It replies in her language, as text and as a voice note.
-
-- **Who owes me / who I owe**: balances, promised dates, late payers
-- **Ask my book** in any of the 5 languages: *"Who owes me the most?"*, *"Ṣé mo ní gbèsè lọ́wọ́ Alhaji?"*; answers are
-  calculated from the book, never guessed by the AI
-- **Reminders with pay links**: drafted for the trader to send; TradeVoice never messages customers on its own
-- **Wholesale tools**: credit limit per customer, customer statements, margin per item, cheapest supplier, usual-order drafts
-- **Lender link**: the trader chooses to share a read-only report of her trading history for 1, 7 or 30 days
-- **Privacy**: no sign-up (each phone gets its own private book), hide amounts, PIN lock, CSV download,
-  delete everything, voice notes and photos deleted after reading, works offline and syncs later
+- **Replies in your language**, as text and as a voice note
+- **Ask your book** anything: *"Who owes me the most?"*, *"Ṣé mo ní gbèsè lọ́wọ́ Alhaji?"*. Answers are calculated
+  from the book, never guessed
+- **Who owes you, who you owe**, due dates and late payers
+- **Reminders with pay links**, drafted for you to send. TradeVoice never messages your customers on its own
+- **Wholesale tools**: credit limits, customer statements, margin per item, cheapest supplier, usual orders
+- **Notebook photos** turned into records you check before saving
+- **Lender link**: share a read-only report of your trading history for 1, 7 or 30 days, and stop it any time
+- **Private by default**: no sign-up (each phone gets its own book), hide amounts, PIN lock, CSV export, delete
+  everything; voice notes and photos are deleted after reading; works offline and catches up later
 
 ## How it works
 ```
@@ -64,32 +61,32 @@ it is unsure of, and saves **only when the trader taps Save**. It replies in her
 come from the book, so the AI can never invent a number. If the GPU or network is down, NVIDIA's cloud models answer,
 and if everything fails, offline rules still record the entry.
 
-## Tested
-```bash
-python eval/run_all.py                                            # 252/252 checks in 11 suites, no keys needed
-python eval/run_eval.py --rules-only --cases eval/cases_hard.jsonl  # trap phrases in 5 languages
-```
-| Test | Result |
-|---|---|
-| Automated feature checks (demo flow, corrections, WhatsApp bot, wholesale, login, lender and pay links, Intron voice…) | **252 / 252** |
-| Sentence → entry, all fields correct, offline rules alone (5 languages, including 208 trap phrases) | **464 / 464** |
-| Real WhatsApp test by a teammate | Found that corrections were saved as new records; fixed, and covered by `eval/test_corrections.py` |
-
-The test sentences were written by our team, not yet checked by native speakers of every language, so the numbers
-above are optimistic. Details and AI-model runs: [`docs/RESULTS.md`](docs/RESULTS.md), [`docs/TESTING.md`](docs/TESTING.md).
-
-## Run it
-Works on a laptop with no GPU and no keys (offline rules; no photo reading or speech).
+## Quick start
+Runs on a laptop with no GPU and no keys (offline rules; speech and photo reading need keys).
 ```bash
 git clone https://github.com/Godzilla-lab/tradevoice.git && cd tradevoice
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python src/web.py                       # http://localhost:8000  (Me → "Try with sample records" for demo data)
+python src/web.py        # open http://localhost:8000, then Me → "Try with sample records"
 ```
-With AI, speech and WhatsApp: copy `.env.example` to `.env` and add your own keys (never commit it). On NVIDIA Brev,
-`bash scripts/start_brev.sh` starts both models, the app and a public link; `python scripts/check_models.py` and
-`python scripts/check_whatsapp.py` test every part and say what to fix. Full setup and every setting:
-[`docs/TECHNICAL.md`](docs/TECHNICAL.md) · WhatsApp: [`docs/WHATSAPP.md`](docs/WHATSAPP.md).
+To switch on speech, the AI models and the WhatsApp bot, copy `.env.example` to `.env` and add your own keys.
+On an NVIDIA Brev GPU, `bash scripts/start_brev.sh` starts both models, the app and a public link.
+`python scripts/check_models.py` and `python scripts/check_whatsapp.py` test each part and say what to fix.
+Full setup and every setting: [`docs/TECHNICAL.md`](docs/TECHNICAL.md) · WhatsApp bot: [`docs/WHATSAPP.md`](docs/WHATSAPP.md)
+
+## Tests
+```bash
+python eval/run_all.py                                              # 252 checks in 11 suites, no keys needed
+python eval/run_eval.py --rules-only --cases eval/cases_hard.jsonl  # trap phrases in 5 languages
+```
+- **252 / 252** automated checks: the full demo flow, corrections, the WhatsApp bot, wholesale tools, lender and
+  pay links, voice
+- **464 / 464** test sentences in 5 languages (including 208 trap phrases) turned into the right record by the
+  offline rules alone
+
+The test sentences were written by our team, not yet by traders or native speakers of every language, so treat
+these as a floor for the rules, not a measure of real-world accuracy. More in [`docs/TESTING.md`](docs/TESTING.md)
+and [`docs/RESULTS.md`](docs/RESULTS.md).
 
 ## Project layout
 ```
@@ -109,16 +106,23 @@ tradevoice/
 ├── web/            the front end: HTML, CSS, JavaScript, service worker, icons
 ├── eval/           tests (python eval/run_all.py) and 464 test sentences
 ├── scripts/        start_brev.sh, check_models.py, check_whatsapp.py
-├── docs/           pitch deck, submission, technical notes, research, team guide
+├── docs/           technical notes, research, test results, screenshots; hackathon/ has the pitch and submission
 └── requirements*.txt, .env.example, vercel.json
 ```
 
-## Honesty notes
-- Starter code was prepared before the event with an AI coding assistant (Claude) and open-source parts; this is
-  disclosed in [`docs/SUBMISSION.md`](docs/SUBMISSION.md), and the commit history shows what was built on the day.
-- Demo data (`seed_demo.py`) is synthetic, uses made-up names, and is marked as sample data in the app.
-- Yorùbá, Hausa and Igbo wording still needs a native-speaker check.
+## Status and limits
+TradeVoice is a working prototype, not a finished product.
+- The Yorùbá, Hausa and Igbo wording and voices still need review by native speakers.
+- It hasn't been tested with traders in a real market yet; heavy market noise lowers speech accuracy.
+- Pay links need a Paystack account; the record score is not validated against real loan outcomes.
+- Sample data (`src/seed_demo.py`) is synthetic and uses made-up names.
 
-Team docs: [`docs/TEAM_GUIDE.md`](docs/TEAM_GUIDE.md) · [`docs/PREP_PLAN.md`](docs/PREP_PLAN.md) · [`docs/RULES_CHECKLIST.md`](docs/RULES_CHECKLIST.md)
+## Credits
+Built in September 2026 at **Come Build with AI** (GOMYCODE × NVIDIA). Speech by
+[Intron](https://www.intron.io/); language and vision models (Qwen2.5) served with vLLM on
+[NVIDIA Brev](https://brev.nvidia.com/); WhatsApp Cloud API by Meta; payments by Paystack. Built with help from
+Claude (Anthropic) as a coding assistant. Hackathon materials (pitch, submission, team guide) are in
+[`docs/hackathon/`](docs/hackathon/).
 
-License: MIT
+## License
+MIT

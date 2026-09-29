@@ -71,7 +71,7 @@ confirmed trading history they can share with lenders, the missing piece for cre
 
 **Thunders — Engineering Excellence Award** → A working prototype with layered fallbacks (Brev model → NVIDIA cloud
 → offline rules; three voice engines) and guards so the AI can't invent amounts. Evidence: 252/252 automated checks
-across 11 suites and 464/464 test sentences in 5 languages with offline rules (`eval/run_all.py`, `docs/SUBMISSION.md`).
+across 11 suites and 464/464 test sentences in 5 languages with offline rules (`eval/run_all.py`, `SUBMISSION.md`).
 No country restriction stated.
 
 **Guepard — AI Automation Award** → An AI workflow from voice/photo to ledger: speech-to-text, LLM extraction,
@@ -81,7 +81,7 @@ restriction stated.
 
 **EY Studio+ — Human-Centred Innovation Award** → Designed for traders who may not read or type: voice in their
 language, spoken replies, a confirmation card before anything is saved, no sign-up, and hide-amounts for busy stalls.
-Evidence: `docs/UI_RESEARCH.md`, `web/`, and a correction flow rebuilt after a real WhatsApp test (`eval/test_corrections.py`).
+Evidence: `../UI_RESEARCH.md`, `web/`, and a correction flow rebuilt after a real WhatsApp test (`eval/test_corrections.py`).
 No country restriction stated.
 
 **Artefact — Data & AI Award** → Turns unstructured voice notes and notebook photos into structured data and

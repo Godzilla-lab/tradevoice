@@ -41,7 +41,7 @@ Line to say: *"Not three features. One conversation that switches language and k
 Backup: type the lines (typing switches language automatically); have the demo data seeded and the voice notes
 pre-recorded in case the room is noisy.
 
-## Roadmap slide / Q&A answers (researched, NOT in the app yet: see `docs/FINANCE_RESEARCH.md`)
+## Roadmap slide / Q&A answers (researched, NOT in the app yet: see `../FINANCE_RESEARCH.md`)
 Say: *"We researched the new 2026 tax laws and traders' money problems. We only put facts in the app after a tax
 professional checks them. Here's what's next."*
 - **"Your book protects you" tax card:** tax is on **profit, not sales**; first ₦800k of taxable profit at 0%;
