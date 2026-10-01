@@ -115,7 +115,7 @@ Est. = rough engineer-days. **P1 = before NAIC.** Fill in owners today.
 ### Week 1 (Thu 1 – Sun 5 Oct): foundations + N-ATLaS
 | ID | Task | Est. | Owner | Depends | Accept when |
 |---|---|---|---|---|---|
-| **E0** | **Ops (not code):** Meta payment method (bot stops without it!), start Meta business verification (the test number can only message 5 phones), Modal account + spending limit, VPS + Cloudflare Tunnel fixed hostname, Paystack test keys, HF licence accepted + token | 1 | | – | Bot replies from the VPS through the fixed link; Modal and Paystack keys in the server `.env` |
+| **E0** | **Ops (not code):** Meta payment method (bot stops without it!), **move the bot to a real phone number** (gets past the test number's 5-phone limit without verification; see the checklist "WhatsApp" section) and start Meta business verification in parallel, Modal account + spending limit, VPS + Cloudflare Tunnel fixed hostname, Paystack test keys, HF licence accepted + token | 1 | | – | Bot replies from the VPS through the fixed link; Modal and Paystack keys in the server `.env` |
 | **E1** | **Repo clean-up + security** (ROADMAP Part 1): delete `src/app.py`, `note.py`, `asr_server/`, `vercel.json`; fix `requirements.txt`; harden login (no code shown on screen); protect `/api/voice_check`; trim `/api/status`; skip guest books in reminders | 1 | | – | Fresh clone + `pip install -r requirements.txt` + `python src/web.py` works; tests green; no `/admin` |
 | **E2** | **N-ATLaS LLM backend** in `llm.py`: OpenAI-compatible client to `NATLAS_URL`, official chat template with `date_string`, temperature 0.1, repetition penalty 1.12; **structured output** (guided JSON); few-shot examples per language; `engine="natlas"` | 2 | | E0 (Modal) | `scripts/check_models.py` shows N-ATLaS answering; 3 sample sentences per language produce valid records |
 | **E3** | **Modal deploy** `deploy/modal_app.py`: vLLM serving `NCAIR1/N-ATLaS`, weights in a Modal Volume, auth header, `scaledown_window` 15 min, memory snapshot; a **wake-up ping** function | 1 | | E0 | Cold start time measured and written down; warm reply < 3 s for a short prompt |
@@ -169,8 +169,8 @@ message per reply), E13 receipt matching (keep the OPay number in reminders), E1
 1. **N-ATLaS weak on our sentences**, especially Yorùbá (2.69/5 on its card). Know by Sat 4 Oct (E5); fall back
    to rules check + templates.
 2. **Latency** (ASR + LLM + TTS + cold start). Measure in E6; keep Modal warm during the pilot.
-3. **WhatsApp test-number limit (5 recipients)**: start Meta business verification now (E0); judges also get web
-   instructions.
+3. **WhatsApp test-number limit (5 recipients)**: move to a real number now (no verification needed for up to 250
+   new chats a day); verification runs in parallel (E0). Judges also get web (and optional Telegram) instructions.
 4. **Meta billing**: no payment method means no replies (E0).
 5. **Scope**: follow the cut order in §5.
 

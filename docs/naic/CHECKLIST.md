@@ -33,6 +33,54 @@ Write a name in **Owner** and tick each box when it's done. The full technical p
 
 ---
 
+## WhatsApp: real number now, business verification in parallel (started 1 Oct)
+**Track A: real phone number (gets us past the 5-number test limit; 1–3 days, no verification needed)**
+
+Even an **unverified** business can use a real number. Traders message first, and we can start chats with up to
+250 people a day, which is plenty for the pilot.
+- [ ] **Get a new SIM** (MTN, Airtel or Glo) in the business's control, **never used on WhatsApp**. Keep it
+      powered on to receive the code by SMS or call. Owner: ____
+- [ ] **Add it as the bot's number:** Meta Business Suite → WhatsApp Manager → Phone numbers → **Add phone number**.
+      Owner: ____
+  1. **Display name: "TradeVoice"**, which must match our website and branding.
+  2. **Category:** Finance or Business.
+  3. **Verify with the SMS code.**
+- [ ] **Wait for display-name approval** (usually a day or two). Fix and resubmit if rejected. Owner: ____
+- [ ] **Add a payment method** (WhatsApp Manager → Payment settings). Required from 1 Oct or replies stop.
+      Owner: ____
+- [ ] **Permanent token:** Business settings → Users → **System users** → add an admin system user → assign the
+      WhatsApp account and the app → **Generate token** with `whatsapp_business_messaging` and
+      `whatsapp_business_management`. Put it in the server `.env` as `WHATSAPP_TOKEN` only. Owner: ____
+- [ ] **Switch the app to the new number:**
+  1. update `WHATSAPP_PHONE_NUMBER_ID` in `.env`;
+  2. keep the webhook URL on our fixed public link;
+  3. subscribe to `messages`;
+  4. run `python scripts/check_whatsapp.py`.
+
+  Owner: ____
+- [ ] **Profile:** add the bot's profile picture (from the designer), a short description and the website.
+      Owner: ____
+
+**Track B: Meta business verification (lifts limits, needed later; up to 14–30 days, so it may not finish before
+12 Oct)**
+- [ ] **Decide which legal entity applies** (CAC-registered company or business name). If there's none, register
+      a **business name with CAC** first. Owner: ____
+- [ ] **Prepare matching documents**, with **the same legal name and address everywhere**:
+  - CAC certificate (RC or BN number);
+  - CAC status report;
+  - TIN;
+  - proof of address (utility bill or bank statement in the business name, recent);
+  - a **website on a domain in the business name**;
+  - an email on that domain;
+  - a business phone.
+
+  Owner: ____
+- [ ] **Start:** Meta Business Suite → Settings → **Security Center → Start verification**. Enter the legal
+      details, upload the documents, and confirm by domain email or phone. Owner: ____
+- [ ] **Check every 2–3 days.** Reply quickly to any Meta request. Owner: ____
+
+**Never share in chat or GitHub:** the token, the app secret, the SIM's codes or ID documents.
+
 ## 1. Working artefact (URL)
 **What NAIC wants:** a working build the judges can open: a repository, deployed app, model, live API or dataset.
 
