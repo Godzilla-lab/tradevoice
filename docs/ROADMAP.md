@@ -330,6 +330,17 @@ market conversation.
 - **Interactive messages:** use buttons and lists for Save, Change and Cancel, language and menus. A
   WhatsApp-native "Open my book" button carries the private link from 2a.
 
+**Telegram: an extra channel, not a switch (decision 1 Oct)**
+- **Why not switch:** WhatsApp is used by about 95% of Nigerian internet users, against about 23% for Telegram, and
+  traders won't install a new app.
+- **Why add Telegram:**
+  - the Bot API is free (no per-message fee, no 24-hour window, no business verification, no 5-recipient test
+    limit);
+  - it gives **judges and testers** an easy way in;
+  - it's a **backup** if Meta blocks or bills us.
+
+Task E20 in `ENGINEERING_PLAN.md`.
+
 **UI/UX** (`web/app.js`, `web/style.css`, `src/ui_text.py`)
 - **WhatsApp-first welcome:** the first screen offers "Use on WhatsApp" (wa.me deep link) and "Use here". There
   is a QR code for desktop.
