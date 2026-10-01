@@ -575,6 +575,56 @@ NCAIR/Awarri can use. Individual books are never released.
 
 ---
 
+## Part 10: Payments (OPay first)
+**Why OPay:**
+- About 50M users and 39M monthly actives in 2025.
+- Installed on **69% of Nigerian smartphones**, with about 40% of the mobile money market.
+- OPay-to-OPay transfers are **free**.
+
+Most traders and their customers already have it.
+
+**Rule:** TradeVoice **never holds anyone's money**. Money goes from the customer to the trader's own OPay or bank
+account through licensed companies. TradeVoice only records it. Collecting for others would need a CBN PSSP
+licence. A fintech lawyer checks the setup before real money is used.
+
+| When | What |
+|---|---|
+| **Pilot (6–10 Oct)** | **Reminders default to OPay:** the trader's OPay number in every drafted reminder. **Reading receipts:** the customer's OPay receipt screenshot or the trader's forwarded OPay alert is read by `vision.py`, matched to the debt (name, amount, time), and confirmed with one tap ("Mark Mama Tunde paid ₦20,000?"). This is the `match_payment` tool. |
+| **NAIC demo** | **Paystack virtual account in test mode** (1%, capped at ₦300, when live): a test transfer arrives, the webhook marks the debt paid (part-payments too), and the trader gets a WhatsApp voice note, "Mama Tunde just paid ₦20,000. She still owes ₦25,000." The receipt to the customer is a draft. |
+| **After NAIC** | **OPay merchant API** (OPay Checkout): an account number per debt, OPay wallet QR and USSD, with **webhooks for automatic confirmation**. Needs an OPay business account, TradeVoice CAC registration, and identity checks (BVN/NIN) for traders. |
+
+- **Never in code or the repo:** traders' real account numbers live only in their own profile (`users.bank_*`).
+- **Code:** `src/extras.py` (pay links and bank details), a new `src/payments.py` (provider webhooks with
+  signature checks, `match_payment`), and `vision.py` prompts for OPay receipts.
+
+### 10a. The bigger idea: partner with OPay (pitch once pilot results are in)
+OPay has millions of merchants and a growing lending business: about $938M lent in 2025.
+
+**TradeVoice = the voice bookkeeping layer for OPay merchants.** Traders keep clean records by talking. With the
+trader's explicit consent, those records help OPay lend to them safely and help traders get fairer loans.
+
+**What we bring to the pitch:**
+- pilot numbers: traders, interactions, records kept, and payments matched;
+- traders' feedback;
+- N-ATLaS / NAIC credibility;
+- the OPay receipt-matching feature already working.
+
+**What it would need:**
+- a commercial N-ATLaS licence (the free terms cap at 1,000 active users and exclude commercial use);
+- a data-sharing agreement where **the trader chooses** and records are shared only with consent, as the lender
+  link works today;
+- a legal and NDPA review.
+
+**Credit rule:** any lending view is **plain arithmetic over the trader's own book**, never N-ATLaS. The N-ATLaS
+terms prohibit profiling, and we keep it out of credit decisions anyway.
+
+**Similar partners to approach later:** Moniepoint, PalmPay and microfinance banks.
+
+**Owner and timing:** draft a one-page pitch after the pilot (late October). Find a warm introduction through
+ONDI, the NAIC network or the investor introductions.
+
+---
+
 ## Order of work
 1. Part 1 cleanup: commit, run tests, push.
 2. Part 2a magic link and 2c users: commit.
@@ -586,7 +636,8 @@ NCAIR/Awarri can use. Individual books are never released.
 7. Part 6 UI/UX, after agreeing the screens with the team: commit.
 8. Then the `docs/naic/` documents, the PDFs and the video script, aiming to submit on 11 Oct.
 9. Before the pilot (by 6 Oct): Part 9a backups and encryption, 9b validation and retention jobs.
-10. After submission: Part 9c and 9d dataset pipeline; Part 5, items 6–9 (data loop, fine-tuning, contributing back) and Part 8 (summaries,
+10. Pilot payments (Part 10): OPay default in reminders, OPay receipt matching; Paystack test-mode demo.
+11. After submission: OPay merchant API and the OPay partnership pitch (Part 10a); Part 9c and 9d dataset pipeline; Part 5, items 6–9 (data loop, fine-tuning, contributing back) and Part 8 (summaries,
    search, memory screen, consent levels 2–3, market insights).
 
 Each step runs `python eval/run_all.py` before pushing.
