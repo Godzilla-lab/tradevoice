@@ -9,8 +9,6 @@
 Voice-first bookkeeping for market traders. Say what you sold, in English, Pidgin, Yorùbá, Hausa or Igbo,
 on WhatsApp or the web, and TradeVoice keeps the book.
 
-<img src="docs/images/confirm.png" width="200" alt="Confirmation card"> <img src="docs/images/home.png" width="200" alt="Home screen"> <img src="docs/images/yoruba.png" width="200" alt="A question answered in Yorùbá"> <img src="docs/images/customer.png" width="200" alt="A customer's balance and history">
-
 </div>
 
 ## Why

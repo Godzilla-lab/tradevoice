@@ -35,8 +35,9 @@ Never commit `.env`, `*.db` or `books/`.
 - **Unused or empty files:**
   - `eval/cases_team.jsonl` (empty)
   - `web/icon-512.png`, `web/logo-light.svg`
-  - `docs/images/customers.png`, `docs/images/insights.png`
 - **Bot avatar:** move `web/whatsapp-profile-640.png` to `docs/images/`.
+- **Screenshots:** the old app screenshots were removed on 1 Oct (UI redesign). New ones go in `docs/images/`
+  after the Part 6 UI refresh.
 - **Hackathon docs:** move `docs/hackathon/` to a git tag `hackathon-2026-09` so it's kept in history, then
   delete the folder from `main`.
   - Fix links in `README.md`, `docs/TECHNICAL.md` and `docs/RESULTS.md`, pointing them to the tag.
