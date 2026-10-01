@@ -680,6 +680,51 @@ ONDI, the NAIC network or the investor introductions.
 
 ---
 
+## Part 11: N-ATLaS isn't very "smart". How TradeVoice works around it
+N-ATLaS is an 8B model. It is weaker at general knowledge, maths and long reasoning than big cloud models, and
+weakest in Yorùbá (2.69/5 on its card). **TradeVoice is designed so it doesn't need to be smart; it needs to
+understand and phrase.** The rules NAIC requires (N-ATLaS at the core) still hold.
+
+| Job | Who does it |
+|---|---|
+| Hearing the voice note | N-ATLaS speech models + book hints (Part 5) |
+| Understanding what the trader meant (record, question or action) | **N-ATLaS**, with a short list of tools and few-shot examples |
+| Facts about the trader's business (who owes, profit, stock) | **The book, through code.** Never the model's memory |
+| Any maths (totals, balances, margins, dates) | **Code** |
+| General business knowledge (tax, CAC registration, loans, pricing tips) | **A curated TradeVoice knowledge base** that N-ATLaS reads from, never its own memory |
+| Wording the reply | N-ATLaS (English, Hausa, Igbo) or **our reviewed templates** (Yorùbá and anything sensitive) |
+| Final check | The confirmation card and the trader's tap |
+
+**Techniques:**
+1. **Narrow jobs, short tool lists:** code routes first (record / ask / act), then N-ATLaS chooses from 3–6 tools
+   (Part 8 and the tool list).
+2. **Structured output:** vLLM's guided decoding forces **valid JSON and valid tool names**, so N-ATLaS can't
+   return broken or made-up tool calls.
+3. **Few-shot examples:** 3–5 worked examples in the trader's language in every prompt (+~10 points in the
+   independent AfroBench evaluation).
+4. **Understand in English inside:** for Yorùbá (N-ATLaS's weakest language), N-ATLaS first restates the sentence
+   in plain English (its strongest language, 4.21/5), and the tools work on that. The original words are kept,
+   and amounts must appear in the original.
+5. **Knowledge base:** short, sourced, Nigerian-specific answers reviewed by a person and written in plain
+   English, with dates and sources. Topics: tax (we already have `tax.py`), CAC, BVN/NIN, loans and cooperatives,
+   pricing, storing goods, fraud warnings.
+   - The relevant snippet is retrieved by search and N-ATLaS answers **only from it**.
+   - **If the answer isn't there, it says so** and offers to connect the team.
+6. **Check itself:**
+   - for anything that writes to the book, the rules extract the same fields, and disagreement → ask the trader;
+   - low confidence → the targeted re-ask from Part 5.
+7. **Measure "smartness" where it matters:** tool-call accuracy, field accuracy (amount, customer, type, date) and
+   knowledge-base answer accuracy, per language, against base Llama-3-8B and Qwen. That's in the NAIC
+   integration PDF.
+8. **After NAIC:** fine-tune N-ATLaS (LoRA) on consented, anonymised market conversations (Part 8c level 2). This
+   is NAIC's "sectoral fine-tuning" idea, released under the N-ATLaS terms.
+
+**What we will not do:** quietly switch hard questions to a big cloud model. NAIC disqualifies "wrapping
+general-purpose models instead of N-ATLAS". Backups (Qwen or the cloud) are only for when N-ATLaS is *down*, and
+every reply records which engine answered.
+
+---
+
 ## Order of work
 1. Part 1 cleanup: commit, run tests, push.
 2. Part 2a magic link and 2c users: commit.
