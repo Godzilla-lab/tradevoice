@@ -185,7 +185,7 @@ N-ATLAS does the work.
 - **Benchmark:** run our 464 sentences through N-ATLAS and Qwen side by side, and put the results in
   `docs/RESULTS.md`. This uses a Kaggle notebook or Brev, because the free GPU's 16 GB needs the 4-bit model.
 - **Evidence:** 50 or more real trader interactions, using the `events` log and `/team` export from 2d.
-### NAIC application, step by step (from the official page the user pasted)
+### NAIC application, step by step (from the official NAIC page)
 **Key facts**
 - The deadline is **12 Oct 2026, 15:59**. Treat it as 3:59 PM Nigeria time and aim to submit on 11 Oct.
 - Screening runs on a rolling basis, so submitting early helps.
