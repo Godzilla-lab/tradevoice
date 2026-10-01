@@ -114,12 +114,46 @@ def main():
     bad = anon.post("/paystack/webhook", content=ev, headers={"x-paystack-signature": "nope"})
     check("forged Paystack webhook refused", bad.status_code == 401)
     sig = hmac.new(b"sk_test_x", ev, hashlib.sha512).hexdigest()
+    SENT.clear()
     anon.post("/paystack/webhook", content=ev, headers={"x-paystack-signature": sig})
     s = a.get(f"/api/customers/{cid}").json()["customer"]
     check("signed Paystack webhook -> paid, balance 0 by itself", s["owes_me"] == 0, s)
+    notes = [p for p in SENT if p.get("type") == "text" and "just paid" in p["text"]["body"]]
+    check("💸 the trader gets a WhatsApp: who paid, how much, what is left", len(notes) == 1 and notes[0]["to"] == PHONE
+          and "Mama Tunde" in notes[0]["text"]["body"] and "₦12,000" in notes[0]["text"]["body"]
+          and "₦0" in notes[0]["text"]["body"], SENT)
+    check("…and nothing is sent to the customer", not any(p.get("to") == "2348035550000" for p in SENT), SENT)
     anon.post("/paystack/webhook", content=ev, headers={"x-paystack-signature": sig})
     th = a.get(f"/api/customers/{cid}").json()["thread"]
     check("same webhook twice is not counted twice", sum(1 for x in th if x.get("engine") == "paylink") == 2, th)
+    check("…and the trader is told only once", len([p for p in SENT if p.get("type") == "text"
+                                                   and "just paid" in p["text"]["body"]]) == 1, SENT)
+    usd = json.dumps({"event": "charge.success", "data": {"reference": ref, "amount": 1, "currency": "USD"}}).encode()
+    anon.post("/paystack/webhook", content=usd,
+              headers={"x-paystack-signature": hmac.new(b"sk_test_x", usd, hashlib.sha512).hexdigest()})
+    check("a non-naira charge is ignored", a.get(f"/api/customers/{cid}").json()["customer"]["owes_me"] == 0)
+
+    # back from Paystack before the webhook arrives: the pay page checks with Paystack itself
+    a.post(f"/api/customers/{cid}/record", json={"type": "credit_sale", "amount": 8000, "item": "garri"})
+    r = a.post(f"/api/customers/{cid}/reminder", json={"lang": "English"}).json()
+    token = re.search(r"/pay/([\w-]+)", r["message"]).group(1)
+    anon.post(f"/pay/{token}/paystack", follow_redirects=False)
+    ref2 = calls[-1]["reference"]
+    gets = []
+    extras.requests.get = lambda url, **kw: gets.append(url) or Fake(
+        {"status": True, "data": {"status": "success", "reference": ref2, "amount": 800000, "currency": "NGN"}})
+    check("forged return (wrong reference) does nothing", "₦8,000" in anon.get(f"/pay/{token}?reference=tv-fake").text
+          and not gets, gets)
+    page = anon.get(f"/pay/{token}?reference={ref2}&trxref={ref2}").text
+    check("back from Paystack -> verified with Paystack, debt settled, page says nothing to pay",
+          "Nothing to pay" in page and gets and ref2 in gets[-1], (page[:200], gets))
+    anon.get(f"/pay/{token}?reference={ref2}")
+    ev2 = json.dumps({"event": "charge.success", "data": {"reference": ref2, "amount": 800000}}).encode()
+    anon.post("/paystack/webhook", content=ev2,
+              headers={"x-paystack-signature": hmac.new(b"sk_test_x", ev2, hashlib.sha512).hexdigest()})
+    th = a.get(f"/api/customers/{cid}").json()["thread"]
+    check("return check + webhook + reload -> counted once", sum(1 for x in th if x.get("engine") == "paylink"
+                                                                  and x.get("amount") == 8000) == 1, th)
     os.environ.pop("PAYSTACK_SECRET_KEY")
 
     # automatic reminders on the promised day

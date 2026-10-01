@@ -187,7 +187,7 @@ Stretch: package the setup as a **Brev Launchable** (one-click template) so anyo
 | `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_VERIFY_TOKEN` | – | WhatsApp bot + login codes (`check_whatsapp.py` tests the whole chain) |
 | `WHATSAPP_APP_SECRET` | – | Optional: checks messages really come from Meta (leave empty if unsure) |
 | `PUBLIC_URL` | request address | Link used in pay links and in the daily reminder summary |
-| `PAYSTACK_SECRET_KEY` / `PAYSTACK_EMAIL` | – | Pay links open a Paystack checkout; point Paystack's webhook at `/paystack/webhook` |
+| `PAYSTACK_SECRET_KEY` / `PAYSTACK_EMAIL` | – | Pay links open a Paystack checkout (card, transfer, USSD, bank). The debt settles by itself from Paystack's signed webhook at `/paystack/webhook`, or, as a backup, when the customer returns to the pay page (we verify with Paystack). The trader gets a WhatsApp "💸 … just paid". Use `sk_test_` keys until the business is verified. |
 | `AUTO_REMINDERS` | `1` | Draft reminders on the promised day (every 30 min check) and WhatsApp the trader a summary |
 
 ## Honesty notes

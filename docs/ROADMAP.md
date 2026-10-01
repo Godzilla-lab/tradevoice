@@ -154,7 +154,7 @@ Never commit `.env`, `*.db` or `books/`.
 - **Access:** `/team` returns 403 without `ADMIN_TOKEN`; `/api/status` returns only the public fields.
 - **Login hardening:** covered by `test_auth.py`.
 
-All existing suites must stay green (252 checks today).
+All existing suites must stay green (259 checks today).
 
 ---
 

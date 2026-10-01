@@ -76,10 +76,10 @@ Full setup and every setting: [`docs/TECHNICAL.md`](docs/TECHNICAL.md) · WhatsA
 
 ## Tests
 ```bash
-python eval/run_all.py                                              # 252 checks in 11 suites, no keys needed
+python eval/run_all.py                                              # 259 checks in 11 suites, no keys needed
 python eval/run_eval.py --rules-only --cases eval/cases_hard.jsonl  # trap phrases in 5 languages
 ```
-- **252 / 252** automated checks: the full demo flow, corrections, the WhatsApp bot, wholesale tools, lender and
+- **259 / 259** automated checks: the full demo flow, corrections, the WhatsApp bot, wholesale tools, lender and
   pay links, voice
 - **464 / 464** test sentences in 5 languages (including 208 trap phrases) turned into the right record by the
   offline rules alone

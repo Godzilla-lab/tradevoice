@@ -2,9 +2,11 @@
 
 🏦 Lender link: the trader agrees, picks how long (1 / 7 / 30 days), and gets a private link to their score and
    statement. Anyone with the link can view it until it expires or the trader revokes it; every view is counted.
-💸 Pay link in reminders: /pay/<token> shows what the customer owes. With PAYSTACK_SECRET_KEY set they pay by card or
-   transfer on Paystack and the debt settles by itself (Paystack's signed webhook records the payment). Without
-   Paystack: the trader's bank details + "I have paid" -> the trader confirms in the customer's conversation.
+💸 Pay link in reminders: /pay/<token> shows what the customer owes. With PAYSTACK_SECRET_KEY set they pay by card,
+   transfer, USSD or bank on Paystack and the debt settles by itself: Paystack's signed webhook records it, and as a
+   backup the pay page re-checks the payment with Paystack when the customer comes back. The trader gets a WhatsApp
+   message ("💸 Mama Tunde just paid ₦20,000 online. Still owes you: ₦25,000"). Without Paystack: the trader's bank
+   details + "I have paid" -> the trader confirms in the customer's conversation.
 ⏰ Automatic reminders: on the promised day, TradeVoice drafts the reminder (with the pay link) in each customer's
    conversation and sends the trader one WhatsApp summary. The trader still presses send to the customer.
 🧾 Receipts: after a record for a customer, a receipt ready to send on WhatsApp (shows the new balance).
@@ -195,10 +197,13 @@ def _owed_now(link):
 
 
 @router.get("/pay/{token}")
-def pay_page(token: str):
+def pay_page(token: str, reference: str = "", trxref: str = ""):
     link = _paylink(token)
     if not link:
         return _page("Link expired", "<h1>This payment link has expired</h1><p class='muted'>Ask the trader for a new one.</p>")
+    ref = reference or trxref
+    if ref and ref == link.get("ref") and link.get("status") != "paid":
+        _verify_paystack(link, ref)  # back from Paystack: don't wait for the webhook
     owed, s = _owed_now(link)
     u = _user(link["phone"])
     shop = u.get("shop") or "the trader"
@@ -271,21 +276,63 @@ async def paystack_webhook(request: Request):
     data = ev["data"]
     with _db() as c:
         r = c.execute("SELECT * FROM paylinks WHERE ref=?", (data.get("reference"),)).fetchone()
-    if not r or r["status"] == "paid":
+    if not r or data.get("currency", "NGN") != "NGN":
         return {"ok": True}
-    record_payment(dict(r), data["amount"] / 100, f"Paystack {data.get('reference')}")
+    _settle(dict(r), data["amount"] / 100, f"Paystack {data.get('reference')}")
     return {"ok": True}
 
 
-def record_payment(link, amount, how):
+def _verify_paystack(link, ref):
+    """Ask Paystack directly whether this payment went through (used when the customer comes back from checkout)."""
+    key = os.getenv("PAYSTACK_SECRET_KEY")
+    if not key:
+        return
+    try:
+        r = requests.get(f"https://api.paystack.co/transaction/verify/{urllib.parse.quote(ref)}", timeout=20,
+                         headers={"Authorization": f"Bearer {key}"})
+        d = (r.json() or {}).get("data") or {}
+    except Exception as e:
+        print(f"Paystack verify failed: {type(e).__name__}: {e}")
+        return
+    if d.get("status") == "success" and d.get("reference") == ref and d.get("currency", "NGN") == "NGN":
+        _settle(link, d["amount"] / 100, f"Paystack {ref}")
+
+
+def _settle(link, amount, how):
+    """Record a Paystack payment once, however many times we hear about it (webhook + return check)."""
+    with _lock, _db() as c:
+        if c.execute("UPDATE paylinks SET status='paid' WHERE token_hash=? AND status!='paid'",
+                     (link["token_hash"],)).rowcount == 0:
+            return
+    record_payment(link, amount, how, mark=False)
+
+
+def notify_trader_paid(phone, name, amount, left):
+    """WhatsApp the trader (never the customer) that money came in. Quietly skipped for guests or without WhatsApp."""
+    if not phone or accounts.is_guest(phone) or not os.getenv("WHATSAPP_TOKEN"):
+        return
+    try:
+        import ui_text
+        import whatsapp
+
+        lang = (accounts.profile(phone) or {}).get("lang") or "English"
+        whatsapp.send_text(phone, ui_text.t("paid_notice", lang).format(
+            name=name or "A customer", amount=f"{amount:,.0f}", left=f"{left:,.0f}"))
+    except Exception as e:
+        print(f"paid notice not sent: {type(e).__name__}: {e}")
+
+
+def record_payment(link, amount, how, mark=True):
     with _in_book(link["phone"]):
         ledger.add_entry({"type": "payment_received", "amount": amount, "customer_id": link["customer_id"]},
                          raw_text=f"(paid online: {how})", engine="paylink")
         s = ledger.customer_summary(link["customer_id"]) or {}
         ledger.add_message(link["customer_id"], f"✅ Paid ₦{amount:,.0f} online ({how}). New balance: "
                            f"₦{(s.get('owes_me') or 0):,.0f}.", sender="tradevoice", kind="note")
-    with _lock, _db() as c:
-        c.execute("UPDATE paylinks SET status='paid' WHERE token_hash=?", (link["token_hash"],))
+    if mark:
+        with _lock, _db() as c:
+            c.execute("UPDATE paylinks SET status='paid' WHERE token_hash=?", (link["token_hash"],))
+    notify_trader_paid(link["phone"], s.get("name"), amount, s.get("owes_me") or 0)
 
 
 class Bank(BaseModel):
