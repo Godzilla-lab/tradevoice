@@ -305,7 +305,7 @@ conversation.
 | N-ATLAS speech (4 ASR models) | Same Modal app | Small models; share the GPU |
 | Notebook photo reading | **NVIDIA API** (build.nvidia.com), already built in `src/vision.py` (`VISION_MODELS`) | No GPU to host, no cold start, photos are rare |
 | Photo backup | Qwen-VL as a separate Modal function, **off unless the API fails** | Emergency only |
-| Web app + WhatsApp webhook | Small **always-on** server (cheap VPS, a small Brev CPU box, or a Modal CPU container) | Must always receive Meta's webhooks; needs no GPU |
+| Web app + WhatsApp webhook | Small **always-on VPS** with a persistent disk, behind Cloudflare Tunnel (Part 9a-0) | Must always receive Meta's webhooks; needs no GPU |
 
 **Waking up automatically:** when the GPU is off and a WhatsApp message arrives:
 1. The web app answers Meta at once.
@@ -433,6 +433,24 @@ N-ATLAS (Llama-3 8B) reads about 8,000 tokens at a time, so we never send the wh
 
 ## Part 9: Where data is stored, and how it is cleaned
 
+### 9a-0. The stack (what we use for data and processes)
+| Job | Use | Why |
+|---|---|---|
+| Public link, HTTPS, domain | **Cloudflare Tunnel and DNS** (`cloudflared`, already used) | Free; no open ports on the server |
+| Backups and training-data storage | **Cloudflare R2** (S3-compatible) | No download fees, so Modal can pull training data for free; small free tier |
+| Web app, WhatsApp webhook, traders' books | **Small VPS with a persistent disk** (Hetzner, DigitalOcean or similar, ~$5–10/month) | Python plus one SQLite file per trader needs a normal disk; Cloudflare Workers and Modal volumes don't fit this |
+| Live backups | **Litestream** on the VPS → R2, restore tested monthly | Lose seconds, not days, if the server dies |
+| Nightly jobs (9b checks, retention, summary triggers) | **cron or systemd timers** on the VPS | Simple; summaries call N-ATLAS on Modal |
+| N-ATLAS LLM and speech | **Modal** (Part 7) | GPU only when needed |
+| Photo reading | **NVIDIA API** | No GPU to host |
+| Training-data pipeline (9c) | **Modal job**: reads R2, writes the cleaned version back to R2 | On demand; a GPU only for the timestamp step |
+| Dataset versions | R2 folders (`v0.1/`, `v0.2/`…) plus a private Hugging Face dataset when shared with NCAIR | Clear history; easy hand-over |
+
+**Not now:**
+- **Cloudflare D1:** it would mean rewriting how the per-trader books are stored.
+- **A data warehouse** (BigQuery or Snowflake): overkill. SQLite plus `/team` is enough until thousands of
+  traders.
+
 ### 9a. Where each kind of data lives
 | Data | Where | Format | Kept | Who can access |
 |---|---|---|---|---|
@@ -441,7 +459,7 @@ N-ATLAS (Llama-3 8B) reads about 8,000 tokens at a time, so we never send the wh
 | **Usage counts** (`events`, Part 2d) | Separate `analytics.db` on the web server | SQLite → daily anonymised CSV | 12 months | Team, via `/team` |
 | **Voice notes and photos in transit** | Temporary files on the web server | Original | **Deleted right after reading** (as today) | Nobody |
 | **Training data** (consent levels 2 and 3) | **Separate private bucket** (`tradevoice-training`), never left on the app server | Text JSONL; audio FLAC, 16 kHz mono; plus a manifest | Per dataset version, reviewed yearly | 1–2 named people, access logged |
-| **Backups** | Encrypted object storage (for example Cloudflare R2 or Backblaze B2) | Encrypted SQLite snapshots | 30 days, rolling | Restore only |
+| **Backups** | Encrypted object storage on **Cloudflare R2** | Encrypted SQLite snapshots | 30 days, rolling | Restore only |
 | **Model weights** | Modal Volume | HF format | — | Deploy only |
 | **Secrets** | `.env` on the server, Modal Secrets | — | Rotated when exposed | Admins |
 
