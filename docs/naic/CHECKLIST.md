@@ -59,6 +59,20 @@ Write a name in **Owner** and tick each box when it's done. The full technical p
 - [ ] **Submit:** GitHub link `https://github.com/Godzilla-lab/tradevoice`, the live app link and the WhatsApp
       number.
 
+- [ ] **Public Hugging Face Space "TradeVoice"**, so we appear under "Spaces using NCAIR1/N-ATLaS" on the official
+      model page, where Awarri, NCAIR and judges look.
+  - **Listing:** put `models: [NCAIR1/N-ATLaS, NCAIR1/Yoruba-ASR, NCAIR1/Hausa-ASR, NCAIR1/Igbo-ASR,
+    NCAIR1/NigerianAccentedEnglish]` in the Space README's YAML header. That lists us on all 5 model pages.
+  - **Demo:** a small free CPU Gradio Space. Speak or type a sentence in Yorùbá, Hausa, Igbo or English → see
+    the record card, then ask "who owes me?".
+  - **Data:** demo book only (made-up names), no real trader data.
+  - **Model access:** it calls our Modal N-ATLaS endpoint with a key stored as a Space secret, plus a rate limit,
+    so it can't burn our credits. A 8B model doesn't fit a free Space itself.
+  - **Licence:** include the required N-ATLaS attribution. Space users count toward the 1,000-user cap.
+  - **Keep it awake on 15–17 Oct.** Greyed-out Spaces on the model page are asleep, which looks bad.
+
+  Owner: ____  Due: 9 Oct (after N-ATLaS works in the app)
+
 ## 2. N-ATLAS integration evidence (PDF)
 **What NAIC wants:** clear documentation and a demonstration of how the build uses the N-ATLAS model, API, ASR
 or training pipeline.
