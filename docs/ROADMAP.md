@@ -431,6 +431,98 @@ N-ATLAS (Llama-3 8B) reads about 8,000 tokens at a time, so we never send the wh
 
 ---
 
+## Part 9: Where data is stored, and how it is cleaned
+
+### 9a. Where each kind of data lives
+| Data | Where | Format | Kept | Who can access |
+|---|---|---|---|---|
+| **Trader's book**: records, customers, `memory`, `chat_log`, `chat_summary` | Web server disk, `books/<phone>.db`, **one SQLite file per trader** (as today) | SQLite, WAL mode | Until the trader deletes it; `chat_log` 90 days | Only that trader through the app; the team only for support, logged |
+| **Accounts**: users, sessions, logins, shares, pay links, `magic` | Web server, `accounts.db` | SQLite | While the account exists | App only |
+| **Usage counts** (`events`, Part 2d) | Separate `analytics.db` on the web server | SQLite → daily anonymised CSV | 12 months | Team, via `/team` |
+| **Voice notes and photos in transit** | Temporary files on the web server | Original | **Deleted right after reading** (as today) | Nobody |
+| **Training data** (consent levels 2 and 3) | **Separate private bucket** (`tradevoice-training`), never left on the app server | Text JSONL; audio FLAC, 16 kHz mono; plus a manifest | Per dataset version, reviewed yearly | 1–2 named people, access logged |
+| **Backups** | Encrypted object storage (for example Cloudflare R2 or Backblaze B2) | Encrypted SQLite snapshots | 30 days, rolling | Restore only |
+| **Model weights** | Modal Volume | HF format | — | Deploy only |
+| **Secrets** | `.env` on the server, Modal Secrets | — | Rotated when exposed | Admins |
+
+**Storage rules:**
+- **Modal keeps no trader data.** It receives a request, answers, and logs nothing that contains content.
+  Prompt and request logging is turned off.
+- **Backups:** Litestream streams each SQLite file continuously to the encrypted bucket. A restore is tested
+  every month.
+- **Encryption:** disks and backups are encrypted at rest; everything travels over TLS.
+- **Where data is stored:** choose the storage region on purpose. Cross-border transfers need the safeguards in
+  the NDPA, so this is written down in the privacy notice.
+- **Data breaches:** a written breach plan; the NDPA requires notifying the NDPC within 72 hours.
+
+### 9b. Keeping the live books clean (every day, automatic)
+- **Duplicate customers:** "Mama Tunde", "mama tunde" and "Mama T" are spotted by fuzzy matching plus the
+  nicknames in `memory`. The trader is **asked** to merge them, never merged automatically.
+- **Validation on save:**
+  - amount above 0 and below a sanity limit;
+  - dates make sense;
+  - the customer exists;
+  - the type matches the words (a credit sale has a customer);
+  - unsure fields flagged (as today).
+- **Nightly integrity check:** orphan `customer_id`s, negative balances caused by bad data, and SQLite
+  `PRAGMA integrity_check`. Problems are reported on `/team`.
+- **Retention jobs:** delete `chat_log` older than `CHAT_DAYS`; drop expired `magic`, `logins` and `sessions`
+  rows; delete merged guest books after 7 days.
+
+### 9c. Cleaning pipeline for training data (`scripts/build_dataset.py`, run by hand per release)
+1. **Consent filter:** only rows whose trader has level 2 or 3 consent *today*. Withdrawn consent drops them
+   from the next version.
+2. **Remove personal details (text):**
+   - Customer names → `[CUSTOMER]`, using **the trader's own customer list and nicknames first**, which beats
+     generic tools on Nigerian names. A general PII detector (for example Microsoft Presidio) is a second
+     pass.
+   - Phone numbers, bank account numbers, BVN/NIN and emails, found by pattern → `[PHONE]`, `[ACCOUNT]`.
+   - Amounts → scaled by one random factor per sample, so the maths stays consistent.
+   - Market and street names → city level.
+3. **Remove personal details (audio):** use word timestamps from the speech model to **bleep** names and numbers.
+   If a clip can't be cleaned with confidence, it is dropped.
+4. **Audio quality:**
+   - convert to 16 kHz mono and trim silence;
+   - reject clips under 1 s or over 30 s, clips that are clipped (distorted), and clips that are only noise;
+   - store the estimated noise level (SNR) as a label, not a reason to reject, because we need noisy
+     examples.
+5. **Text normalisation:**
+   - Unicode NFC, so Yorùbá tone marks are stored one consistent way.
+   - Keep both the raw and normalised text.
+   - Pidgin spelling map ("dey"/"de"), applied only when scoring.
+   - Numbers kept both as said ("45k") and normalised ("45000").
+6. **Labels:**
+   - language, from the trader's setting plus automatic language ID;
+   - a **code-switch** flag;
+   - noise level;
+   - channel (WhatsApp or web);
+   - accent or region, only if the trader opted to share it.
+
+   **Trader-corrected pairs are marked "gold".**
+7. **Remove duplicates:**
+   - exact and near-duplicate text, using a hash of the normalised text;
+   - duplicate audio, using an audio fingerprint;
+   - a limit on clips per speaker, so no single trader dominates.
+8. **Human check:**
+   - Native speakers review a sample of about 10% per language and check the redaction.
+   - Agreement between reviewers is measured, and a batch is rejected if names leak.
+9. **Splits by speaker:** train, dev and test, with no speaker in more than one, so results aren't inflated.
+   The **test set is frozen**; it is our market benchmark (Part 5, item 5).
+10. **Version and document:**
+    - Each release is versioned (v0.1, v0.2…).
+    - A **dataset card** records the sources, consent basis, languages, hours, label meanings, known gaps and
+      licence.
+    - A deletion log records whose data was removed and when.
+
+**Automated test:** `eval/test_dataset.py` feeds samples with known names, phone numbers and amounts through the
+pipeline and **fails if any of them survive**.
+
+### 9d. Release outside the team (for example an N-ATLAS contribution)
+Only with explicit level 3 consent, after redaction checks pass, with the dataset card and a licence that
+NCAIR/Awarri can use. Individual books are never released.
+
+---
+
 ## Order of work
 1. Part 1 cleanup: commit, run tests, push.
 2. Part 2a magic link and 2c users: commit.
@@ -441,7 +533,8 @@ N-ATLAS (Llama-3 8B) reads about 8,000 tokens at a time, so we never send the wh
 6. Part 6 WhatsApp reliability: commit. Part 5, items 1–5 (speech fixes and the market test set): commit.
 7. Part 6 UI/UX, after agreeing the screens with the team: commit.
 8. Then the `docs/naic/` documents, the PDFs and the video script, aiming to submit on 11 Oct.
-9. After submission: Part 5, items 6–9 (data loop, fine-tuning, contributing back) and Part 8 (summaries,
+9. Before the pilot (by 6 Oct): Part 9a backups and encryption, 9b validation and retention jobs.
+10. After submission: Part 9c and 9d dataset pipeline; Part 5, items 6–9 (data loop, fine-tuning, contributing back) and Part 8 (summaries,
    search, memory screen, consent levels 2–3, market insights).
 
 Each step runs `python eval/run_all.py` before pushing.
