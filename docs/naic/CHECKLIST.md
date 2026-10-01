@@ -39,6 +39,18 @@ Write a name in **Owner** and tick each box when it's done. The full technical p
 - [ ] **Code:** N-ATLAS is the main model for understanding and hearing, with backups only when it's down.
       See ROADMAP Part 4. Owner: ____  Due: 6 Oct
 - [ ] **Code:** WhatsApp ↔ web as one account (ROADMAP Part 2). Owner: ____  Due: 6 Oct
+- [x] **Code:** Paystack payments: auto-settle, a "just paid" WhatsApp to the trader, and a return check
+      (ROADMAP Part 10-0). Done 1 Oct.
+- [ ] **Switch Paystack on in test mode:**
+  1. Create a Paystack account and add the `sk_test_` key to the server `.env` (never in chat or GitHub).
+  2. Set the webhook to `https://<public link>/paystack/webhook`.
+  3. Pay a test reminder with Paystack's test card and check that the trader's WhatsApp says "just paid".
+
+  Owner: ____  Due: 5 Oct
+- [ ] **Pilot traders:** each adds their OPay or bank number in the app (Me → Bank details) for the pay page.
+      Owner: ____
+- [ ] **Native speakers:** check the Yorùbá, Hausa and Igbo "just paid" message (`src/ui_text.py`, `paid_notice`).
+      Owner: ____
 - [ ] **Live app:** the always-on web server and the WhatsApp bot, plus the N-ATLAS models on **Modal**, kept
       warm from 6 to 17 Oct. Set a Modal spending limit. Photos are read by the NVIDIA API, so the NVIDIA key
       needs credit. Owner: ____
@@ -147,7 +159,7 @@ developer.
 | 6 Oct | N-ATLAS and WhatsApp ↔ web live (Modal kept warm); pilot starts |
 | 6–10 Oct | Pilot running: 50+ real interactions |
 | 8 Oct | Benchmark done |
-| 9 Oct | Video filmed |
+| 9 Oct | Video filmed (include a Paystack test payment → "just paid" WhatsApp) |
 | 10 Oct | All PDFs written; video edited |
 | 11 Oct | **Submit** |
 | 15–17 Oct | N-ATLAS integration check: keep everything running |

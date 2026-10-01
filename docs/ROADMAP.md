@@ -620,6 +620,38 @@ licence. A fintech lawyer checks the setup before real money is used.
   includes Africa, Google AP2, OpenAI and Stripe ACP) are card-based and early in Nigeria. We'll watch them but
   not build on them now.
 
+### 10-0. Paystack: built and tested (1 Oct 2026, 259/259 checks pass)
+**What works now** (`src/extras.py`, tests in `eval/test_extras.py`):
+1. **Pay links:** every drafted reminder carries a private pay link (`/pay/<token>`, valid 14 days).
+2. **Pay page:** the customer opens it without logging in and sees the shop and exactly what they owe.
+3. **Paystack checkout:** "Pay now" opens Paystack (card, bank transfer, USSD, bank account; OPay users transfer
+   from their OPay app).
+4. **Debt settles by itself:** Paystack's **signed webhook** (`/paystack/webhook`) records the payment with the new
+   balance. Forged webhooks are refused.
+5. **Trader alert:** the trader gets a WhatsApp in their language, "💸 Mama Tunde just paid ₦12,000 online. Still
+   owes you: ₦0." **Nothing is ever sent to the customer.** It is skipped for guests (no WhatsApp number).
+6. **Backup check:** when the customer returns from Paystack, the pay page **verifies the payment with Paystack**
+   itself, so the debt settles even if the webhook is late.
+7. **Counted once** however many times we hear about it (webhook, return check, page reload). Non-naira charges
+   are ignored.
+8. **Without Paystack:** the pay page shows the trader's own account (for example OPay) with "I have paid", and the
+   trader confirms with one tap.
+9. **After payment:** the pay page says "Nothing to pay. Thank you!"
+
+**To switch on (test mode, no real money):**
+1. Create a Paystack account and copy the `sk_test_…` key.
+2. Set `PAYSTACK_SECRET_KEY` and `PAYSTACK_EMAIL` in the server's `.env` (never commit or paste the key).
+3. Point the Paystack webhook at `https://<public link>/paystack/webhook`.
+4. Test with Paystack's test card.
+
+**Real money:** only after Paystack verifies the business (CAC) and a legal check.
+
+**Still to do:**
+- native-speaker check of the Yorùbá, Hausa and Igbo wording of the "just paid" message (`ui_text.py`,
+  `paid_notice`);
+- an optional voice-note version of the alert;
+- a WhatsApp "Pay now" button (CTA URL) on reminders.
+
 ### 10a. The bigger idea: partner with OPay (pitch once pilot results are in)
 OPay has millions of merchants and a growing lending business: about $938M lent in 2025.
 
