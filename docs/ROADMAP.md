@@ -719,6 +719,36 @@ understand and phrase.** The rules NAIC requires (N-ATLaS at the core) still hol
 8. **After NAIC:** fine-tune N-ATLaS (LoRA) on consented, anonymised market conversations (Part 8c level 2). This
    is NAIC's "sectoral fine-tuning" idea, released under the N-ATLaS terms.
 
+### 11a. Maths we didn't predict
+"Code does all maths" must also work for questions nobody planned for ("If I give Mama Tunde 10% off, how much she
+go pay?", "Which week for September I sell pass?"). Four layers:
+1. **`query_book` tool: a small, safe query language over the book.** N-ATLaS fills in building blocks:
+   - **metric:** sum, count, average, max, min;
+   - **field:** amount, quantity;
+   - **filters:** customer, item, type, date range;
+   - **grouping:** by day, week, month, customer or item;
+   - **sort and limit.**
+
+   Code checks the request and runs it, so most new questions need **no new code**. It is not raw SQL; the model
+   can't write arbitrary queries.
+2. **`calculate` tool: plain arithmetic.** N-ATLaS writes the sum (for example `45000 * 0.9`) and code works it
+   out with a safe evaluator: numbers, + − × ÷, %, brackets, nothing else. **Every number in the sum must come from
+   the book, the trader's own words or an earlier tool result**, or it's refused.
+3. **Show the working:** answers show the calculation ("₦45,000 − 10% = ₦40,500") so the trader can check it.
+4. **Number check on every reply:** any number in the reply that isn't from the book, the trader or a tool result
+   is blocked (this extends today's amount guard).
+
+**When it still can't answer:**
+- **Say so honestly:** "I no fit calculate that one yet. I don note am make the team add am."
+- **Log it as an "unanswered question"**, stored in the trader's own book. Only the category goes to the team,
+  unless the trader opted into level 2, in which case it goes redacted.
+- **`/team` shows the most common unanswered questions;** each week the team adds the top ones as tools or
+  query templates.
+
+**The model never guesses a number.** These go into a test set: 50+ "unexpected" questions per language, scored
+on
+correct number, refused when impossible, and working shown.
+
 **What we will not do:** quietly switch hard questions to a big cloud model. NAIC disqualifies "wrapping
 general-purpose models instead of N-ATLAS". Backups (Qwen or the cloud) are only for when N-ATLaS is *down*, and
 every reply records which engine answered.
