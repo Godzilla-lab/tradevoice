@@ -19,6 +19,11 @@ Write a name in **Owner** and tick each box when it's done. The full technical p
       limit. Owner: ____
 - [ ] **Accept the N-ATLAS licence** on Hugging Face (NCAIR1/N-ATLaS and the 4 speech models) and create a
       Hugging Face token. Keep it in `.env` only and never share it. Owner: ____
+- [ ] **Add the required N-ATLaS attribution** to the app, the README, the PDFs and the video: "N-ATLaS is an
+      initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri
+      Technologies." Owner: ____
+- [ ] **Email Awarri (datasupport@awarri.com)** to say we're building TradeVoice on N-ATLaS, and ask about
+      commercial terms for later. Owner: ____
 - [ ] **Rotate the Spitch, Intron and NVIDIA keys** that were visible in screenshots. Owner: ____
 - [ ] **Get a permanent WhatsApp token** (Meta System User) and install ffmpeg on the web server. Owner: ____
 

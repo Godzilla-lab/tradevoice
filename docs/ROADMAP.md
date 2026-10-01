@@ -185,7 +185,17 @@ N-ATLAS does the work.
     it.
   - **Backup:** Intron.
 - **Startup checks:** `scripts/check_models.py` checks the Modal N-ATLAS endpoints (and wakes them). `/team` shows the share of requests each engine served.
-- **Licence:** the free licence covers up to 1,000 active users. Note this in the README and TECHNICAL docs.
+- **Licence (confirmed on the model card; details in `naic/NATLAS_FACTS.md`):**
+  - **Attribution:** the required wording goes in the app (Me → About), the README, the PDFs and the video.
+  - **User cap:** at most 1,000 active users in a rolling 30 days. `/team` tracks it and warns at 800.
+  - **Commercial use:** contact Awarri before charging traders.
+  - **Lenders:** N-ATLaS is never used to profile or score traders for lenders.
+  - **Fine-tunes** use the same terms.
+- **Card settings and weak spots:**
+  - Use the official chat template with `date_string`, temperature 0.1, repetition penalty 1.12, and
+    `--max-model-len 8192`.
+  - **Yorùbá scores 2.69/5 on the card**, so Yorùbá replies use our reviewed templates, and Yorùbá is
+    benchmarked separately.
 - **Benchmark:** run our 464 sentences through N-ATLAS and Qwen side by side, and put the results in
   `docs/RESULTS.md`. This uses Modal or a Kaggle notebook, because the free GPU's 16 GB needs the 4-bit model.
 - **Evidence:** 50 or more real trader interactions, using the `events` log and `/team` export from 2d.
