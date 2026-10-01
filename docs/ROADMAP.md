@@ -176,8 +176,13 @@ N-ATLAS does the work.
   (`ASR_BACKEND=natlas`, now the default):
   - Models: `NCAIR1/Yoruba-ASR`, `Hausa-ASR`, `Igbo-ASR` and `NigerianAccentedEnglish`.
   - **Choosing a model:** by the trader's language. Pidgin and English use NigerianAccentedEnglish.
-  - **Where it runs:** in the same Modal app as the LLM (Part 7), as a `/asr` endpoint. It loads lazily and the
-    models are cached in a Modal Volume.
+  - **All four are Whisper Small (244M, ~500 MB each)**; see [`naic/NATLAS_FACTS.md`](naic/NATLAS_FACTS.md).
+  - **Where it runs:** first try the **always-on server's CPU** (no cold start); if too slow, the same Modal app as
+    the LLM. Notes over 30 s are chunked.
+  - **Guard against repetition loops:** cap output length, detect repeats, re-ask, and never take an amount
+    from a looping transcript.
+  - **Pidgin** has no dedicated model and goes to `NigerianAccentedEnglish`; it is untested until we measure
+    it.
   - **Backup:** Intron.
 - **Startup checks:** `scripts/check_models.py` checks the Modal N-ATLAS endpoints (and wakes them). `/team` shows the share of requests each engine served.
 - **Licence:** the free licence covers up to 1,000 active users. Note this in the README and TECHNICAL docs.
