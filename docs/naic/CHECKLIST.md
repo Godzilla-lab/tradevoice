@@ -49,8 +49,12 @@ or training pipeline.
 - [ ] **Benchmark:** N-ATLAS against Qwen on our 464 test sentences, as a table. Owner: ____  Due: 8 Oct
 - [ ] **Usage share:** how many real requests N-ATLAS answered, with a screenshot of the `/team` dashboard.
       Owner: ____
-- [ ] **N-ATLAS's known limits and our fixes:** noise, accents, mixing languages. Show before-and-after
-      numbers (ROADMAP Part 5). Owner: ____
+- [ ] **N-ATLAS's 4 known limits:** show the table from ROADMAP Part 5. Owner: ____
+  - **Noise:** ✅ solved for market use; show before and after.
+  - **Mixing languages:** ✅ solved for bookkeeping sentences; show before and after.
+  - **Accents:** 🟡 partly solved, for names and items in the trader's book; show week 1 vs week 2.
+  - **Children's speech:** ❌ out of scope; say so plainly.
+  - Only claim what the numbers show.
 - [ ] Export to PDF. Owner: ____
 
 ## 3. Real-world validation (PDF)

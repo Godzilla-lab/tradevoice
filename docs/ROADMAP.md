@@ -219,9 +219,22 @@ N-ATLAS does the work.
 - **Plan:** have about 3 days of real-trader pilot before the 11 Oct submission.
 
 ## Part 5: Working around N-ATLAS's speech limits (based on research)
-N-ATLAS lists four limits: accent and dialect bias, children's speech, mixing languages, and noise.
-`NCAIR1/Yoruba-ASR` is Whisper-small or MMS fine-tuned mostly on read speech, so it is weaker on market
-conversation.
+N-ATLAS's GitHub lists four known limitations. **Rule: we only take on the ones we can clearly solve and prove
+with numbers.** Everything else is stated openly as a limit, not hidden.
+
+| N-ATLAS limitation | Do we solve it? | How (simple version) | How we prove it |
+|---|---|---|---|
+| **Degraded performance in noisy environments** | ✅ **Yes**, for market use | Light audio preparation (no heavy denoising, which research shows makes it worse); ask again for only the unclear part; the confirmation card before saving | The same voice notes with real market noise mixed in: amount and customer correct, **before vs after** |
+| **Limited handling of code-switching** (mixing languages) | ✅ **Yes**, for bookkeeping sentences | Two hearing models (Yorùbá, Hausa or Igbo plus Nigerian-accented English) on the same note, merged by N-ATLAS; amounts kept only if actually heard | A mixed-language test set: amount and customer correct, **before vs after** |
+| **Dialectal and accent bias** | 🟡 **Partly**: names and words that matter for the trader's book | The trader's own customer names and items passed as hints, plus learning from their corrections. Full accent fixing needs fine-tuning on donated voices, which comes later, after NAIC | Per-trader accuracy over time (week 1 vs week 2), with results reported by region and accent where traders share it |
+| **Reduced accuracy with children's speech** | ❌ **No**, out of scope | Our users are adult traders. We don't claim to fix it. | Stated as a known limit in the docs and the NAIC PDF |
+
+**What "solved" means here:** the result that matters for the trader is right, meaning the **amount, customer
+and type** of each record. It doesn't mean every word of the transcript is perfect. We report both numbers
+honestly, plus anything that got worse.
+
+**Background:** `NCAIR1/Yoruba-ASR` is Whisper-small or MMS fine-tuned mostly on read speech, so it is weaker on
+market conversation.
 
 **Must do before 12 Oct**
 1. **Light audio preparation only:** 16 kHz mono, volume levelling, trimming silence.
