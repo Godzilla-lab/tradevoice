@@ -110,9 +110,58 @@ downloading and correct anything here that differs.
 - **Must report accuracy, bias and limitations transparently**, which matches our plan (ROADMAP Part 5).
 - **Law:** Nigerian law; disputes go to mediation through the Federal Ministry of Justice first.
 
-### Others building on N-ATLaS
-About 20 Hugging Face Spaces use it, including `seun-ajayi/n-atlas-evaluations` (worth checking for evaluation
-ideas). There are 5 quantised versions and 2 adapters in the model tree.
+### Others building on N-ATLaS (checked 1 Oct 2026)
+About 20 Hugging Face Spaces use it; there are 5 quantised versions and 2 adapters in the model tree. NCAIR says
+5,000+ developers have built on N-ATLAS, so **NAIC will be crowded**.
+
+**1. Independent evaluation:** [AfroBench report](https://huggingface.co/blog/seun-ajayi/n-atlas-evaluation-report)
+and the Space `seun-ajayi/n-atlas-evaluations`, by Seun Ajayi.
+- Compares N-ATLaS with its own starting point, **Llama-3-8B-Instruct**.
+- **Tasks:** translation (Flores), maths (AfriMGSM), knowledge (AfriMMLU), inference (AfriXNLI), reading
+  (Belebele), **intent classification (Injongo)** and topic classification (SIB).
+
+| Zero-shot score | Llama-3-8B-Instruct | N-ATLaS |
+|---|---|---|
+| Yorùbá | 24.4 | **38.4** |
+| Igbo | 27.7 | **38.7** |
+| Hausa | 28.9 | **44.1** |
+| English | 54.8 | **62.8** |
+
+- **Few-shot (examples in the prompt) adds about 10 more points:**
+  - Yorùbá 38.4 → 47.9
+  - Igbo 38.7 → 49.3
+  - English 62.8 → 72.1
+
+**2. FarmEyes** (Fola-AI; an Awarri Developer Challenge 2025 entry): crop-disease photos (YOLOv11) and N-ATLaS
+advice in 4 languages.
+- **Integration evidence is a table of N-ATLaS's functions with coverage,** plus "N-ATLaS handles 40–45% of the
+  process". A clear format for judges.
+- **Hosting:** "hybrid" serving. The primary is the Hugging Face router API, with a local 4-bit GGUF (~4.9 GB)
+  as the fallback. The model card now says *no inference provider deploys N-ATLaS*, so we don't rely on a hosted
+  API.
+
+**3. EDNAi N-ATLaS Runtime** (`KoladeOdunope/ednai-natlas-runtime`): a Space that serves N-ATLaS chat as a simple
+API (messages in, reply out).
+
+### What we take from them
+1. **Few-shot prompts:** put **3–5 worked examples in the trader's language** in every N-ATLaS prompt (sentence →
+   tool call or record). Independent results show about +10 points from this.
+2. **Run the benchmark like the AfroBench report:** compare **N-ATLaS with base Llama-3-8B-Instruct (and Qwen)**
+   on *our* tasks:
+   - sentence → record;
+   - choosing the right tool and its details;
+   - answering a question, reported **per language**;
+   - zero-shot vs few-shot.
+
+   "How much N-ATLaS moved the needle for market bookkeeping" is exactly the integration evidence NAIC wants.
+3. **Maths:** the evaluation includes maths (AfriMGSM), where 8B models are weak, which supports our rule that
+   **code does all sums**.
+4. **Integration PDF format:** borrow FarmEyes' table of "N-ATLaS functions and coverage" and the share of
+   requests N-ATLaS handled, backed by our live `/team` engine-share numbers rather than an estimate.
+5. **Fallback:** a 4-bit GGUF copy of N-ATLaS on a CPU or Mac as an emergency backup if Modal is down. That
+   keeps N-ATLaS as the brain even in fallback.
+6. **Stand out:** most projects use N-ATLaS for translation or chat. Ours uses it for **understanding, tool calls
+   and voice in real money records**, measured on real traders.
 
 ## Still to confirm on the cards (team: please check and fill in)
 - [x] Context length (8,092 tokens) and chat template (Llama-3.1 style with `date_string`)

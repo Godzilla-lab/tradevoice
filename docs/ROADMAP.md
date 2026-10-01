@@ -197,8 +197,13 @@ N-ATLAS does the work.
     `--max-model-len 8192`.
   - **Yorùbá scores 2.69/5 on the card**, so Yorùbá replies use our reviewed templates, and Yorùbá is
     benchmarked separately.
-- **Benchmark:** run our 464 sentences through N-ATLAS and Qwen side by side, and put the results in
-  `docs/RESULTS.md`. This uses Modal or a Kaggle notebook, because the free GPU's 16 GB needs the 4-bit model.
+- **Prompts:** 3–5 worked examples in the trader's language in every N-ATLaS prompt. The independent AfroBench
+  evaluation found about +10 points from few-shot.
+- **Benchmark:** run our 464 sentences, plus a tool-call test set, through **N-ATLaS, base Llama-3-8B-Instruct
+  and Qwen**, zero-shot and few-shot, **per language**. Put the results in `docs/RESULTS.md`.
+  - This shows how much N-ATLaS improves market bookkeeping over its own base model.
+  - Same method as the [AfroBench N-ATLaS report](https://huggingface.co/blog/seun-ajayi/n-atlas-evaluation-report).
+  - This uses Modal or a Kaggle notebook, because the free GPU's 16 GB needs the 4-bit model.
 - **Evidence:** 50 or more real trader interactions, using the `events` log and `/team` export from 2d.
 ### NAIC application, step by step (from the official NAIC page)
 **Key facts**
