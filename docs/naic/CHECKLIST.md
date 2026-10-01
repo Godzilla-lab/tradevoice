@@ -9,6 +9,10 @@ Write a name in **Owner** and tick each box when it's done. The full technical p
 ---
 
 ## 0. Before anything else (this week)
+- [ ] 🚨 **TODAY: add a payment method in Meta Business Manager** (WhatsApp account → Payment settings).
+      **From 1 Oct 2026, Meta charges Nigerian businesses about ₦14 (US$0.0101) per service or utility message,
+      and stops delivering service messages for accounts with no payment method on file.** Without this, the
+      bot goes silent. Owner: ____
 - [ ] **Email FMCIDE:** ask whether a prize at the GOMYCODE × NVIDIA hackathon counts as "previously awarded"
       under the eligibility rules. Owner: ____
 - [ ] **Decide how we apply:** as individuals (government ID) or as a company (CAC certificate). Owner: ____

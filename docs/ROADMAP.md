@@ -301,6 +301,14 @@ market conversation.
 
 ## Part 6: UI/UX refresh and a more reliable WhatsApp connection
 **WhatsApp reliability** (`src/whatsapp.py`)
+- 🚨 **Meta billing (Nigeria, from 1 Oct 2026):**
+  - **Charges:** service messages, and utility messages inside the 24-hour window, cost about **US$0.0101
+    (≈₦14) each**; marketing messages about US$0.062 (≈₦84).
+  - **Payment method:** a payment method must be on the Meta account, or service messages stop.
+  - **Cost control:**
+    - send **one combined message per reply**, with voice only when the trader has voice on;
+    - never send a separate "typing" or "done" message;
+    - count messages sent on `/team` (cost per trader per month).
 - **Permanent token:** use a Meta System User token instead of the 24-hour test token. `check_whatsapp.py` warns
   when the token expires soon.
 - **Retries:** `graph_post` and media `download` retry with backoff on 5xx, 429 and timeouts. They log once
@@ -596,6 +604,21 @@ licence. A fintech lawyer checks the setup before real money is used.
 - **Never in code or the repo:** traders' real account numbers live only in their own profile (`users.bank_*`).
 - **Code:** `src/extras.py` (pay links and bank details), a new `src/payments.py` (provider webhooks with
   signature checks, `match_payment`), and `vision.py` prompts for OPay receipts.
+
+- **WhatsApp's own in-chat Payments API is not available in Nigeria.** It currently works only in places like
+  India and Brazil, through local gateways. So the "Pay" button is a **WhatsApp call-to-action URL button**
+  that opens the OPay or Paystack link.
+- **Others doing payments in WhatsApp chat:**
+  - **Xara** (send money and pay bills by voice note, text or image; works with licensed bank partners; about
+    45k users).
+  - **Finnova** (banking chatbot).
+  - **MYPADI AI** (crypto to naira).
+
+  These are consumer *banking* bots. TradeVoice is *bookkeeping and collecting what customers owe*, so these are
+  possible partners (for example, a trader paying a supplier), not the same product.
+- **Agent-payment protocols** (Mastercard Agent Pay, Visa Intelligent Commerce and Agentic Ready, which now
+  includes Africa, Google AP2, OpenAI and Stripe ACP) are card-based and early in Nigeria. We'll watch them but
+  not build on them now.
 
 ### 10a. The bigger idea: partner with OPay (pitch once pilot results are in)
 OPay has millions of merchants and a growing lending business: about $938M lent in 2025.
