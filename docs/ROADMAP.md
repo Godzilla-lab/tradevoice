@@ -216,7 +216,7 @@ N-ATLAS does the work.
 
 - **PDFs:** generated from the Markdown with the existing pymupdf or Playwright tooling, into
   `docs/naic/pdf/`. That folder is gitignored, since the PDFs may hold personal information.
-- **Team only:** a `docs/naic/CHECKLIST.md` tracks the 7 items, owners and dates.
+- **Team to-do list:** [`docs/naic/CHECKLIST.md`](naic/CHECKLIST.md) tracks the 7 items, owners and dates.
 - **Plan:** have about 3 days of real-trader pilot before the 11 Oct submission.
 
 ## Part 5: Working around N-ATLAS's speech limits (based on research)
