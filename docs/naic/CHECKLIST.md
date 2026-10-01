@@ -73,6 +73,8 @@ Write a name in **Owner** and tick each box when it's done. The full technical p
 
   Owner: ____  Due: 9 Oct (after N-ATLaS works in the app)
 
+- [ ] **Engineers:** follow [`../ENGINEERING_PLAN.md`](../ENGINEERING_PLAN.md): tasks E0–E19, owners, cut order,
+      code freeze Fri 10 Oct 18:00. Owner: ____
 - [ ] **Designer:** follow [`../DESIGN_PLAN.md`](../DESIGN_PLAN.md). Direction by **3 Oct**, P1 screens by **5 Oct**,
       screenshots and video frames by **9 Oct**. Owner: ____
 
