@@ -15,10 +15,12 @@ Write a name in **Owner** and tick each box when it's done. The full technical p
 - [ ] **Confirm the team list** (1–6 people) and each person's role. Owner: ____
 - [ ] **Create the account** on ondi.innox.africa and read the form fields. Paste them into the team chat so we
       can draft the answers. Owner: ____
+- [ ] **Create a Modal account** (team workspace), add `HF_TOKEN` as a Modal Secret, and set a spending
+      limit. Owner: ____
 - [ ] **Accept the N-ATLAS licence** on Hugging Face (NCAIR1/N-ATLaS and the 4 speech models) and create a
       Hugging Face token. Keep it in `.env` only and never share it. Owner: ____
 - [ ] **Rotate the Spitch, Intron and NVIDIA keys** that were visible in screenshots. Owner: ____
-- [ ] **Get a permanent WhatsApp token** (Meta System User) and install ffmpeg on Brev. Owner: ____
+- [ ] **Get a permanent WhatsApp token** (Meta System User) and install ffmpeg on the web server. Owner: ____
 
 ---
 
@@ -28,8 +30,9 @@ Write a name in **Owner** and tick each box when it's done. The full technical p
 - [ ] **Code:** N-ATLAS is the main model for understanding and hearing, with backups only when it's down.
       See ROADMAP Part 4. Owner: ____  Due: 6 Oct
 - [ ] **Code:** WhatsApp ↔ web as one account (ROADMAP Part 2). Owner: ____  Due: 6 Oct
-- [ ] **Live app on Brev** with a stable public link, kept up until 17 Oct, plus a plan if the GPU or credits
-      run out. Owner: ____
+- [ ] **Live app:** the always-on web server and the WhatsApp bot, plus the N-ATLAS models on **Modal**, kept
+      warm from 6 to 17 Oct. Set a Modal spending limit. Photos are read by the NVIDIA API, so the NVIDIA key
+      needs credit. Owner: ____
 - [ ] **WhatsApp bot number** working for judges. Write the steps to try it in the README. Owner: ____
 - [ ] **Repo cleanup** (ROADMAP Part 1) and the README updated with links and how to test. Owner: ____
 - [ ] **Submit:** GitHub link `https://github.com/Godzilla-lab/tradevoice`, the live app link and the WhatsApp
@@ -72,7 +75,7 @@ integrate the build.
 
 - [ ] **Update `docs/TECHNICAL.md`:**
   - architecture;
-  - setup on Brev and on a Mac;
+  - setup on Modal, the web server and a Mac;
   - every setting in `.env.example`;
   - the API endpoints;
   - the WhatsApp setup;
@@ -128,7 +131,7 @@ developer.
 |---|---|
 | 1–3 Oct | Step 0 done; code for N-ATLAS and WhatsApp ↔ web started |
 | 4–5 Oct | Traders recruited; consent form ready |
-| 6 Oct | N-ATLAS and WhatsApp ↔ web live on Brev; pilot starts |
+| 6 Oct | N-ATLAS and WhatsApp ↔ web live (Modal kept warm); pilot starts |
 | 6–10 Oct | Pilot running: 50+ real interactions |
 | 8 Oct | Benchmark done |
 | 9 Oct | Video filmed |

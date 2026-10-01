@@ -164,8 +164,8 @@ N-ATLAS is down, and every reply records which engine served it, so the integrat
 N-ATLAS does the work.
 - **N-ATLAS language model** (`NCAIR1/N-ATLaS`, Llama-3 8B), set as the primary in `src/llm.py`:
   - It goes through the OpenAI-compatible API `llm.py` already uses (new `NATLAS_URL` and `NATLAS_MODEL`).
-  - **Where it runs:** on Brev with vLLM, in 4-bit if needed to fit next to Qwen-VL for photos; or on the Mac
-    with `mlx_lm.server` for development.
+  - **Where it runs:** on **Modal** with vLLM on one L4 GPU (see Part 7), or on the Mac with
+    `mlx_lm.server` for development.
   - **What N-ATLAS handles:** turning words into a transaction, answering questions, and wording replies in
     all 5 languages.
   - **Backups:** Qwen, then the NVIDIA cloud, then the offline rules.
@@ -176,14 +176,13 @@ N-ATLAS does the work.
   (`ASR_BACKEND=natlas`, now the default):
   - Models: `NCAIR1/Yoruba-ASR`, `Hausa-ASR`, `Igbo-ASR` and `NigerianAccentedEnglish`.
   - **Choosing a model:** by the trader's language. Pidgin and English use NigerianAccentedEnglish.
-  - **Where it runs:** on the same Brev GPU through a small `/asr` endpoint inside `web.py`'s process. It
-    loads lazily and the models are cached.
+  - **Where it runs:** in the same Modal app as the LLM (Part 7), as a `/asr` endpoint. It loads lazily and the
+    models are cached in a Modal Volume.
   - **Backup:** Intron.
-- **Startup checks:** `scripts/start_brev.sh` and `scripts/check_models.py` start and check the N-ATLAS
-  servers. `/team` shows the share of requests each engine served.
+- **Startup checks:** `scripts/check_models.py` checks the Modal N-ATLAS endpoints (and wakes them). `/team` shows the share of requests each engine served.
 - **Licence:** the free licence covers up to 1,000 active users. Note this in the README and TECHNICAL docs.
 - **Benchmark:** run our 464 sentences through N-ATLAS and Qwen side by side, and put the results in
-  `docs/RESULTS.md`. This uses a Kaggle notebook or Brev, because the free GPU's 16 GB needs the 4-bit model.
+  `docs/RESULTS.md`. This uses Modal or a Kaggle notebook, because the free GPU's 16 GB needs the 4-bit model.
 - **Evidence:** 50 or more real trader interactions, using the `events` log and `/team` export from 2d.
 ### NAIC application, step by step (from the official NAIC page)
 **Key facts**
@@ -206,10 +205,10 @@ N-ATLAS does the work.
 
 | # | Deliverable | Format | Built from |
 |---|---|---|---|
-| 1 | Working artefact | URL | The public GitHub repo and the live app link (Brev and Cloudflare tunnel, kept up through 17 Oct) |
+| 1 | Working artefact | URL | The public GitHub repo and the live app link (always-on web app plus the N-ATLAS models on Modal, kept warm through 17 Oct) |
 | 2 | N-ATLAS integration evidence | PDF | `docs/naic/NATLAS_INTEGRATION.md`: architecture diagram; where N-ATLAS LLM and ASR are called (file and function); engine-share stats from `/team`; benchmark of N-ATLAS against Qwen on the 464 sentences |
 | 3 | Real-world validation | PDF | `docs/naic/VALIDATION.md`: anonymised session log (`/team/export.csv`) with 50 or more real trader interactions in Nigerian languages, the funnel, screenshots, and beta-tester confirmations |
-| 4 | Technical documentation | PDF | `docs/TECHNICAL.md` updated: architecture, setup, environment variables, running N-ATLAS on Brev or the Mac, API |
+| 4 | Technical documentation | PDF | `docs/TECHNICAL.md` updated: architecture, setup, environment variables, deploying N-ATLAS on Modal or running it on the Mac, API |
 | 5 | Video demonstration | URL | 3–5 minutes, end to end, **ideally a real trader speaking Yorùbá, Hausa or Igbo** on WhatsApp, then the private link to the web book. We write the script; the team films it. |
 | 6 | Team profile | PDF | `docs/naic/TEAM.md`: bios, affiliations and roles. Filled in by the team. |
 | 7 | Registration evidence | PDF | CAC certificate or government ID. Provided by the team. |
@@ -299,23 +298,159 @@ conversation.
 - **Before building:** the detailed UI changes will be agreed with the team (screens, references) and then
   checked at 320–430px in all 5 languages and dark mode, as in earlier QA.
 
+## Part 7: Hosting: Modal for N-ATLAS, NVIDIA API for photos
+| Job | Where | Why |
+|---|---|---|
+| N-ATLAS LLM (understanding, answers, replies) | **Modal**, vLLM on 1× L4 (24 GB) | Pay per second, scales to zero, $30/month free credit |
+| N-ATLAS speech (4 ASR models) | Same Modal app | Small models; share the GPU |
+| Notebook photo reading | **NVIDIA API** (build.nvidia.com), already built in `src/vision.py` (`VISION_MODELS`) | No GPU to host, no cold start, photos are rare |
+| Photo backup | Qwen-VL as a separate Modal function, **off unless the API fails** | Emergency only |
+| Web app + WhatsApp webhook | Small **always-on** server (cheap VPS, a small Brev CPU box, or a Modal CPU container) | Must always receive Meta's webhooks; needs no GPU |
+
+**Waking up automatically:** when the GPU is off and a WhatsApp message arrives:
+1. The web app answers Meta at once.
+2. It calls the Modal URL, and **Modal starts the GPU on that request.**
+3. The reply goes out once the model has loaded.
+4. After `scaledown_window` (for example 15 minutes) with no requests, it switches off again.
+
+**Hiding the first-message wait:**
+- **Wake-up ping:** the moment a voice note or photo arrives, the web app pings Modal, so the model loads while the
+  media downloads.
+- **Holding message:** if the model isn't ready within a few seconds, the bot sends "⏳ One moment…".
+- **Memory snapshots:** use Modal's memory snapshots to shorten the cold start.
+
+| Period | Setting | Rough cost (L4 ≈ $0.80/h, check the Modal dashboard) |
+|---|---|---|
+| Build and test (now to 5 Oct) | Scale to zero | Mostly covered by the $30 credit |
+| Pilot (6–10 Oct) and N-ATLAS integration check (15–17 Oct) | `min_containers=1`, always warm | ≈ $19/day, ≈ $150 for the 8 days |
+| After NAIC | Scale to zero, or warm only during market hours | Low |
+
+**Rules:**
+- **Spending:** set a spending limit in Modal.
+- **Secrets:** keep `HF_TOKEN` and the other keys as Modal Secrets, never in code.
+- **Code:** a new `deploy/modal_app.py` (N-ATLAS LLM + ASR) and `NATLAS_URL` / `NATLAS_ASR_URL` in `.env`.
+- **Privacy:** photos go to NVIDIA's cloud. The consent text says so, and photos are deleted after reading, as
+  today.
+- **NAIC:** N-ATLAS has no vision. The lines read from a photo are passed to N-ATLAS to understand, so N-ATLAS
+  still does the bookkeeping. This is stated in the integration PDF.
+
+---
+
+## Part 8: Memory and data
+
+### 8a. Personal memory: what TradeVoice remembers about each trader
+Stored only in that trader's book. It's deleted with the account, and shown on a **"What TradeVoice remembers"**
+screen where the trader can edit or clear any item.
+
+| Remembers | Used for |
+|---|---|
+| Nicknames ("Mama T" = Mama Tunde) | The right customer without asking |
+| Usual price per item | Catching mistakes: "You said ₦4,500. Did you mean ₦45,000?" |
+| Usual orders | "Same as last week" records the whole order (builds on repeat orders) |
+| Corrections (heard "Mama tune" → "Mama Tunde") | Personal word list passed to N-ATLAS speech as hints (Part 5, item 2) |
+| How each customer pays | Better reminders and suggested credit limits |
+| Preferences (language, voice on or off, summary time) | No repeated questions |
+
+New table `memory(id, kind, key, value, source, created_at, updated_at)` in the book.
+
+### 8b. Long chat memory: two to three weeks and more, without overflowing the model
+N-ATLAS (Llama-3 8B) reads about 8,000 tokens at a time, so we never send the whole history. Five layers:
+1. **The book:** every record, forever. **Money questions are answered by code reading the book, never from the
+   model's memory**, so they're always exact. This is our "AI never invents amounts" rule.
+2. **Full chat history:** a new `chat_log(id, ts, role, channel, text, record_id)` table in the trader's book. It
+   holds every message, transcript and reply, kept 90 days (setting `CHAT_DAYS`).
+3. **Recent messages:** the last 10–20 turns go into every prompt, so "change that to 2k" and "same as before"
+   work.
+4. **Summaries and facts:**
+   - Each night N-ATLAS writes a few lines about the day, then rolls them into a weekly note (`chat_summary`
+     table).
+   - Promises, nicknames and preferences go into `memory` (8a).
+   - Summaries point to records; they never restate amounts as facts.
+5. **Search:** when the trader asks about the past, search `chat_log` by customer, date or topic (SQLite FTS5,
+   embeddings later if needed) and add only the matching lines.
+
+**Prompt budget, about 7,000 tokens in total:**
+
+| Part | Tokens |
+|---|---|
+| Instructions | ~1,000 |
+| Facts | ~500 |
+| Summaries | ~1,000 |
+| Search results | ~1,500 |
+| Recent messages | ~2,000 |
+| Answer | ~1,000 |
+
+**Example:**
+- "Wetin Alhaji Musa tell me about the money last time?"
+- Search finds 12 Sept: "He said he'll pay after Sallah." The book shows ₦85,000 owed, 18 days late.
+- Answer: "On 12 Sept, Alhaji Musa said he'll pay after Sallah. He still owes ₦85,000, 18 days late. Should I
+  draft a reminder?"
+
+**Controls:**
+- "Forget" clears the chat history and memory.
+- Deleting the account deletes everything.
+- Nothing is ever shared between traders.
+
+### 8c. Using data to improve the platform: three consent levels
+| Level | What | Consent | Used for |
+|---|---|---|---|
+| 1. Usage counts | Events only: kind, language, engine, OK or error. No names, amounts or text (Part 2d). | On for all, disclosed in the consent message | `/team` funnel, finding what breaks; NAIC validation evidence |
+| 2. "Help improve TradeVoice" | Heard → meant corrections and text → saved-record pairs, **names replaced, amounts shifted** | Opt-in, off by default | New real-world test sentences; fine-tuning N-ATLAS for market bookkeeping |
+| 3. "Donate your voice" | Audio clips with names and amounts bleeped, stored apart from books | Separate opt-in, off by default | Fine-tuning the N-ATLAS speech models for accents, noise and mixed languages (Part 5); an N-ATLAS dataset contribution |
+
+- **Give back:**
+  - Thank voice donors, for example with airtime per donated hour (Karya-style), and show them "Your voice
+    helped TradeVoice understand Ijebu Yorùbá better."
+  - Publish **market price insights** ("rice up 8% in Lagos markets"), but only from groups of **10 or more
+    traders**, so no single trader can be identified.
+- **Credit and lenders:** only through the existing lender link, with explicit per-lender consent. **Data is
+  never sold.**
+
+### 8d. Rules (Nigeria Data Protection Act 2023, regulator: NDPC)
+- **Consent and purpose:** clear consent in all 5 languages for each purpose; collect only what's needed.
+- **Trader rights:** traders can see, export and delete their data, and withdraw consent at any time.
+- **Separate storage:** traders' books, the usage log and the training data are kept apart. Only anonymised,
+  consented data is used for training.
+- **Retention:**
+  - raw voice notes are deleted after reading unless donated;
+  - chat history is kept 90 days;
+  - training data is reviewed yearly.
+- **Before collecting voice at scale:** do a short data-protection impact assessment, and get legal advice.
+
+### 8e. When
+- **Before 12 Oct:**
+  - Level 1 usage counts (`/team`).
+  - Personal memory: nicknames, usual prices and corrections, because they directly help N-ATLAS hear
+    better.
+  - Chat history plus recent messages (layers 2 and 3).
+- **After NAIC:**
+  - Nightly summaries and search (layers 4 and 5).
+  - The "What TradeVoice remembers" screen.
+  - Levels 2 and 3 with consent screens.
+  - Market price insights.
+
+---
+
 ## Order of work
 1. Part 1 cleanup: commit, run tests, push.
 2. Part 2a magic link and 2c users: commit.
 3. Part 2b connect and merge: commit.
 4. Part 2d events and `/team`: commit.
-5. Part 4 N-ATLAS backends and benchmark: commit.
+5. Part 4 and Part 7: N-ATLAS backends on Modal, photo reading via the NVIDIA API, benchmark: commit.
+   Part 8a and 8b (personal memory, chat history, recent messages): commit.
 6. Part 6 WhatsApp reliability: commit. Part 5, items 1–5 (speech fixes and the market test set): commit.
 7. Part 6 UI/UX, after agreeing the screens with the team: commit.
 8. Then the `docs/naic/` documents, the PDFs and the video script, aiming to submit on 11 Oct.
-9. After submission: Part 5, items 6–9 (data loop, fine-tuning, contributing back).
+9. After submission: Part 5, items 6–9 (data loop, fine-tuning, contributing back) and Part 8 (summaries,
+   search, memory screen, consent levels 2–3, market insights).
 
 Each step runs `python eval/run_all.py` before pushing.
 
 ## Critical files
 - `src/accounts.py`, `src/whatsapp.py`, `src/web.py`, `web/app.js`
 - `src/ledger.py` (read only, for merging), new `src/merge.py`
-- `src/extras.py`, `src/llm.py`, `src/asr.py`
+- `src/extras.py`, `src/llm.py`, `src/asr.py`, `src/vision.py`, new `deploy/modal_app.py`
+- `src/converse.py` and `src/assistant.py` (memory and chat history in prompts)
 - `requirements.txt`, `.gitignore`, `.env.example`, `README.md`
 - `docs/WHATSAPP.md`, `docs/TECHNICAL.md`
 - new `eval/test_link.py`
