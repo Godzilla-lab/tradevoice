@@ -197,12 +197,69 @@ patronising.
 | Hugging Face Space banner | 1200 × 600 | 9 Oct |
 | Social card (link preview) | 1200 × 630 | 9 Oct |
 
-## 11. Hand-over
-- **Figma** (preferred) with components and colour/type styles named like the CSS tokens (`--ink`, `--accent`…),
-  so developers can copy values straight into `web/style.css`.
-- Or annotated screenshots of the current app for small changes.
-- If you edit CSS directly: only `web/style.css` tokens and classes. Send a pull request; don't change
-  `web/app.js` logic.
+## 11. Working in Figma (the design tool for this project)
+**File set-up**
+- **One Figma file: "TradeVoice: App 2026".** Share it with the team as **"can view"**, and give the developers
+  **Dev Mode** access.
+- **Pages in this order:**
+  1. **Cover:** status, version, date, links to this plan and the roadmap.
+  2. **Foundations:** colours, type, spacing, radius, shadows, icons.
+  3. **Components.**
+  4. **P1 screens:** numbered like §5 ("06 Confirmation card").
+  5. **States:** §7.
+  6. **WhatsApp messages:** mock chats for §6.
+  7. **Prototype: demo path.**
+  8. **Brand and assets:** logo, app icon, video frames, banners.
+  9. **P2 / ideas.**
+  10. **Archive.**
+
+**Foundations as Figma Variables**
+- **One "Color" collection with two modes, Light and Dark.** Variable names match the CSS tokens exactly: `ink`,
+  `muted`, `bg`, `surface`, `sunk`, `line`, `accent`, `accent-ink`, `accent-soft`, `in`, `in-soft`, `out`,
+  `out-soft`, `late`, `late-soft`, `hero`, `hero-ink`, `hero-muted`, `bubble-in`, `bubble-out`.
+  - Developers copy values straight into `web/style.css`.
+  - If you rename or add a token, add a note on the Foundations page.
+- **Number variables:** spacing (4, 8, 12, 16, 24, 32), radius (`r` = 16, plus 8 and 999 for pills), touch target
+  (48) and mic size (64+).
+- **Text styles** (Noto Sans unless agreed otherwise): `Money XL`, `Money L`, `Title`, `Body`, `Body strong`,
+  `Label`, `Caption`. Body is 16 px or more.
+- **Components** with **variants** and **auto layout**, so they stretch for long Yorùbá and Hausa text:
+  - **Buttons:** primary, secondary, danger, WhatsApp-send, mic (idle, recording, disabled).
+  - **Chat:** bubble (trader, TradeVoice, voice note), confirmation card (normal, unsure field, saved).
+  - **Money and customers:** money row (in, out, late), customer row, chips (new customer, late, offline).
+  - **Navigation:** bottom tab bar, top bar.
+  - **Containers:** sheet or modal, toast, empty state, keypad.
+
+**Frames**
+- **Phone frame: 390 × 844.** Duplicate the key screens at **320 px** wide to prove nothing breaks.
+- **Light and dark:** switch the frame's variable mode; don't duplicate colours by hand.
+- **Languages:** for the confirmation card, Home and Customer page, add **Yorùbá and Hausa versions** using real
+  strings from `src/ui_text.py`.
+
+**Prototype (for the video and judges)**
+- **Click-through of the demo path:** Welcome → Talk → hold mic → listening steps → confirmation card → Save →
+  Customer page → Prepare reminder → Pay page → "Just paid".
+- **Mobile prototype setting:** use it, so the team can open it on a phone.
+
+**Hand-over to developers**
+- **Mark frames "Ready for dev"** in Dev Mode when final. Developers only build frames marked ready.
+- **One comment thread per screen** for questions; resolve when answered.
+- **Name versions** in version history at each milestone: "v1 Direction (3 Oct)", "v2 P1 final (5 Oct)", "v3 Video
+  (9 Oct)".
+- **Exports:**
+  - icons as **SVG** (outlined strokes, 24 px grid, `currentColor`-friendly: single colour, no hard-coded fills);
+  - logo and app icon as **SVG + PNG** (512, 192);
+  - video frames and banners as **PNG**.
+
+  Name files `tv-<thing>-<size>.<ext>` (for example `tv-icon-mic.svg`, `tv-appicon-512.png`) and put them in a
+  shared folder. The developers add them to `web/` and `docs/images/`.
+- **Fonts:** Google Fonts only, so the app can load them.
+- **Small fixes on the live app:** annotate a screenshot in the Figma "Archive" page, or edit `web/style.css`
+  tokens and send a pull request. Don't change `web/app.js` logic.
+
+**Keep out of the Figma file**
+- Real customer names, phone numbers, account numbers or photos of real people (without written permission).
+- API keys or real links to the live server.
 
 ## 12. Rules for mockups
 - **Made-up names and numbers only:** Mama Tunde, Oga Emeka, Iya Bisi, Alhaji Sani, Madam Funke, Mama Ngozi; shop
@@ -219,6 +276,7 @@ patronising.
 - [ ] WhatsApp message set (§6) written
 - [ ] N-ATLaS credit placed (Me → About, landing footer, video end card)
 - [ ] Assets in §10 exported and named
+- [ ] Figma: Variables (Light/Dark) match the CSS token names; P1 frames marked "Ready for dev"; demo-path prototype works on a phone
 - [ ] Reviewed on a real low-end Android phone outdoors (sunlight test) before 9 Oct
 
 ## Questions for the team (answer before 3 Oct)
