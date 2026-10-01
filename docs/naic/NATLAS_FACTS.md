@@ -13,8 +13,8 @@ downloading and correct anything here that differs.
 | [`NCAIR1/Igbo-ASR`](https://huggingface.co/NCAIR1/Igbo-ASR) | Speech-to-text, **Whisper Small** fine-tune | 244M | — |
 | [`NCAIR1/NigerianAccentedEnglish`](https://huggingface.co/NCAIR1/NigerianAccentedEnglish) | Speech-to-text, **Whisper Small** fine-tune | 244M | Speakers from all 6 zones; **Nigerian English conventions and some Pidgin phrases** in training |
 
-- **No dedicated Pidgin model exists.** Pidgin goes to `NigerianAccentedEnglish` and is *untested*, so we must
-  measure it ourselves.
+- **No dedicated Pidgin model exists, and we don't need one (team decision, 1 Oct).** Pidgin is treated as
+  Nigerian-accented English and goes to `NigerianAccentedEnglish`.
 - **Download access:** the models are public, so no token is needed except where a card asks you to accept
   conditions (Yorùbá does). We use an HF token after accepting, to be safe.
 - **Official usage** (from the cards): load each model with the `transformers` ASR pipeline, and feed it
@@ -39,7 +39,8 @@ downloading and correct anything here that differs.
      re-ask the trader if a loop is detected.
    - Never take an amount from a looping transcript.
 5. **About 8K context for the LLM** confirms the memory budget in Part 8b.
-6. **Pidgin is our biggest unknown:** it's a top priority in the market test set (Part 5, item 5).
+6. **Pidgin uses the Nigerian-accented English model** (team decision). Pidgin sentences stay in the normal test
+   set.
 7. **Hausa has 120 hours of training data**, a useful number for the integration PDF. Find the figures for the
    other languages on the cards.
 

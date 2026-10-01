@@ -181,8 +181,9 @@ N-ATLAS does the work.
     the LLM. Notes over 30 s are chunked.
   - **Guard against repetition loops:** cap output length, detect repeats, re-ask, and never take an amount
     from a looping transcript.
-  - **Pidgin** has no dedicated model and goes to `NigerianAccentedEnglish`; it is untested until we measure
-    it.
+  - **Decision (1 Oct): no separate Pidgin speech model.** Pidgin and English voice notes both go to
+    `NigerianAccentedEnglish`, whose training includes Pidgin phrases. Pidgin sentences stay in our normal test
+    set; they are not tracked as a separate risk.
   - **Backup:** Intron.
 - **Startup checks:** `scripts/check_models.py` checks the Modal N-ATLAS endpoints (and wakes them). `/team` shows the share of requests each engine served.
 - **Licence (confirmed on the model card; details in `naic/NATLAS_FACTS.md`):**

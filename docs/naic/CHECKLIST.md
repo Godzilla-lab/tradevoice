@@ -66,7 +66,7 @@ or training pipeline.
 **What NAIC wants:** evidence of testing with real users, real data or live benchmarks: session logs, benchmark
 results, or confirmation from beta testers.
 
-- [ ] **Recruit 10–20 real traders:** market women and men, in Yorùbá, Hausa, Igbo and Pidgin. Owner: ____
+- [ ] **Recruit 10–20 real traders:** market women and men, in Yorùbá, Hausa, Igbo and Nigerian English/Pidgin. Owner: ____
       Due: 5 Oct
 - [ ] **Get consent:** a simple consent form, read to each trader in their language. Owner: ____
 - [ ] **Pilot from 6 to 10 Oct:** reach **50 or more real interactions**, meaning recordings, questions and
