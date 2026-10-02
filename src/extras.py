@@ -554,8 +554,20 @@ def start_scheduler():
             except Exception as e:  # noqa: BLE001
                 print(f"auto reminders failed: {type(e).__name__}: {e}")
             time.sleep(1800)
+
+    def purge():   # accounts deleted 7+ days ago are erased for real (the promise on the delete screen)
+        import v2
+        while True:
+            try:
+                gone = v2.purge_deleted()
+                if gone:
+                    print(f"erased {len(gone)} deleted account(s)")
+            except Exception as e:  # noqa: BLE001
+                print(f"erasing deleted accounts failed: {type(e).__name__}: {e}")
+            time.sleep(3600)
     if os.getenv("AUTO_REMINDERS", "1") == "1":
         threading.Thread(target=loop, daemon=True).start()
+    threading.Thread(target=purge, daemon=True).start()
 
 
 # ---------------------------------------------------------------- 🔒 PIN lock

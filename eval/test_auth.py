@@ -150,6 +150,11 @@ def main():
     os.environ["AUTH_DEMO"] = "1"
     st = c.post("/api/auth/start", json={"phone": "08030000000"}).json()
     check("demo mode shows the code on screen", st["demo_code"] and len(st["demo_code"]) == 6, st)
+    os.environ["TV_PUBLIC"] = "1"   # the live server: AUTH_DEMO=1 in .env by mistake must not show codes
+    r = c.post("/api/auth/start", json={"phone": "08030000000"})
+    check("live server (TV_PUBLIC=1): demo mode stays off, no code on screen",
+          r.status_code != 200 or not r.json().get("demo_code"), r.text)
+    os.environ.pop("TV_PUBLIC")
     os.environ.pop("AUTH_DEMO")
 
     # too many wrong codes

@@ -38,6 +38,10 @@ def main():
     check("'50 pairs of shoe' -> 50 pair shoe", (r["quantity"], r["unit"], r["item"]) == (50, "pair", "shoe"), r)
     check("'Alhaji collect…' -> customer Alhaji (not 'Alhaji Collect')",
           extract.rule_extract("Alhaji collect 5 bags cement 30k on credit")["customer"] == "Alhaji")
+    r = extract.rule_extract("Iya Bisi paid 10000", TODAY)   # found by eval/browser_test.cjs: was a cash sale
+    check("'Iya Bisi paid 10000' -> she paid me back", (r["type"], r["customer"], r["amount"]) == ("payment_received", "Iya Bisi", 10000), r)
+    r = extract.rule_extract("Iya Bisi paid 5000 for 2 bags of rice", TODAY)
+    check("'… paid 5000 for 2 bags of rice' -> still a cash sale", r["type"] == "sale", r)
 
     # the AI (Brev) got the correction wrong: the rules' kept number wins, no scary note
     extract.llm.available = lambda *a, **k: True

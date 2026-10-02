@@ -24,7 +24,7 @@ image = (
     .pip_install("fastapi==0.141.1", "uvicorn==0.53.0", "starlette==1.7.0", "pydantic==2.13.5",
                  "python-multipart==0.0.32", "requests==2.33.1", "openai==3.19.2", "pillow==12.3.0", "httpx==0.28.1")
     .env({"PYTHONPATH": "/app/src", "DB_PATH": "/data/tradevoice.db", "BOOKS_DIR": "/data/books",
-          "ACCOUNTS_DB": "/data/accounts.db", "TRADEVOICE_ADMIN": "0", "TV_NO_DOTENV": "1"})
+          "ACCOUNTS_DB": "/data/accounts.db", "TRADEVOICE_ADMIN": "0", "TV_NO_DOTENV": "1", "TV_PUBLIC": "1"})
     .add_local_dir(os.path.join(ROOT, "src"), "/app/src", ignore=["__pycache__", "*.pyc", "app.py", "note.py"])
     .add_local_dir(os.path.join(ROOT, "web"), "/app/web")
 )
