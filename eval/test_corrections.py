@@ -77,6 +77,18 @@ def main():
     check("'no be 30k, na 35k' updates the draft to 35k", st["pending"]["amount"] == 35000 and st["pending"]["item"] == "cement",
           st["pending"])
 
+    say("no")
+    # said out loud in the live conversation, answers come with a little more
+    say("Mama Tunde owe me 45k for rice")
+    say("Yes please, save it.")
+    check("spoken 'Yes please, save it.' saves", st["pending"] is None)
+    say("Iya Bisi paid 5000")
+    say("No, leave it.")
+    check("spoken 'No, leave it.' cancels", st["pending"] is None)
+    say("Alhaji collect 5 bags cement 30k on credit")
+    say("yes she will pay friday")
+    check("'yes' + new details is not a bare yes: nothing saved by accident", st["pending"] is not None, st["pending"])
+
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} correction checks pass")
     return all(CHECKS)
 

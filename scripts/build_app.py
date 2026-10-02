@@ -22,9 +22,17 @@ LANDING_PATCHES = [
     ("app links", 'href="https://claude.ai/artifact/6R1XDoNUaLC2YsE7JjyFJD"', 'href="/app"', 3),
     ("editor button", '<script>\n(()=>{const K="tv-ed"',
      '<script>window.TV_NO_FAB=!/[?&]demo=1\\b/.test(location.search)</script>\n<script>\n(()=>{const K="tv-ed"', 1),
+    ("logo", '<a class="logo" href="#top" aria-label="TradeVoice home"><svg viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="13" fill="var(--accent)" stroke="none"/><g stroke="var(--accent-fg)" stroke-width="3.2"><path d="M13 19v6M19 14v16M25 10v24M31 17v10"/></g></svg>TradeVoice</a>',
+     '<a class="logo" href="#top" aria-label="TradeVoice home"><img src="/static/logo.svg" alt="" aria-hidden="true" width="30" height="30">TradeVoice</a>', 1),
+    ("tab icon", '<title>TradeVoice: just talk am. Your book remembers.</title>',
+     '<title>TradeVoice: just talk am. Your book remembers.</title>\n<link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">', 1),
 ]
 
 PATCHES = [
+    # --- the TradeVoice logo (web/logo.svg, the animated mic in a speech bubble) and the browser tab / home screen icon
+    ("logo", 'const LOGO=\'<svg class="lg" viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="13" fill="var(--accent)" stroke="none"/><g stroke="var(--accent-fg)" stroke-width="3.2"><path d="M13 19v6M19 14v16M25 10v24M31 17v10"/></g></svg>\';',
+     'const LOGO=\'<img class="lg" src="/static/logo.svg" alt="" aria-hidden="true" style="display:block">\';'),
+    ("tab icon", '<title>TradeVoice</title>', '<title>TradeVoice</title>\n<link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">'),
     # --- typing an amount: the key handler returned false for every key but Enter, which cancels the key in a browser
     ("amount keys (You got/gave)", 'fn(v);shut(o)};$("#go",o).onclick=g;i.onkeydown=e=>e.key=="Enter"&&g()}',
      'fn(v);shut(o)};$("#go",o).onclick=g;i.onkeydown=e=>{if(e.key=="Enter")g()}}'),

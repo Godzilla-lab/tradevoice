@@ -112,6 +112,14 @@ def main():
         a = c.get(f"/api/speak/{sid}")
         check("…the page gets it, and Intron was called once (not again on request)",
               a.status_code == 200 and a.content.startswith(b"RIFF") and len(calls) == 1, (a.status_code, len(calls)))
+        check("…the read-back on the card flow says to press Save", calls[0].endswith("Press save."), calls[0])
+        r = c.post("/api/voice", files={"file": ("note.webm", b"0" * 200)},
+                   data={"session": "voice-live", "lang": "English", "consent": "yes", "live": "1"}).json()
+        c.get(f"/api/speak/{r.get('speak')}")
+        check("live conversation (no buttons): it asks 'Should I save it?' out loud instead",
+              calls[-1].endswith("Should I save it?") and "Press save" not in calls[-1], calls[-1])
+        check("…in Yoruba too", tts.live_ask("Ó dáa, mo gbọ́ pé: … Ṣé bẹ́ẹ̀ ni? Tí ó bá tọ̀nà, tẹ save.", "Yoruba")
+              .endswith("Ṣé kí n kọ ọ́ sílẹ̀?"))
         tts.speak = lambda *a, **k: calls.append("x") or None   # voice off / Intron failed
         n = len(calls)
         r = c.post("/api/voice", files={"file": ("note.webm", b"0" * 200)},

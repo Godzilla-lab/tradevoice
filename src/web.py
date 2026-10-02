@@ -167,11 +167,12 @@ def _draft(state):
             "limit": converse.draft_limit(rec)}
 
 
-def _reply_json(r, state, heard=None):
+def _reply_json(r, state, heard=None, live=False):
+    spoken = tts.live_ask(r.get("spoken"), r["lang"]) if live else r.get("spoken")
     return {"text": r["text"], "english": r.get("english"), "lang": r["lang"], "heard": heard,
             "message": r.get("message"), "link": r.get("link"), "choices": r.get("choices"),
             "pending": bool(state.get("pending")), "draft": _draft(state),
-            "speak": _speak_id(r.get("spoken"), r["lang"])}
+            "speak": _speak_id(spoken, r["lang"])}
 
 
 class DraftEdit(BaseModel):
@@ -243,7 +244,9 @@ def _safe_reply(text, state, shop, lang):
 
 @app.post("/api/voice")
 def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str = Form("English"),
-          consent: str = Form(""), shop: str = Form("")):
+          consent: str = Form(""), shop: str = Form(""), live: str = Form("")):
+    """A voice note in, the reply out (its spoken voice is made at once in the background). live=1: the live
+    conversation (no buttons), so the read-back asks "Should I save it?" instead of "Press save"."""
     if consent != "yes":
         raise HTTPException(400, "consent needed")
     path = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm")
@@ -260,7 +263,7 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
     if not text:
         return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
     state = _state(session, lang)
-    out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text)
+    out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text, live=live == "1")
     out["engine"] = heard.get("engine")
     out["detected"] = heard.get("detected")
     _start_voice(out.get("speak"))

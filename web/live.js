@@ -197,9 +197,10 @@
     credit_purchase: "I took on credit", payment_made: "I paid back" };
   const day = d => { if (!d) return ""; const x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString("en-NG", { weekday: "long" }); };
 
-  talk = async function () {
+  const cardTalk = async function (pre) {
     unlock();   // during the tap: lets the spoken reply play later on phones
     const o = sheet(""), box = $(".in", o);
+    if (pre && pre.draft) return pre.draft.amount == null ? re(1, pre.draft) : card(pre.draft);   // from the live talk: check it on screen
     const live = s => `<div class="wave">${"<i></i>".repeat(24)}</div><ol class="steps">${["listen", "hear", "think"].map((k, i) => `<li class="${i < s ? "done" : i == s ? "on" : ""}">${t(k)}</li>`).join("")}</ol><div class="quote" id="qt">&nbsp;</div>`;
     const err = (h, p) => { box.innerHTML = `<h3>${h}</h3><p class="s">${p}</p><div class="btns"><button class="btn p w" id="re">Try again</button></div>`; $("#re", o).onclick = () => { shut(o); setTimeout(talk, 300); }; };
     let stream;
@@ -315,6 +316,193 @@
       for (const el of [i, n]) if (el) el.onkeydown = e => { if (e.key == "Enter") g(); };   // (returning false would block every key)
     }
   };
+
+  /* ---------------------------------------------------------------- Talk, live: a spoken conversation.
+     Tap the mic: TradeVoice listens, answers out loud, and listens again, without buttons or reading. The orb breathes
+     while it waits, follows your voice while you talk and its own voice while it answers; tap it to cut in.
+     Nothing is saved until you say yes (it asks "Should I save it?"). Voice replies off (Me) -> the card flow above. */
+  const LW = {   // words the design doesn't have yet (Yoruba, Hausa, Igbo: for the native speaker check)
+    en: { speak: "Speaking", rest: "Paused", hello: "Go ahead, I'm listening.", tap: "Tap to cut in", again: "I didn't catch that. Say it again?",
+      slow: "Still working…", bye: "Talk soon.", stop: "I'll stop here. Tap me when you need me.", check: "Tap to check it on screen", done: "Done", off: "Sorry, I couldn't hear that." },
+    pcm: { speak: "I dey talk", rest: "I don pause", hello: "Talk, I dey hear you.", tap: "Touch am make I stop", again: "I no catch am. Talk am again?",
+      slow: "I still dey work on am…", bye: "We go talk.", stop: "I go stop here. Touch me when you need me.", check: "Touch am to check am", done: "Done", off: "Sorry, I no hear am well." },
+    yo: { speak: "Mò ń sọ̀rọ̀", rest: "Mo dúró", hello: "Sọ ọ́, mò ń gbọ́.", tap: "Fọwọ́ kàn án láti dá mi dúró", again: "Mi ò gbọ́ ọ. Tún un sọ?",
+      slow: "Mo ṣì ń ṣiṣẹ́ lé e…", bye: "Ó dàbọ̀.", stop: "Màá dúró báyìí. Fọwọ́ kàn mí tí o bá nílò mi.", check: "Tẹ̀ ẹ́ láti yẹ̀ ẹ́ wò", done: "Ó tó", off: "Má bínú, mi ò gbọ́ ọ dáadáa." },
+    ha: { speak: "Ina magana", rest: "Na tsaya", hello: "Faɗa, ina saurare.", tap: "Taɓa don ka tsayar da ni", again: "Ban ji ba. Sake faɗa?",
+      slow: "Ina kan aiki…", bye: "Sai anjima.", stop: "Zan tsaya nan. Taɓa ni idan kana bukata ta.", check: "Taɓa don ka duba", done: "Shikenan", off: "Yi haƙuri, ban ji sosai ba." },
+    ig: { speak: "Ana m ekwu", rest: "Akwụsịrị m", hello: "Kwuo, ana m ege ntị.", tap: "Metụ ya aka ka m kwụsị", again: "Anụghị m ya. Kwughachi ya?",
+      slow: "Ana m arụ ya…", bye: "Ka ọ dị.", stop: "Aga m akwụsị ebe a. Metụ m aka mgbe ịchọrọ m.", check: "Pịa ka i lelee ya", done: "Ọ zuola", off: "Ndo, anụghị m nke ọma." },
+  };
+  const BYE = /\b(that'?s all|that is all|bye( bye)?|goodbye|good bye|na im be that|o da ?bo|sai an ?jima|ka o di)\b/;
+  const plain = x => (x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // the orb: built only from the design's tokens (accent, canvas, fill, labels, radii, spacing), so it follows the theme
+  const ORB_CSS = `
+.tvc{display:flex;flex-direction:column;align-items:center;text-align:center;min-height:min(560px,76vh);padding-top:var(--s2)}
+.tvc-pill{display:inline-flex;align-items:center;gap:var(--s2);height:28px;padding:0 var(--s3);border-radius:var(--pill);background:var(--fill);color:var(--label2);font-size:.8125rem;font-weight:500;letter-spacing:-.01em}
+.tvc-pill i{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:tvc-dot 1.6s ease-in-out infinite}
+.tvc[data-st=think] .tvc-pill i{background:var(--label2);animation-duration:.8s}
+.tvc[data-st=rest] .tvc-pill i{animation:none;background:var(--label2)}
+.tvc-stage{flex:1;display:grid;place-items:center;width:100%;min-height:260px;padding:var(--s6) 0;-webkit-tap-highlight-color:transparent;outline:0}
+.tvc-orb{--lv:0;position:relative;width:184px;height:184px;animation:tvc-breathe 5.6s ease-in-out infinite}
+.tvc-orb:before{content:"";position:absolute;inset:-22%;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 42%,transparent),transparent);opacity:calc(.5 + var(--lv) * .5);transform:scale(calc(.92 + var(--lv) * .32));transition:opacity var(--d1),transform var(--d1)}
+.tvc-orb b{position:absolute;inset:0;border-radius:50%;overflow:hidden;isolation:isolate;transform:scale(calc(1 + var(--lv) * .14));transition:transform .1s linear;
+ background:radial-gradient(circle at 34% 26%,color-mix(in srgb,var(--accent) 30%,#fff) 0%,color-mix(in srgb,var(--accent) 80%,#fff) 18%,var(--accent) 56%,color-mix(in srgb,var(--accent) 52%,#000) 100%);
+ box-shadow:0 28px 72px -24px var(--accent),inset 0 -20px 44px color-mix(in srgb,var(--accent) 45%,#000),inset 0 12px 28px rgba(255,255,255,.32)}
+.tvc-orb b i{position:absolute;width:72%;height:72%;border-radius:50%;filter:blur(20px);mix-blend-mode:screen;opacity:.8;animation:tvc-swirl 12s linear infinite}
+.tvc-orb b i:nth-child(1){left:-12%;top:34%;background:color-mix(in srgb,var(--accent) 42%,#FF62A5);transform-origin:85% 15%}
+.tvc-orb b i:nth-child(2){right:-14%;top:-8%;background:color-mix(in srgb,var(--accent) 48%,#5AD8FF);transform-origin:15% 85%;animation-duration:15s;animation-direction:reverse}
+.tvc-orb b i:nth-child(3){left:22%;bottom:-26%;background:color-mix(in srgb,var(--accent) 25%,#fff);opacity:.45;transform-origin:50% 0;animation-duration:9s}
+.tvc[data-st=think] .tvc-orb{animation-duration:1.8s}
+.tvc[data-st=think] .tvc-orb b i{animation-duration:2.4s}
+.tvc[data-st=rest] .tvc-orb{animation-duration:8s;filter:saturate(.4);opacity:.75}
+.tvc-orb,.tvc-orb b{transition:filter var(--d3),opacity var(--d3),transform .1s linear}
+.tvc-say{min-height:3em;max-width:30ch;color:var(--label2);font-size:1.0625rem;line-height:1.45;letter-spacing:-.01em;margin-bottom:var(--s2)}
+.tvc-say b{color:var(--label);font-weight:500}
+button.tvc-say{text-decoration:none}
+.tvc-hint{color:var(--label2);font-size:.8125rem;min-height:1.3em;margin-bottom:var(--s3)}
+.tvc .btns{width:100%}
+@keyframes tvc-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.055)}}
+@keyframes tvc-swirl{to{transform:rotate(360deg)}}
+@keyframes tvc-dot{50%{opacity:.35;transform:scale(.7)}}`;
+
+  const chat = async function () {
+    const w = k => (LW[L] || LW.en)[k];
+    // during the tap (phones allow sound and audio meters only from a tap): the reply's player and the meters
+    let ac = null; try { ac = new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch (e) {}
+    const voice = new Audio();
+    try { voice.src = SILENT; const p = voice.play(); if (p) p.then(() => voice.pause()).catch(() => {}); } catch (e) {}
+    if (!$("#tvc-css")) { const s = document.createElement("style"); s.id = "tvc-css"; s.textContent = ORB_CSS; document.head.append(s); }
+    const o = sheet(`<div class="tvc" data-st="listen"><span class="tvc-pill"><i></i><span id="st">${t("listen")}</span></span>` +
+      `<button class="tvc-stage" id="orb" aria-label="${w("tap")}"><span class="tvc-orb"><b><i></i><i></i><i></i></b></span></button>` +
+      `<p class="tvc-say" id="cap" aria-live="polite">${w("hello")}</p><p class="tvc-hint" id="hint"></p>` +
+      `<div class="btns"><button class="btn w" id="dn">${w("done")}</button></div></div>`);
+    const box = $(".tvc", o), orb = $(".tvc-orb", o);
+    const set = st => { box.dataset.st = st; $("#st", o).textContent = { listen: t("listen"), think: t("think"), speak: w("speak"), rest: w("rest") }[st]; };
+    const caption = (h, hint = "") => { const c = $("#cap", o); if (c.tagName != "P") c.outerHTML = `<p class="tvc-say" id="cap" aria-live="polite"></p>`; $("#cap", o).innerHTML = h; $("#hint", o).textContent = hint; };
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } }); }
+    catch (e) { $(".in", o).innerHTML = `<h3>Microphone is off</h3><p class="s">Turn it on in your browser: Site settings, Microphone, Allow. Then try again.</p>`; ac && ac.close(); return; }
+    if (!o.isConnected) { stream.getTracks().forEach(x => x.stop()); ac && ac.close(); return; }
+
+    // meters: your voice (the mic) and TradeVoice's (the reply), both read by the orb
+    let micAn = null, outAn = null, wired = false;
+    if (ac) { micAn = ac.createAnalyser(); micAn.fftSize = 1024; ac.createMediaStreamSource(stream).connect(micAn); }
+    const buf = new Uint8Array(1024);
+    const rms = an => { an.getByteTimeDomainData(buf); let s = 0; for (const v of buf) s += (v - 128) ** 2; return Math.sqrt(s / buf.length); };
+    function wire() {   // the reply goes through the meter only when the audio engine is really running (else: silence)
+      if (wired || !ac || ac.state != "running") return;
+      try { outAn = ac.createAnalyser(); outAn.fftSize = 1024; const src = ac.createMediaElementSource(voice); src.connect(outAn); outAn.connect(ac.destination); wired = true; } catch (e) { outAn = null; }
+    }
+    let lv = 0, floor = 0; const first = [];
+    (function glow() {   // the orb's size follows whoever is talking
+      if (!o.isConnected) return;
+      const st = box.dataset.st; let target = 0;
+      if (!calm && st == "listen" && micAn && first.length >= 15) target = Math.min(1, Math.max(0, rms(micAn) - floor) / 22);
+      else if (!calm && st == "speak") target = outAn ? Math.min(1, rms(outAn) / 26) : (Math.sin(Date.now() / 140) + 1) * .22;
+      lv += (target - lv) * (target > lv ? .35 : .12);
+      orb.style.setProperty("--lv", lv.toFixed(3));
+      requestAnimationFrame(glow);
+    })();
+
+    let cutIn = null;   // tap the orb: stop listening (and send), or stop talking (and listen)
+    $("#orb", o).onclick = () => { if (cutIn) cutIn(); else if (box.dataset.st == "rest") run(); };
+    $("#dn", o).onclick = () => shut(o);
+    const end = setInterval(() => {   // closed (Done, swipe, tap outside): the mic and the voice stop at once
+      if (o.isConnected) return;
+      clearInterval(end); if (cutIn) cutIn(); voice.pause(); stream.getTracks().forEach(x => x.stop()); ac && ac.close();
+    }, 250);
+
+    // one turn of listening: until about a second of quiet after speech, a tap, or 20 s
+    function listen() {
+      set("listen");
+      const rec = new MediaRecorder(stream), parts = [];
+      rec.ondataavailable = e => e.data.size && parts.push(e.data);
+      const stopped = new Promise(r => (rec.onstop = r));
+      let spoke = false, tapped = false, quietSince = 0; const t0 = Date.now();
+      const stop = () => { if (rec.state == "recording") rec.stop(); };
+      cutIn = () => { tapped = true; stop(); };
+      rec.start();
+      (function watch() {
+        if (rec.state != "recording") return;
+        if (!o.isConnected) return stop();
+        if (!micAn) { if (Date.now() - t0 > 8000) { spoke = true; stop(); } return setTimeout(watch, 100); }   // no meter: 8 s, or a tap
+        const r = rms(micAn);
+        if (first.length < 15) {   // the background, learned once per conversation (same rule as the card flow)
+          if (r > 0.5) first.push(r);
+          floor = first.length ? first.slice().sort((a, b) => a - b)[first.length >> 1] : 0;
+        } else {
+          floor = r < floor ? r : floor + (r - floor) * 0.002;
+          if (r > Math.max(6, floor * 1.8 + 3)) { spoke = true; quietSince = 0; } else if (spoke && !quietSince) quietSince = Date.now();
+        }
+        if ((spoke && quietSince && Date.now() - quietSince > 1000) || Date.now() - t0 > 20000 || (!spoke && Date.now() - t0 > 8000)) return stop();
+        requestAnimationFrame(watch);
+      })();
+      return stopped.then(() => { cutIn = null; return spoke || tapped ? new Blob(parts, { type: rec.mimeType || "audio/webm" }) : null; });
+    }
+    // TradeVoice's answer, out loud (made on the server while the words were being worked out)
+    function speak(sid) {
+      return new Promise(done => {
+        if (!sid || !o.isConnected) return done();
+        set("speak"); wire();
+        const fin = () => { voice.onended = voice.onerror = null; cutIn = null; done(); };
+        voice.onended = voice.onerror = fin;
+        cutIn = () => { voice.pause(); fin(); };
+        voice.src = `/api/speak/${sid}`;
+        const p = voice.play(); if (p) p.catch(fin);
+      });
+    }
+    // one quiet line: the key facts of what's waiting to be saved, or the short answer
+    function line(d) {
+      const dr = d.draft;
+      if (d.pending && dr && dr.amount != null) {
+        const bits = [`<b>${f(dr.amount)}</b>`, dr.customer && esc(dr.customer), (TYPE[dr.type] || "").replace(/^[↑↓] /, ""), dr.due_date && day(dr.due_date)].filter(Boolean);
+        caption(bits.join(" · "), w("check"));
+        const c = $("#cap", o); c.outerHTML = `<button class="tvc-say" id="cap" aria-live="polite">${c.innerHTML}</button>`;
+        $("#cap", o).onclick = () => { stopAll = true; if (cutIn) cutIn(); shut(o); setTimeout(() => cardTalk(d), 300); };
+        return;
+      }
+      const s = (d.text || "").replace(/[*_]/g, "").split("\n")[0];
+      caption(esc(s.length > 140 ? s.slice(0, 137).trimEnd() + "…" : s));
+    }
+
+    let stopAll = false, running = false;
+    async function run() {
+      if (running) return; running = true;
+      let quiet = 0, fails = 0, was = false;
+      caption(w("hello"));
+      while (o.isConnected && !stopAll) {
+        const blob = await listen();
+        if (!o.isConnected || stopAll) break;
+        if (!blob) {   // nothing said: once, ask again; twice, rest (tap the orb to go on)
+          if (++quiet >= 2) { caption(w("stop")); set("rest"); break; }
+          if ($("#cap", o).tagName == "BUTTON") $("#hint", o).textContent = w("again"); else caption(w("again"));   // the facts stay
+          continue;
+        }
+        quiet = 0; set("think"); caption("&nbsp;");
+        const fd = new FormData();
+        fd.append("file", blob, "note.webm");
+        fd.append("session", SID); fd.append("lang", lang()); fd.append("consent", "yes"); fd.append("shop", A ? A.biz : ""); fd.append("live", "1");
+        const slow = setTimeout(() => caption(w("slow")), 12000);
+        const r = await api("/api/voice", { form: fd });
+        clearTimeout(slow);
+        if (!o.isConnected || stopAll) break;
+        if (!r.ok) { if (++fails >= 3) { caption(esc(r.data.error || w("off"))); set("rest"); break; } caption(esc(r.data.error || w("off"))); continue; }
+        fails = 0;
+        const d = r.data, heard = plain(d.heard);
+        if (BYE.test(heard) && heard.split(/\s+/).length <= 5) { caption(w("bye")); set("rest"); setTimeout(() => shut(o), 900); break; }
+        line(d);
+        loadBook();   // a yes saved it: the book behind the sheet is already up to date when it closes
+        if (was && !d.pending && /✅/.test(d.text || "")) toast(esc((d.text || "").replace(/\*/g, "").split("\n")[0]), async () => { await api("/api/v2/undo_last", { body: {} }); loadBook(); });
+        was = d.pending;
+        await speak(d.speak);
+      }
+      running = false;
+    }
+    run();
+  };
+  talk = () => (voiceOn() && window.MediaRecorder && navigator.mediaDevices ? chat() : cardTalk());
+  TVL.chat = chat;
 
   /* ---------------------------------------------------------------- reminders: drafted by TradeVoice, sent by YOU */
   remind = async function () {

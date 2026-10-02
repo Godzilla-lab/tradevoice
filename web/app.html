@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>TradeVoice</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..600&display=swap" rel="stylesheet">
@@ -216,7 +217,7 @@ addEventListener("keydown",e=>{if(e.key=="Escape"){const o=$$(".ov").pop();o&&re
 let tt;function toast(m,undo){$$(".toast").forEach(x=>x.remove());const e=document.createElement("div");e.className="toast";e.setAttribute("role","status");e.innerHTML=`<span>${m}</span>${undo?`<button>${t("undo")}</button>`:""}`;$("#app").append(e);const rm=()=>{e.classList.add("out");setTimeout(()=>e.remove(),300)};if(undo)$("button",e).onclick=()=>{undo();rm()};clearTimeout(tt);tt=setTimeout(rm,6000)}
 function gate(h){let g=$("#gate");if(!g){g=document.createElement("div");g.id="gate";g.className="gate";$("#app").append(g)}g.innerHTML=h;return g}
 const drop=()=>{const g=$("#gate");if(g){g.classList.add("out");setTimeout(()=>g.remove(),520)}};
-const LOGO='<svg class="lg" viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="13" fill="var(--accent)" stroke="none"/><g stroke="var(--accent-fg)" stroke-width="3.2"><path d="M13 19v6M19 14v16M25 10v24M31 17v10"/></g></svg>';
+const LOGO='<img class="lg" src="/static/logo.svg" alt="" aria-hidden="true" style="display:block">';
 function welcome(){gate(`${LOGO}<h1>${t("head")}</h1><div class="tiles">${LG.map(([v,n])=>`<button class="tile ${v==L?"on":""}" data-a="lang" data-v="${v}">${n}</button>`).join("")}</div><button class="btn p w" data-a="wapp">Use on WhatsApp</button><button class="btn w" style="margin-top:var(--s2)" data-a="here">Use here</button><p class="fine">No sign-up. We never ask for your phone number.</p>`)}
 function consent(){gate(`<div class="pr"><i class="f"></i><i class="f"></i></div><h1 style="font-size:1.75rem">Before we start</h1><ul class="pts"><li>We keep what you tell us, so your book is yours.</li><li>We never message your customers. You send every message.</li><li>You can delete everything any time.</li></ul><button class="btn p w" data-a="agree">${t("agree")}</button><p class="fine"><button style="text-decoration:underline" data-a="more">Read more</button></p>`)}
 async function hp(p){try{const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("tv:"+p));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch(e){return"p:"+btoa(p)}}

@@ -167,6 +167,20 @@ PREFIX = {
              "ask": [" Ọ bụ otu a? Ọ bụrụ na ọ dị mma, pịa save."]},
 }
 
+# in a live voice conversation there is no Save button to press: the question is asked out loud, answered with yes/no
+ASK_LIVE = {"English": " Is that correct? Should I save it?", "Pidgin": " Na so? Make I save am?",
+            "Yoruba": " Ṣé bẹ́ẹ̀ ni? Ṣé kí n kọ ọ́ sílẹ̀?", "Hausa": " Haka ne? In rubuta?",
+            "Igbo": " Ọ bụ otu a? Ka m dee ya?"}
+
+
+def live_ask(spoken, language="English"):
+    """The read-back for the live conversation: "… Press save." becomes "… Should I save it?"."""
+    for ask in PREFIX.get(language, PREFIX["English"])["ask"]:
+        if spoken and spoken.endswith(ask):
+            return spoken[: -len(ask)] + ASK_LIVE.get(language, ASK_LIVE["English"])
+    return spoken
+
+
 _FEMALE = ("mama", "iya", "aunty", "auntie", "madam", "hajiya", "hajia", "alhaja", "mrs", "sister", "iyawo", "mallama")
 
 

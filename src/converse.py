@@ -25,9 +25,13 @@ from extract import parse_customer as extract_customer
 
 LANGS = askbook.LANGS
 
+# spoken answers come with a little more ("yes please, save it", "no, leave it"): the extra words may only be these
+_YES_MORE = r"(?:[\s,.!]+(?:please|save( it| am)?|go ahead|do it|write it|correct|that'?s (right|correct)|na so|e correct|" \
+            r"o|sir|ma|abeg|thank you|thanks|o to|o dara|kosi wahala|haka ne|rubuta|o di mma|dee ya))*"
 YES = re.compile(r"^\s*(yes|yeah|yep|ok|okay|save|save am|save it|correct|na so|e correct|sure|ehn|ee+h?|eh|"
-                 r"beeni|o to|o dara|to|haka ne|eh to|i|ee|o di mma|ozi|confirm)\W*$")
-NO = re.compile(r"^\s*(no|nope|cancel|no be so|leave am|forget am|rara|ko to|a'?a|ba haka ba|mba|o bughi ya)\W*$")
+                 r"beeni|o to|o dara|to|haka ne|eh to|i|ee|o di mma|ozi|confirm)" + _YES_MORE + r"\W*$")
+NO = re.compile(r"^\s*(no|nope|cancel|no be so|leave am|forget am|rara|ko to|a'?a|ba haka ba|mba|o bughi ya)"
+                r"(?:[\s,.!]+(?:thanks?|thank you|leave (it|am)|forget (it|am)|don'?t save( it)?|cancel( it)?|o|sir|ma|abeg))*\W*$")
 REMIND = re.compile(r"\bremind\b|\bran .{0,40}\bleti\b|\bleti\b|\btunatar\b|\btuna wa\b|\bcheta(ra)?\b|\bchetara\b")
 QUESTION = re.compile(r"\?|\bhow (much|many)\b|\bwho\b|\bwhat\b|\bwetin\b|\babi\b|\bdo i\b|\bdid\b|\bse\b|\bmelo\b|"
                       r"\belo\b|\bnawa\b|\bshin\b|\bole\b|\bkedu\b|\bani\b|\bna who\b")

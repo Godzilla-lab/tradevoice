@@ -86,8 +86,9 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
   let browser;
   try {
     await waitUp();
-    browser = await chromium.launch({ headless: !process.env.HEADED });
-    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
+    browser = await chromium.launch({ headless: !process.env.HEADED,   // a fake microphone (beeps) for the live talk
+      args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG", permissions: ["microphone"] });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());   // no internet needed
     page = await ctx.newPage();
     page.on("pageerror", e => errors.push(e.message));
@@ -244,6 +245,32 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (await sw().getAttribute("aria-checked") !== "false") throw new Error("came back on after refresh");
       await sw().click();
       if (await sw().getAttribute("aria-checked") !== "true") throw new Error("didn't turn back on");
+    });
+    await check("Talk (live): listen, answer, 'yes' saves, 'that's all' closes; asks the server for the spoken question", async () => {
+      // N-ATLaS isn't here: what it "heard" is fed in, the rest is the real server (session, draft, save, book)
+      const said = ["Mama Ngozi took beans 3000 on credit", "yes please", "that's all"]; let n = 0, live = 0;
+      await page.route("**/api/voice", async route => {
+        const form = route.request().postDataBuffer().toString("latin1");
+        if (/name="live"\r\n\r\n1/.test(form)) live++;
+        const sid = (form.match(/name="session"\r\n\r\n(\S+)/) || [])[1], text = said[n++] || "";
+        const r = await page.evaluate(async b => (await fetch("/api/message", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) })).json(), { session: sid, text, lang: "English" });
+        r.heard = text; r.speak = null;
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(r) });
+      });
+      await page.click("#tabs [data-a=talk]");
+      await page.waitForSelector(".ov.on .tvc[data-st=listen]");
+      const turn = async () => { await page.waitForSelector(".ov.on .tvc[data-st=listen]"); await sleep(600); await page.click(".ov.on #orb"); };
+      await turn();
+      await page.waitForFunction(() => /3,000 · Mama Ngozi/.test(document.querySelector(".ov.on #cap")?.textContent || ""), null, { timeout: 8000 });
+      await turn();
+      await page.waitForFunction(() => /Saved/.test(document.querySelector(".ov.on #cap")?.textContent || ""), null, { timeout: 8000 });
+      await turn();
+      await gone(".ov .tvc");
+      await page.unroute("**/api/voice");
+      const got = ((await book()).customers.find(c => c.n === "Mama Ngozi") || {}).b;
+      if (got !== 3000) throw new Error(`Mama Ngozi owes ${got}, not 3000`);
+      if (live !== 3) throw new Error(`live=1 sent ${live} of 3 times`);
     });
     await check("Me: Connect my WhatsApp says it's coming", async () => {
       await page.click('#me [data-a=wac]'); return /bot/.test(await toastText());
