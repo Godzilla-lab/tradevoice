@@ -92,6 +92,51 @@ def main():
     srv.shutdown()
     os.environ.pop("BACKUP_UPLOAD_URL")
 
+    # Supabase Storage: upload with the key, then old copies there pruned like here
+    import json as _json
+    store = {"tradevoice-20200101-000000.tar.gz": b"old", "tradevoice-20200102-000000.tar.gz": b"old", "notes.txt": b"x"}
+    seen = {}
+
+    class Supa(http.server.BaseHTTPRequestHandler):
+        def _body(self):
+            return self.rfile.read(int(self.headers.get("Content-Length") or 0))
+
+        def _ok(self, obj):
+            out = _json.dumps(obj).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(out)
+
+        def do_POST(self):
+            seen.update({k.lower(): v for k, v in self.headers.items()})
+            body = self._body()
+            if self.path == "/storage/v1/object/list/backups":
+                return self._ok([{"name": n} for n in sorted(store)])
+            store[self.path.rsplit("/", 1)[1]] = body
+            self._ok({"Key": self.path})
+
+        def do_DELETE(self):
+            for n in _json.loads(self._body())["prefixes"]:
+                store.pop(n, None)
+            self._ok([])
+
+        def log_message(self, *a):
+            pass
+    sup = http.server.HTTPServer(("127.0.0.1", 0), Supa)
+    threading.Thread(target=sup.serve_forever, daemon=True).start()
+    os.environ.update(BACKUP_SUPABASE_URL=f"http://127.0.0.1:{sup.server_port}/", BACKUP_SUPABASE_KEY="sb_secret_TEST")
+    backup.supabase_upload(path)
+    name = os.path.basename(path)
+    check("Supabase: the backup is uploaded whole, with the key and upsert",
+          store.get(name) == open(path, "rb").read() and seen.get("apikey") == "sb_secret_TEST"
+          and seen.get("authorization") == "Bearer sb_secret_TEST" and seen.get("x-upsert") == "true", sorted(store))
+    check("Supabase: copies older than 30 days are pruned there, other files left alone",
+          "tradevoice-20200101-000000.tar.gz" not in store and "notes.txt" in store, sorted(store))
+    sup.shutdown()
+    for k in ("BACKUP_SUPABASE_URL", "BACKUP_SUPABASE_KEY"):
+        os.environ.pop(k)
+
     # BACKUP_COPY_DIR: each backup also lands in a folder (the Mac: Google Drive)
     copy_dir = os.path.join(D, "drive", "TradeVoice backups")
     os.environ["BACKUP_COPY_DIR"] = copy_dir

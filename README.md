@@ -71,15 +71,16 @@ To switch on speech, the AI models and the WhatsApp bot, copy `.env.example` to 
 On an NVIDIA Brev GPU, `bash scripts/start_brev.sh` starts both models, the app and a public link.
 `python scripts/check_models.py` and `python scripts/check_whatsapp.py` test each part and say what to fix.
 Full setup and every setting: [`docs/TECHNICAL.md`](docs/TECHNICAL.md) · WhatsApp bot: [`docs/WHATSAPP.md`](docs/WHATSAPP.md) ·
-Live server (free Azure for Students VM + DuckDNS, backups, updates): [`docs/HOSTING.md`](docs/HOSTING.md)
+Live: on a Mac + Cloudflare Tunnel for now [`docs/HOSTING_MAC.md`](docs/HOSTING_MAC.md), a free Oracle server later
+[`docs/HOSTING.md`](docs/HOSTING.md)
 
 ## Tests
 ```bash
-python eval/run_all.py                                              # 353 checks in 16 suites, no keys needed
+python eval/run_all.py                                              # 357 checks in 16 suites, no keys needed
 NODE_PATH=$(npm root -g) node eval/browser_test.cjs                 # the whole app in Chromium (32 checks)
 python eval/run_eval.py --rules-only --cases eval/cases_hard.jsonl  # trap phrases in 5 languages
 ```
-- **353 / 353** automated checks: the full demo flow, corrections, the WhatsApp bot, wholesale tools, lender and
+- **357 / 357** automated checks: the full demo flow, corrections, the WhatsApp bot, wholesale tools, lender and
   pay links, voice, accounts, backups
 - **464 / 464** test sentences in 5 languages (including 208 trap phrases) turned into the right record by the
   offline rules alone

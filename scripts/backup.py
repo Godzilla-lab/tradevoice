@@ -9,12 +9,14 @@ Kept: every backup from the last 48 hours, and the newest of each day for 30 day
 BACKUP_UPLOAD_URL (optional, in .env): where each backup is also uploaded, so a copy lives off the server. Either an
 Azure Blob Storage container SAS URL (https://ACCOUNT.blob.core.windows.net/CONTAINER?sv=…&sig=…) or an Oracle Object
 Storage pre-authenticated request URL (ends in /o/). The file's name goes into the path, before any ?query. Backups hold traders' personal data: keep them private.
+BACKUP_SUPABASE_URL + BACKUP_SUPABASE_KEY (optional): a copy in Supabase Storage (free, no card), see supabase_upload.
 BACKUP_COPY_DIR (optional): a folder that also gets each backup, pruned the same way. On the Mac: a Google Drive
 folder (Google Drive for desktop), so a copy lives off the Mac.
 On the live server the hourly timer runs this (deploy/server/setup.sh); restore there with deploy/server/restore.sh.
 """
 import argparse
 import datetime as dt
+import json
 import os
 import re
 import shutil
@@ -89,11 +91,10 @@ def backup(now=None):
     return os.path.join(p["backups"], name)
 
 
-def prune(folder, now=None):
-    """Delete backups older than 48 h, except the newest of each day for 30 days. Returns what was deleted."""
+def to_prune(names, now=None):
+    """Of these backup names: the ones to delete (older than 48 h, except the newest of each day for 30 days)."""
     now = now or dt.datetime.now()
-    found = sorted((dt.datetime.strptime(m.group(1), "%Y%m%d-%H%M%S"), f)
-                   for f in os.listdir(folder) if (m := NAME_RE.match(f)))
+    found = sorted((dt.datetime.strptime(m.group(1), "%Y%m%d-%H%M%S"), f) for f in names if (m := NAME_RE.match(f)))
     keep, newest_of_day = set(), {}
     for t, f in found:
         if now - t <= dt.timedelta(hours=KEEP_ALL_HOURS):
@@ -101,7 +102,12 @@ def prune(folder, now=None):
         elif now - t <= dt.timedelta(days=KEEP_DAILY_DAYS):
             newest_of_day[t.date()] = f        # sorted, so the last one per day wins
     keep |= set(newest_of_day.values())
-    gone = [f for _, f in found if f not in keep]
+    return [f for _, f in found if f not in keep]
+
+
+def prune(folder, now=None):
+    """Delete the old backups in a folder (see to_prune). Returns what was deleted."""
+    gone = to_prune(os.listdir(folder), now)
     for f in gone:
         os.remove(os.path.join(folder, f))
     return gone
@@ -118,6 +124,35 @@ def upload(path):
                                      headers={"Content-Type": "application/gzip", "x-ms-blob-type": "BlockBlob"})
     urllib.request.urlopen(req, timeout=120).close()
     print("uploaded off the server ✅")
+    return True
+
+
+def _supabase(method, path, body=None, data=None, headers=None):
+    base = os.getenv("BACKUP_SUPABASE_URL", "").strip().rstrip("/")
+    key = os.getenv("BACKUP_SUPABASE_KEY", "").strip()
+    h = {"apikey": key, "Authorization": f"Bearer {key}"} | (headers or {})
+    if body is not None:
+        data, h["Content-Type"] = json.dumps(body).encode(), "application/json"
+    with urllib.request.urlopen(urllib.request.Request(base + path, data=data, method=method, headers=h), timeout=120) as r:
+        return json.loads(r.read() or b"null")
+
+
+def supabase_upload(path, now=None):
+    """Supabase Storage (free, no card): BACKUP_SUPABASE_URL (https://PROJECT.supabase.co), BACKUP_SUPABASE_KEY
+    (the project's secret / service_role key) and BACKUP_SUPABASE_BUCKET (default "backups", private). Old copies there
+    are pruned the same way as here."""
+    if not (os.getenv("BACKUP_SUPABASE_URL", "").strip() and os.getenv("BACKUP_SUPABASE_KEY", "").strip()):
+        return False
+    bucket = urllib.parse.quote(os.getenv("BACKUP_SUPABASE_BUCKET", "backups").strip() or "backups")
+    with open(path, "rb") as f:
+        _supabase("POST", f"/storage/v1/object/{bucket}/{os.path.basename(path)}", data=f.read(),
+                  headers={"Content-Type": "application/gzip", "x-upsert": "true"})
+    listed = _supabase("POST", f"/storage/v1/object/list/{bucket}",
+                       {"prefix": "", "limit": 1000, "offset": 0, "sortBy": {"column": "name", "order": "asc"}}) or []
+    old = to_prune([o.get("name", "") for o in listed], now)
+    if old:
+        _supabase("DELETE", f"/storage/v1/object/{bucket}", {"prefixes": old})
+    print("copied to Supabase ✅")
     return True
 
 
@@ -219,6 +254,11 @@ def main(argv=None):
         upload(path)
     except Exception as e:  # noqa: BLE001
         print(f"⚠️ upload off the server failed ({type(e).__name__}); the backup is still on this server")
+        ok = False
+    try:
+        supabase_upload(path)
+    except Exception as e:  # noqa: BLE001  (never print the key or the URL's secrets)
+        print(f"⚠️ copy to Supabase failed ({type(e).__name__}: {getattr(e, 'code', '')}); the backup is still here")
         ok = False
     return 0 if ok else 1
 
