@@ -1,6 +1,7 @@
 """Check which NVIDIA API models work with your key BEFORE the event.
 
 python scripts/check_models.py            # test our configured LLM_MODELS / VISION_MODELS
+python scripts/check_models.py --natlas   # only N-ATLaS (NATLAS_URL): wakes it, then times one record per language
 python scripts/check_models.py --search   # ask NVIDIA which models exist, try the likely ones, print what works
 python scripts/check_models.py --search gemma,qwen,llama   # only models whose id contains these words
 
@@ -28,8 +29,9 @@ SKIP_WORDS = ("embed", "rerank", "reward", "guard", "safety", "retriever", "pars
 VISION_HINTS = ("vision", "-vl", "vlm", "gemma-3", "gemma-4", "llama-4", "multimodal", "mistral-small", "pixtral",
                 "kimi-k2.5", "qwen3.5", "qwen3.6", "phi-4-multimodal", "nemotron-nano-12b", "cosmos")
 
-if not (os.getenv("NVIDIA_API_KEY") or os.getenv("LOCAL_LLM_URL") or os.getenv("LOCAL_VISION_URL")):
-    raise SystemExit("Set NVIDIA_API_KEY first (from build.nvidia.com), e.g.  set -a; source .env; set +a")
+if not (os.getenv("NVIDIA_API_KEY") or os.getenv("LOCAL_LLM_URL") or os.getenv("LOCAL_VISION_URL")
+        or os.getenv("NATLAS_URL")):
+    raise SystemExit("Set NVIDIA_API_KEY or NATLAS_URL first, e.g.  set -a; source .env; set +a")
 
 client = OpenAI(base_url=llm.NVIDIA_BASE_URL, api_key=os.getenv("NVIDIA_API_KEY", "none"), timeout=60, max_retries=0)
 
@@ -67,7 +69,50 @@ def list_live():
         return []
 
 
+NATLAS_SAMPLES = {  # made-up traders; not in the eval sets
+    "english": "Sold 2 cartons of Milo to Mr Okon for 18,000, he will pay next week",
+    "pidgin": "Mama Bose don pay 7k for the oil wey she carry",
+    "yoruba": "Mo ta àpò gaàrí kan fún Baba Tunde ní ẹgbẹ̀rún mẹ́fà",
+    "hausa": "Na sayar da buhun shinkafa biyu ga Hajiya Amina, dubu talatin, bashi ne",
+    "igbo": "Mama Chidi akwụọla puku ise",
+}
+
+
+def check_natlas():
+    """Is N-ATLaS up, how fast, and does it turn each language into a record?"""
+    if not llm.natlas_on():
+        print("N-ATLaS: NATLAS_URL not set (deploy: modal deploy deploy/modal_natlas.py)")
+        return
+    import datetime as dt
+
+    import extract
+    print(f"N-ATLaS at {os.environ['NATLAS_URL']} (first call may wait 1-3 min while the GPU wakes)...")
+    start = time.perf_counter()
+    try:
+        out, _ = llm.chat([{"role": "user", "content": TEXT_Q}], models=["natlas"], timeout=300, deadline=300)
+        print(f"  ✅ awake in {time.perf_counter() - start:.0f}s: {out[:60]!r}")
+    except Exception as e:  # noqa: BLE001
+        print(f"  ❌ {type(e).__name__}: {str(e)[:120]}  (check NATLAS_URL ends in /v1 and NATLAS_KEY matches)")
+        return
+    today = dt.date.today()
+    for lang, text in NATLAS_SAMPLES.items():
+        prompt = extract.SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__",
+                                                                                     today.strftime("%A"))
+        t = time.perf_counter()
+        try:
+            content, _ = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
+                                  models=["natlas"], max_tokens=300, timeout=60, deadline=60, shots=extract.SHOTS)
+            rec = extract._parse_json(content)
+            got = {k: rec.get(k) for k in ("type", "amount", "customer")}
+            print(f"  {lang:8} {time.perf_counter() - t:4.1f}s  {got}")
+        except Exception as e:  # noqa: BLE001
+            print(f"  {lang:8} ❌ {type(e).__name__}: {str(e)[:100]}")
+
+
 def check_configured():
+    check_natlas()
+    if not (os.getenv("NVIDIA_API_KEY") or os.getenv("LOCAL_LLM_URL") or os.getenv("LOCAL_VISION_URL")):
+        return
     live = set(list_live()) if os.getenv("NVIDIA_API_KEY") else set()
     if live:
         print(f"Your key sees {len(live)} models. Ours:")
@@ -128,9 +173,12 @@ def search(words):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
+    ap.add_argument("--natlas", action="store_true", help="only check N-ATLaS")
     ap.add_argument("--search", nargs="?", const=DEFAULT_SEARCH, help="comma-separated words to match model ids")
     args = ap.parse_args()
-    if args.search:
+    if args.natlas:
+        check_natlas()
+    elif args.search:
         search([w.strip().lower() for w in args.search.split(",") if w.strip()])
     else:
         check_configured()

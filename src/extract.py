@@ -42,6 +42,26 @@ remain 25k") = payment_received with the part paid (20000).
 Yoruba days: Ajé Mon, Ìṣẹ́gun Tue, Ọjọ́rú Wed, Ọjọ́bọ̀ Thu, Ẹtì Fri, Àbámẹ́ta Sat, Àìkú Sun.
 Never invent an amount or a name that was not said."""
 
+# Worked examples for N-ATLaS (an 8B model: examples in the prompt add ~10 points, AfroBench evaluation). One per
+# language, made-up names, none copied from the eval sets. Only N-ATLaS gets them (llm.chat shots=).
+def _shot(text, **rec):
+    full = {"type": None, "item": None, "quantity": None, "unit": None, "amount": None, "customer": None,
+            "due_date": None, "confidence": 0.9, "note": None}
+    full.update(rec)
+    return text, json.dumps(full, ensure_ascii=False)
+
+
+SHOTS = [
+    _shot("Mrs Adaeze took 3 crates of eggs, 4,500 each, she will pay later",
+          type="credit_sale", item="eggs", quantity=3, unit="crate", amount=13500, customer="Mrs Adaeze"),
+    _shot("I pay motor fare 1500 carry goods come shop", type="expense", item="motor fare", amount=1500),
+    _shot("Mo ta paint ẹ̀wà mẹ́ta fún Iya Sade ní ẹgbẹ̀rún mẹ́wàá, kò tíì san",
+          type="credit_sale", item="beans", quantity=3, unit="paint", amount=10000, customer="Iya Sade"),
+    _shot("Malam Bello ya biya bashi dubu biyar", type="payment_received", amount=5000, customer="Malam Bello"),
+    _shot("Ere m akpa osikapa abụọ nye Mama Nkechi, puku iri abụọ",
+          type="sale", item="rice", quantity=2, unit="bag", amount=20000, customer="Mama Nkechi"),
+]
+
 # ---------------------------------------------------------------- rules
 
 _SUFFIX = {"k": 1e3, "thousand": 1e3, "grand": 1e3, "m": 1e6, "mil": 1e6, "million": 1e6}
@@ -438,7 +458,8 @@ def llm_extract(text, today=None, vocab=None):
     prompt = (SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
               + _vocab_line(vocab))
     content, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
-                              max_tokens=900, timeout=int(os.getenv("LLM_TIMEOUT", "20")))  # then next model
+                              max_tokens=900, timeout=int(os.getenv("LLM_TIMEOUT", "20")),  # then next model
+                              shots=SHOTS)
     return _parse_json(content), model
 
 

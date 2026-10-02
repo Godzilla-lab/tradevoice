@@ -8,6 +8,14 @@ python eval/run_eval.py --cases eval/cases_team.jsonl    # the team's NEW phrase
 python eval/run_eval.py --audio eval/audio               # transcribe eval/audio/<id>.(wav|m4a|ogg|mp3) first
 python eval/run_eval.py --compare eval/results/A.json eval/results/B.json   # is B really better than A?
 
+N-ATLaS benchmark (docs/naic): same cases, one model at a time, no fallback, zero-shot vs worked examples:
+python eval/run_eval.py --cases eval/cases_hard.jsonl --llm natlas                       # N-ATLaS + examples
+python eval/run_eval.py --cases eval/cases_hard.jsonl --llm natlas --shots none          # N-ATLaS zero-shot
+python eval/run_eval.py --cases eval/cases_hard.jsonl --llm meta/llama3-8b-instruct --shots all  # its base model
+python eval/run_eval.py --cases eval/cases_hard.jsonl --llm qwen/qwen3.5-397b-a17b       # a big cloud model
+Add --raw to score the model's OWN answer before our rules/guards correct it (the rules alone already score 100%
+on cases_hard, so without --raw every model looks perfect). cases_fresh.jsonl = sentences the rules weren't tuned on.
+
 Every run saves eval/results/<cases>-<engine>-<time>.json (per-case answers) for --compare.
 Scores come with a 95% range (Wilson interval): 16/16 correct only proves "somewhere between 81% and 100%".
 """
@@ -181,6 +189,22 @@ def compare(path_a, path_b):
                                 "could be luck: don't claim one is better from this run"))
 
 
+def raw_extract(text):
+    """The model alone: its JSON, normalised (45k -> 45000), no rules backfill, no guards. Failure = empty record."""
+    import extract as ex
+    start = time.perf_counter()
+    meta = {"error": None}
+    try:
+        raw, model = ex.llm_extract(text, TODAY)
+        rec, meta["engine"] = ex._normalise(raw, text, TODAY), f"llm:{model} (raw)"
+        if raw.get("type") not in ex.TYPES:
+            rec["type"] = None  # _normalise would ask the rules; raw mode scores the model alone
+    except Exception as e:  # noqa: BLE001
+        rec, meta["engine"], meta["error"] = {}, "failed", f"{type(e).__name__}: {e}"
+    meta["latency_ms"] = round((time.perf_counter() - start) * 1000)
+    return rec, meta
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", default=os.path.join(HERE, "cases.jsonl"))
@@ -192,6 +216,10 @@ def main():
     ap.add_argument("--limit", type=int, help="only the first N cases (quick check)")
     ap.add_argument("--sleep", type=float, default=0.0, help="seconds between AI calls (free tier: 1.5)")
     ap.add_argument("--rules-only", action="store_true", help="ignore NVIDIA_API_KEY: score the offline rules")
+    ap.add_argument("--llm", help="use ONLY this model (natlas, local, or an NVIDIA model id): a fair benchmark")
+    ap.add_argument("--shots", choices=["natlas", "all", "none"], default="natlas",
+                    help="who gets the worked examples (default: N-ATLaS only, as in the app)")
+    ap.add_argument("--raw", action="store_true", help="score the model's own answer, without our rules/guards")
     ap.add_argument("--no-save", action="store_true")
     ap.add_argument("--compare", nargs=2, metavar=("A.json", "B.json"))
     args = ap.parse_args()
@@ -202,6 +230,15 @@ def main():
     if args.rules_only:
         os.environ.pop("NVIDIA_API_KEY", None)
         os.environ.pop("LOCAL_LLM_URL", None)
+        os.environ.pop("NATLAS_URL", None)
+    import llm
+    llm.SHOTS_FOR = {"natlas": "natlas", "all": "all", "none": ""}[args.shots]
+    if args.llm:
+        llm.LLM_MODELS[:] = [args.llm]
+        if args.llm != "natlas":
+            os.environ.pop("NATLAS_URL", None)   # no N-ATLaS in front
+        if args.llm != "local":
+            os.environ.pop("LOCAL_LLM_URL", None)  # and no backup behind: a failure scores as the rules
 
     cases = [json.loads(line) for line in open(args.cases, encoding="utf-8") if line.strip()]
     if args.lang:
@@ -226,7 +263,10 @@ def main():
             c["asr_engine"] = r["engine"]
         if args.sleep and i:
             time.sleep(args.sleep)
-        rec, meta = extract(text, today=TODAY)
+        if args.raw:
+            rec, meta = raw_extract(text)
+        else:
+            rec, meta = extract(text, today=TODAY)
         engines.add(meta["engine"].split(" (")[0])
         fallbacks += bool(meta.get("error"))
         ok = check(c, rec)
@@ -242,10 +282,12 @@ def main():
 
     if not args.no_save:
         os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
-        tag = "rules" if engines == {"rules"} else "ai"
+        tag = "rules" if engines == {"rules"} else (args.llm or "ai").replace("/", "_") + (
+            f"-shots_{args.shots}" if args.llm else "") + ("-raw" if args.raw else "")
         path = os.path.join(HERE, "results", f"{os.path.splitext(os.path.basename(args.cases))[0]}-{tag}-"
                                              f"{dt.datetime.now():%m%d-%H%M}.json")
-        json.dump({"cases": args.cases, "engines": sorted(engines), "models": os.getenv("LLM_MODELS"),
+        json.dump({"cases": args.cases, "engines": sorted(engines), "models": args.llm or os.getenv("LLM_MODELS"),
+                   "shots": args.shots, "raw": args.raw,
                    "rows": rows}, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=str)
         print(f"\nSaved {path}  (compare two runs: --compare A.json B.json)")
 

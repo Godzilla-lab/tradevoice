@@ -823,6 +823,8 @@ def service_worker():
 @app.on_event("startup")
 def _auto_reminders():
     extras.start_scheduler()
+    import llm
+    llm.wake_natlas()  # start the N-ATLaS GPU loading now, not on the first trader's message
 
 
 NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}

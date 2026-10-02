@@ -1,4 +1,9 @@
-"""One place for every call to NVIDIA's API (build.nvidia.com), with model fallback.
+"""One place for every call to a language model, with model fallback.
+
+N-ATLaS FIRST: when NATLAS_URL is set, N-ATLaS (NCAIR1/N-ATLaS, Llama-3 8B, on our Modal GPU: deploy/modal_natlas.py)
+is tried before anything else. The cloud models and our Brev model are only backups when it is down, and every
+answer says which model gave it, so /team can show N-ATLaS's share. Card settings: temperature 0.1,
+repetition penalty 1.12, Llama-3.1 chat template with date_string, 8,092-token context.
 
 Models on build.nvidia.com get deprecated (Llama 3.3 70B was scheduled for 25 Aug 2026), so we try a list in order
 and remember the first one that works. Override with LLM_MODELS / VISION_MODELS (comma-separated).
@@ -23,6 +28,13 @@ LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct-AWQ")
 # Photo reader on OUR Brev GPU too (vision model served by vLLM): LOCAL_VISION_URL + LOCAL_VISION_MODEL.
 LOCAL_VISION_MODEL = os.getenv("LOCAL_VISION_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct-AWQ")
 LOCAL_ENV = {"llm": "LOCAL_LLM_URL", "vision": "LOCAL_VISION_URL"}
+# N-ATLaS: the main brain (text only; photos still go to the vision models)
+NATLAS_MODEL = os.getenv("NATLAS_MODEL", "natlas")              # the --served-model-name on our vLLM server
+NATLAS_TEMPERATURE = float(os.getenv("NATLAS_TEMPERATURE", "0.1"))
+NATLAS_REPETITION_PENALTY = float(os.getenv("NATLAS_REPETITION_PENALTY", "1.12"))
+OWN_SERVERS = ("natlas", "local")                                 # models that don't need NVIDIA_API_KEY
+# which models get the worked examples (`shots`); benchmarks set LLM_SHOTS_FOR=all to compare fairly
+SHOTS_FOR = os.getenv("LLM_SHOTS_FOR", "natlas")
 
 
 def _local_name(kind):
@@ -34,15 +46,51 @@ _working = {}  # kind -> model that last worked
 _resting = {}  # model -> time until which we skip it (timed out / overloaded recently)
 
 
+def natlas_on():
+    return bool(os.getenv("NATLAS_URL"))
+
+
 def available(kind="llm"):
-    """Is any AI configured? (cloud key, or for text also our own GPU model)"""
+    """Is any AI configured? (cloud key, or for text also N-ATLaS / our own GPU model)"""
     return bool(os.getenv("NVIDIA_API_KEY") or os.getenv(LOCAL_ENV[kind])
-                or (kind == "vision" and os.getenv("VISION_API_KEY")))
+                or (kind == "vision" and os.getenv("VISION_API_KEY")) or (kind == "llm" and natlas_on()))
+
+
+def _served_name(kind, model):
+    return {"local": _local_name(kind), "natlas": NATLAS_MODEL}.get(model, model)
+
+
+def _label(kind, model):
+    return {"local": f"local:{_local_name(kind)}", "natlas": "natlas:NCAIR1/N-ATLaS"}.get(model, model)
+
+
+def is_natlas(engine):
+    """Did this engine label (from chat() or extract meta) come from N-ATLaS?"""
+    return "natlas" in (engine or "").lower()
+
+
+def wake_natlas():
+    """Fire-and-forget ping so a scaled-to-zero Modal container starts loading before the trader's next message."""
+    if not natlas_on():
+        return
+
+    def ping():
+        try:
+            import requests
+            requests.get(os.environ["NATLAS_URL"].rstrip("/") + "/models", timeout=300,
+                         headers={"Authorization": f"Bearer {os.getenv('NATLAS_KEY', 'none')}"})
+        except Exception:  # noqa: BLE001  (best effort)
+            pass
+    import threading
+    threading.Thread(target=ping, daemon=True).start()
 
 
 def _client(kind, timeout, retries=0, model=None):
     from openai import OpenAI
 
+    if model == "natlas":  # N-ATLaS on Modal (vLLM, OpenAI-compatible), e.g. https://<you>--tradevoice-natlas-serve.modal.run/v1
+        return OpenAI(base_url=os.environ["NATLAS_URL"], api_key=os.getenv("NATLAS_KEY", "none"),
+                      timeout=timeout, max_retries=retries)
     if model == "local":  # our own Brev GPU, e.g. http://localhost:8001/v1 (LLM) / :8002/v1 (vision)
         return OpenAI(base_url=os.environ[LOCAL_ENV[kind]], api_key=os.getenv("LOCAL_LLM_KEY", "local"),
                       timeout=timeout, max_retries=retries)
@@ -69,22 +117,38 @@ def clean(text):
     return text.strip()
 
 
-def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, models=None, deadline=None, retries=0):
+def _with_shots(messages, shots):
+    """Insert worked examples (user, assistant) pairs right after the system message."""
+    if not shots:
+        return messages
+    head = [m for m in messages[:1] if m.get("role") == "system"]
+    pairs = [{"role": r, "content": c} for u, a in shots for r, c in (("user", u), ("assistant", a))]
+    return head + pairs + messages[len(head):]
+
+
+def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, models=None, deadline=None, retries=0,
+         shots=None):
     """Return (text, model_used). Tries each configured model (or `models`) until one answers.
     `deadline` (seconds, default LLM_DEADLINE=30) caps the TOTAL wait across all models, so a live demo never
-    hangs: when it runs out the caller falls back to the offline rules."""
+    hangs: when it runs out the caller falls back to the offline rules.
+    `shots`: worked examples [(user, assistant), ...] given to N-ATLaS only (an 8B model gains ~10 points from
+    examples, independent AfroBench evaluation; the big cloud models don't need the extra tokens)."""
     pinned = models is not None
     models = list(models or (VISION_MODELS if kind == "vision" else LLM_MODELS))
+    if kind == "llm" and natlas_on() and not pinned and "natlas" not in models:
+        models.insert(0, "natlas")                # N-ATLaS is the main brain; everything else is a backup
     if os.getenv(LOCAL_ENV[kind]) and not pinned and "local" not in models:
         models.append("local")                    # our own GPU model: the last AI before the offline rules
     if not os.getenv("NVIDIA_API_KEY"):
-        models = [m for m in models if m == "local"]
+        models = [m for m in models if m in OWN_SERVERS]
+    if not natlas_on():
+        models = [m for m in models if m != "natlas"]
     if not pinned:
         now = time.time()
         fresh = [m for m in models if _resting.get(m, 0) <= now]
         models = fresh or models                  # skip models that just timed out (unless all did)
-        if _working.get(kind) in models:          # try the last good model first
-            models = [_working[kind]] + [m for m in models if m != _working[kind]]
+        if _working.get(kind) in models and "natlas" not in models:   # try the last good model first
+            models = [_working[kind]] + [m for m in models if m != _working[kind]]   # (N-ATLaS always leads)
     deadline = float(deadline or os.getenv("LLM_DEADLINE", "30"))
     start = time.perf_counter()
     last = None
@@ -97,17 +161,27 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
                 continue                          # skip ahead: the local model gets the reserved time
             last = last or TimeoutError(f"gave up after {deadline:.0f} s")
             break
-        client = _client(kind, min(timeout, budget), retries, model)
+        wait = min(timeout, budget)
+        extra = {}
+        msgs, temp = messages, temperature
+        if SHOTS_FOR == "all" or model in SHOTS_FOR.split(","):
+            msgs = _with_shots(messages, shots)
+        if model == "natlas":
+            wait = min(float(os.getenv("NATLAS_TIMEOUT", timeout)), budget)
+            temp = NATLAS_TEMPERATURE
+            extra = {"extra_body": {"repetition_penalty": NATLAS_REPETITION_PENALTY,
+                                    "chat_template_kwargs": {"date_string": time.strftime("%d %b %Y")}}}
+        client = _client(kind, wait, retries, model)
         try:
-            resp = client.chat.completions.create(model=_local_name(kind) if model == "local" else model,
-                                                  messages=messages, temperature=temperature, max_tokens=max_tokens)
+            resp = client.chat.completions.create(model=_served_name(kind, model), messages=msgs,
+                                                  temperature=temp, max_tokens=max_tokens, **extra)
             if not pinned:
                 _working[kind] = model
                 _resting.pop(model, None)
-            return clean(resp.choices[0].message.content), (f"local:{_local_name(kind)}" if model == "local" else model)
+            return clean(resp.choices[0].message.content), _label(kind, model)
         except Exception as e:  # noqa: BLE001
             last = e
-            if not _model_gone(e):
+            if not _model_gone(e) and model != "natlas":   # N-ATLaS down for ANY reason -> the backups
                 raise  # network / auth / rate-limit after retries: let the caller fall back to rules
             if not pinned:
                 _resting[model] = time.time() + COOLDOWN
