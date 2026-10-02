@@ -6,13 +6,15 @@ One-time set-up (on your own machine, never paste keys into chat or commit them)
 
 Deploy (prints the URL; add /v1 and put it in .env as NATLAS_URL, with the same NATLAS_KEY):
     modal deploy deploy/modal_natlas.py
-    NATLAS_WARM=1 modal deploy deploy/modal_natlas.py     # keep 1 GPU always on: pilot + NAIC check 15-17 Oct
+    NATLAS_WARM=1 modal deploy deploy/modal_natlas.py     # 1 GPU on day AND night (only if market-hours warmth fails)
 
 Check it:   python scripts/check_models.py --natlas
 Benchmark:  python eval/run_eval.py --cases eval/cases_hard.jsonl --llm natlas
 
-Costs: an L4 bills only while a container runs. With NATLAS_WARM=0 it sleeps after SLEEP_AFTER minutes idle and
-the next message wakes it (about 1-3 minutes; the app answers with the backup models meanwhile).
+Costs: an L4 bills only while a container runs. It sleeps after 60 idle minutes (NATLAS_SLEEP_MIN) and the next
+message wakes it (about 3.5-4 minutes on 2 Oct; the backup models answer meanwhile). Pilot and the 15-17 Oct check:
+the web app pings it every 10 minutes from 7am to 8pm Nigeria time (src/natlas_watch.py), so it is warm in market
+hours and asleep at night, and the team gets a WhatsApp if it stops answering.
 Benchmark N-ATLaS's base model on the same GPU (a separate app, "tradevoice-natlas-base"; needs Meta's licence
 accepted on Hugging Face for the HF_TOKEN's account; NVIDIA's API retired its Llama-3 8B models):
     NATLAS_MODEL_ID=meta-llama/Meta-Llama-3-8B-Instruct modal deploy deploy/modal_natlas.py
@@ -28,7 +30,7 @@ MODEL_ID = os.getenv("NATLAS_MODEL_ID", "NCAIR1/N-ATLaS")
 SERVED_NAME = "natlas"            # = NATLAS_MODEL in the app's .env
 GPU = os.getenv("NATLAS_GPU", "L4")  # 24 GB: the 16-bit model (~16 GB) + KV cache for 8K context
 WARM = int(os.getenv("NATLAS_WARM", "0"))
-SLEEP_AFTER = int(os.getenv("NATLAS_SLEEP_MIN", "15"))
+SLEEP_AFTER = int(os.getenv("NATLAS_SLEEP_MIN", "60"))  # idle minutes before the GPU sleeps
 PORT = 8000
 
 image = (

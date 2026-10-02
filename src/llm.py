@@ -18,8 +18,7 @@ NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com
 LLM_MODELS = [m.strip() for m in os.getenv(
     "LLM_MODELS", os.getenv("LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b,google/gemma-4-31b-it")).split(",") if m.strip()]
 VISION_MODELS = [m.strip() for m in os.getenv(
-    "VISION_MODELS", os.getenv("VISION_MODEL", "google/gemma-4-31b-it,meta/llama-3.2-11b-vision-instruct,"
-                                               "nvidia/nemotron-nano-12b-v2-vl")).split(",") if m.strip()]
+    "VISION_MODELS", os.getenv("VISION_MODEL", "google/gemma-4-31b-it,meta/llama-3.2-11b-vision-instruct")).split(",") if m.strip()]
 VISION_BASE_URL = os.getenv("VISION_BASE_URL", NVIDIA_BASE_URL)
 # Backup brain on OUR Brev GPU: any OpenAI-compatible server (vLLM, NVIDIA NIM). Tried LAST, after the cloud models,
 # with time kept aside for it. Put "local" in LLM_MODELS to choose its place yourself (LLM_MODELS=local = local only).

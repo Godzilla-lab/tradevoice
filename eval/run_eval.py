@@ -11,7 +11,7 @@ python eval/run_eval.py --compare eval/results/A.json eval/results/B.json   # is
 N-ATLaS benchmark (docs/naic): same cases, one model at a time, no fallback, zero-shot vs worked examples:
 python eval/run_eval.py --cases eval/cases_hard.jsonl --llm natlas                       # N-ATLaS + examples
 python eval/run_eval.py --cases eval/cases_hard.jsonl --llm natlas --shots none          # N-ATLaS zero-shot
-python eval/run_eval.py --cases eval/cases_hard.jsonl --llm meta/llama3-8b-instruct --shots all  # its base model
+python eval/run_eval.py --cases eval/cases_hard.jsonl --llm natlas --url https://<base app>/v1 --shots all  # base model
 python eval/run_eval.py --cases eval/cases_hard.jsonl --llm qwen/qwen3.5-397b-a17b       # a big cloud model
 Add --raw to score the model's OWN answer before our rules/guards correct it (the rules alone already score 100%
 on cases_hard, so without --raw every model looks perfect). cases_fresh.jsonl = sentences the rules weren't tuned on.
@@ -219,6 +219,10 @@ def main():
     ap.add_argument("--llm", help="use ONLY this model (natlas, local, or an NVIDIA model id): a fair benchmark")
     ap.add_argument("--shots", choices=["natlas", "all", "none"], default="natlas",
                     help="who gets the worked examples (default: N-ATLaS only, as in the app)")
+    ap.add_argument("--url", help="N-ATLaS-style server to use for --llm natlas (e.g. the base Llama-3-8B app); "
+                                  "overrides NATLAS_URL from .env")
+    ap.add_argument("--label", help="name for the saved results file (e.g. llama3-8b-base)")
+    ap.add_argument("--workers", type=int, default=1, help="cases at once (our own GPU server: 8 is fine)")
     ap.add_argument("--raw", action="store_true", help="score the model's own answer, without our rules/guards")
     ap.add_argument("--no-save", action="store_true")
     ap.add_argument("--compare", nargs=2, metavar=("A.json", "B.json"))
@@ -232,6 +236,8 @@ def main():
         os.environ.pop("LOCAL_LLM_URL", None)
         os.environ.pop("NATLAS_URL", None)
     import llm
+    if args.url:
+        os.environ["NATLAS_URL"] = args.url   # after settings loaded .env (which would win over the shell)
     llm.SHOTS_FOR = {"natlas": "natlas", "all": "all", "none": ""}[args.shots]
     if args.llm:
         llm.LLM_MODELS[:] = [args.llm]
@@ -248,13 +254,14 @@ def main():
     cases = cases[:args.limit] if args.limit else cases
 
     rows, engines, fallbacks = [], set(), 0
-    for i, c in enumerate(cases):
+
+    def one(i, c):
         text, asr_ms = c["text"], None
         if args.audio:
             files = glob.glob(os.path.join(args.audio, c["id"] + ".*"))
             if not files:
                 print(f"skip {c['id']}: no audio")
-                continue
+                return None
             from asr import transcribe
 
             r = transcribe(files[0], ASR_LANG.get(c.get("lang"), "English / Pidgin"))
@@ -263,17 +270,21 @@ def main():
             c["asr_engine"] = r["engine"]
         if args.sleep and i:
             time.sleep(args.sleep)
-        if args.raw:
-            rec, meta = raw_extract(text)
-        else:
-            rec, meta = extract(text, today=TODAY)
-        engines.add(meta["engine"].split(" (")[0])
-        fallbacks += bool(meta.get("error"))
+        rec, meta = raw_extract(text) if args.raw else extract(text, today=TODAY)
         ok = check(c, rec)
-        rows.append({"id": c["id"], "case": c, "text": text, "rec": rec, "ok": ok, "all": all(ok.values()),
-                     "latency_ms": meta["latency_ms"], "asr_ms": asr_ms, "engine": meta["engine"],
-                     "error": meta.get("error")})
-        print(f"\r  {i + 1}/{len(cases)} {'✓' if rows[-1]['all'] else '✗'} {c['id']:<24}", end="", flush=True)
+        return {"id": c["id"], "case": c, "text": text, "rec": rec, "ok": ok, "all": all(ok.values()),
+                "latency_ms": meta["latency_ms"], "asr_ms": asr_ms, "engine": meta["engine"],
+                "error": meta.get("error")}
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:   # results come back in case order
+        for n, row in enumerate(pool.map(one, range(len(cases)), cases)):
+            if row is None:
+                continue
+            rows.append(row)
+            engines.add(row["engine"].split(" (")[0])
+            fallbacks += bool(row["error"])
+            print(f"\r  {n + 1}/{len(cases)} {'✓' if row['all'] else '✗'} {row['id']:<24}", end="", flush=True)
     print()
     if not rows:
         print("No cases to run (empty file, filters, or no matching audio).")
@@ -282,7 +293,7 @@ def main():
 
     if not args.no_save:
         os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
-        tag = "rules" if engines == {"rules"} else (args.llm or "ai").replace("/", "_") + (
+        tag = args.label or "rules" if engines == {"rules"} else args.label or (args.llm or "ai").replace("/", "_") + (
             f"-shots_{args.shots}" if args.llm else "") + ("-raw" if args.raw else "")
         path = os.path.join(HERE, "results", f"{os.path.splitext(os.path.basename(args.cases))[0]}-{tag}-"
                                              f"{dt.datetime.now():%m%d-%H%M}.json")

@@ -824,7 +824,9 @@ def service_worker():
 def _auto_reminders():
     extras.start_scheduler()
     import llm
-    llm.wake_natlas()  # start the N-ATLaS GPU loading now, not on the first trader's message
+    import natlas_watch
+    llm.wake_natlas()     # start the N-ATLaS GPU loading now, not on the first trader's message
+    natlas_watch.start()  # market hours: keep it warm + WhatsApp the team if it stops answering
 
 
 NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}

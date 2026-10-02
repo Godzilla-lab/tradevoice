@@ -153,5 +153,19 @@ for text, answer in extract.SHOTS:
                                                                             and a["customer"] in text else [])
 check("worked examples are valid records with names that appear in the sentence", ok)
 
+# 10. health watch: alerts the team once after 2 fails, once when back; quiet at night
+import natlas_watch  # noqa: E402
+
+sent, answers = [], []
+natlas_watch.check = lambda: answers.pop(0)
+for a in (True, False, False, False, True):
+    answers.append(a)
+    natlas_watch.step(send=sent.append)
+check("one failed check -> no alert yet; 2 in a row -> ONE team alert; back -> one 'answering again'",
+      len(sent) == 2 and "not answering" in sent[0] and "again" in sent[1])
+check("health checks only in market hours (Nigeria time)",
+      natlas_watch._market_hours(dt.datetime(2026, 10, 6, 9)) and not natlas_watch._market_hours(
+          dt.datetime(2026, 10, 6, 22)) and not natlas_watch._market_hours(dt.datetime(2026, 10, 6, 3)))
+
 print(f"\n{passed}/{total} N-ATLaS checks pass")
 sys.exit(0 if passed == total else 1)
