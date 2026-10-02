@@ -1,0 +1,5 @@
+/* The owner's choices on top of the website design (design/tradevoice-2.0/landing2.html stays as the designer made
+   it; scripts/build_app.py links this file after the design's own styles). */
+
+/* no dashes anywhere: the short line the design draws before each small heading ("—— Get the app") is not shown */
+.k:before{display:none}

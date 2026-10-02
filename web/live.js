@@ -20,6 +20,28 @@
     return { ok: r.ok, status: r.status, data };
   }
   const lang = () => LANG[L] || "English";
+  // the design hides "Offline. Saved, will send later" with the hidden attribute, but its .chip rule (display:
+  // inline-flex) wins over hidden, so it showed online too. This puts hidden back in charge, for that banner only.
+  { const s = document.createElement("style"); s.textContent = "#off[hidden]{display:none}"; document.head.append(s); }
+
+  /* spoken replies: after a voice note TradeVoice answers out loud (Me > Voice replies turns it off).
+     Phones only let a page play sound it was allowed to during a tap, so the tap on the mic unlocks the player. */
+  const player = new Audio();
+  const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+  const voiceOn = () => { try { return localStorage.getItem("tv-voice") !== "off"; } catch (e) { return true; } };
+  function unlock() { try { player.src = SILENT; const p = player.play(); if (p) p.then(() => player.pause()).catch(() => {}); } catch (e) {} }
+  function say(sid) {
+    if (!sid || !voiceOn()) return;
+    try { player.pause(); player.src = `/api/speak/${sid}`; const p = player.play(); if (p) p.catch(() => {}); } catch (e) {}
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-a=voice]"); if (!b) return;
+    const on = !voiceOn();
+    try { localStorage.setItem("tv-voice", on ? "on" : "off"); } catch (x) {}
+    b.setAttribute("aria-checked", String(on));
+    if (!on) player.pause();
+    toast(on ? "Voice replies on: I answer out loud after a voice note." : "Voice replies off.");
+  });
 
   function fromServer(m) {
     return { phone: m.phone, name: m.name, biz: m.biz, type: m.type, mk: m.mk, addr: m.addr, rc: m.rc, photo: m.photo,
@@ -32,8 +54,11 @@
     const r = await api("/api/v2/book");
     if (!r.ok) return;
     const openId = C[cur] && C[cur].id, hist = {};
-    C.forEach(c => { if (c.id && c.h && c.h.length) hist[c.id] = c.h; });
-    C = r.data.customers.map(c => Object.assign(c, { h: hist[c.id] || [] })); inN = r.data.in; outN = r.data.out;
+    C.forEach(c => { if (c.id && c.full) hist[c.id] = c.h; });   // full histories already opened stay
+    // until a customer's full history is opened, their latest record stands in (the Customers filters read its age)
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);   // a new record since: the kept history is old
+    C = r.data.customers.map(c => Object.assign(c, hist[c.id] && same(hist[c.id][0], c.last) ? { h: hist[c.id], full: true } : { h: c.last ? [c.last] : [] }));
+    inN = r.data.in; outN = r.data.out;
     if (openId) { const i = C.findIndex(c => c.id === openId); if (i >= 0) cur = i; }   // the same customer stays open
     all();
     if ($("#det.on")) openDet(cur);
@@ -41,11 +66,11 @@
   async function openDet(i) {
     const c = C[i]; if (!c || !c.id) return;
     const r = await api(`/api/v2/customer/${c.id}`);
-    if (r.ok && C[i] === c) { c.h = r.data.h; det(); }
+    if (r.ok && C[i] === c) { c.h = r.data.h; c.full = true; det(); }
   }
 
   const TVL = window.TVL = {
-    demo, A: null,
+    demo, A: null, voiceOn, say,
     async boot() {
       const r = await api("/api/v2/me");
       if (r.ok) {
@@ -178,12 +203,15 @@
     credit_purchase: "I took on credit", payment_made: "I paid back" };
   const day = d => { if (!d) return ""; const x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString("en-NG", { weekday: "long" }); };
 
-  talk = async function () {
+  const cardTalk = async function (pre) {
+    unlock();   // during the tap: lets the spoken reply play later on phones
     const o = sheet(""), box = $(".in", o);
+    if (pre && pre.draft) return pre.draft.amount == null ? re(1, pre.draft) : card(pre.draft);   // from the live talk: check it on screen
+    api("/api/warm", { body: {} });
     const live = s => `<div class="wave">${"<i></i>".repeat(24)}</div><ol class="steps">${["listen", "hear", "think"].map((k, i) => `<li class="${i < s ? "done" : i == s ? "on" : ""}">${t(k)}</li>`).join("")}</ol><div class="quote" id="qt">&nbsp;</div>`;
     const err = (h, p) => { box.innerHTML = `<h3>${h}</h3><p class="s">${p}</p><div class="btns"><button class="btn p w" id="re">Try again</button></div>`; $("#re", o).onclick = () => { shut(o); setTimeout(talk, 300); }; };
     let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } }); }
     catch (e) { return err("Microphone is off", "Turn it on in your browser: Site settings, Microphone, Allow. Then try again."); }
     box.innerHTML = `<h3>${t("listen")}…</h3>` + live(0);
     // record until the trader stops talking (about 1.2 s of quiet after speech), taps the sheet, or 30 s
@@ -194,15 +222,27 @@
     const ctx = new (window.AudioContext || window.webkitAudioContext)(), an = ctx.createAnalyser();
     ctx.createMediaStreamSource(stream).connect(an); an.fftSize = 1024;
     const buf = new Uint8Array(an.fftSize); let spoke = false, quietSince = 0; const t0 = Date.now();
+    // noise floor: learned from the first quarter second, follows the background down at once and up only slowly,
+    // so in a noisy market "quiet" means back to the market's level, not silence (which never comes there)
+    const first = []; let floor = 0;
     const stop = () => { if (rec.state == "recording") rec.stop(); };
     $(".wave", box).style.cursor = "pointer"; $(".wave", box).onclick = stop;
+    $("#qt", box).textContent = "Tap when you're done";   // the quiet line under the steps; the words appear here next
     (function watch() {
       if (rec.state != "recording") return;
       if (!o.isConnected) return stop();
       an.getByteTimeDomainData(buf); let s = 0; for (const v of buf) s += (v - 128) ** 2;
-      const loud = Math.sqrt(s / buf.length) > 6;
+      const rms = Math.sqrt(s / buf.length);
+      if (first.length < 15) {   // learn the background first (the stream starts with empty frames: skip them)
+        if (rms > 0.5) first.push(rms);
+        floor = first.length ? first.slice().sort((a, b) => a - b)[first.length >> 1] : 0;
+        if (!spoke && Date.now() - t0 > 8000) return stop();
+        return requestAnimationFrame(watch);
+      }
+      floor = rms < floor ? rms : floor + (rms - floor) * 0.002;
+      const loud = rms > Math.max(6, floor * 1.8 + 3);
       if (loud) { spoke = true; quietSince = 0; } else if (spoke && !quietSince) quietSince = Date.now();
-      if ((spoke && quietSince && Date.now() - quietSince > 1200) || Date.now() - t0 > 30000 || (!spoke && Date.now() - t0 > 8000)) return stop();
+      if ((spoke && quietSince && Date.now() - quietSince > 1200) || Date.now() - t0 > 20000 || (!spoke && Date.now() - t0 > 8000)) return stop();
       requestAnimationFrame(watch);
     })();
     await stopped; stream.getTracks().forEach(x => x.stop()); ctx.close();
@@ -224,6 +264,7 @@
     show(r.data);
 
     function show(d) {
+      say(d.speak);
       const dr = d.draft;
       if (!dr) {   // a question or a chat answer, not a record
         box.innerHTML = `<h3>${esc(d.text)}</h3><div class="btns"><button class="btn p w" id="ok">Done</button></div>`;
@@ -258,14 +299,284 @@
       q("x").onclick = () => { api("/api/message", { body: { session: SID, text: "no", lang: lang() } }); shut(o); };
     }
     function re(m, dr) {
-      box.innerHTML = `<h3>${m ? "I didn't catch the amount." : "Change the amount"}</h3><p class="s">Say it again or type it.</p><label class="inp">₦<input id="am" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="Amount"></label><div class="btns"><button class="btn p w" id="go">Continue</button></div>`;
-      const i = $("#am", o); i.focus();
-      const g = async () => { const v = +i.value.replace(/\D/g, ""); if (!v) return i.focus();
-        const x = await api("/api/draft", { body: { session: SID, lang: lang(), amount: v } });
-        if (x.ok && x.data.draft) card(x.data.draft); else { dr.amount = v; card(dr); } };
-      $("#go", o).onclick = g; i.onkeydown = e => e.key == "Enter" && g();
+      // the design's Change: the amount, big. A record about a person also gets the name (the design's own form field),
+      // so a misheard name can be fixed without starting again; it's ready to type when the card flagged it.
+      const person = /credit_sale|payment_received|credit_purchase|payment_made/.test(dr.type) || !!dr.customer;
+      const nameFirst = person && (dr.unsure || []).includes("customer");
+      box.innerHTML = `<h3>${m ? "I didn't catch the amount." : person ? "Change the details" : "Change the amount"}</h3><p class="s">Say it again or type it.</p><label class="inp">₦<input id="am" inputmode="numeric" autocomplete="off" placeholder="${dr.amount ? Number(dr.amount).toLocaleString("en-NG") : "0"}" aria-label="Amount"></label>` +
+        (person ? `<div style="margin-top:var(--s4)">${fld("cn", "Customer", { ac: "off", v: dr.customer || "", ph: "Their name, e.g. Mama Tunde" })}</div>` : "") +
+        `<div class="btns"><button class="btn p w" id="go">Continue</button></div>`;
+      const i = $("#am", o), n = $("#cn", o);
+      (nameFirst && n ? n : i).focus();
+      const g = async () => {
+        const v = +i.value.replace(/\D/g, "") || +dr.amount || 0;
+        if (!v) return i.focus();
+        const name = n ? n.value.trim() : null;
+        if (n && !name && nameFirst) return n.focus();
+        const body = { session: SID, lang: lang(), amount: v };
+        if (n && name !== (dr.customer || "")) body.customer = name;
+        const x = await api("/api/draft", { body });
+        if (x.ok && x.data.draft) card(x.data.draft);
+        else toast("Couldn't change it. Check your connection and try again.");   // never show a card the server doesn't hold
+      };
+      $("#go", o).onclick = g;
+      for (const el of [i, n]) if (el) el.onkeydown = e => { if (e.key == "Enter") g(); };   // (returning false would block every key)
     }
   };
+
+  /* ---------------------------------------------------------------- Talk, live: a spoken conversation.
+     Tap the mic: TradeVoice listens, answers out loud, and listens again, without buttons or reading. The orb breathes
+     while it waits, follows your voice while you talk and its own voice while it answers; tap it to cut in.
+     Nothing is saved until you say yes (it asks "Should I save it?"). Voice replies off (Me) -> the card flow above. */
+  const LW = {   // words the design doesn't have yet (Yoruba, Hausa, Igbo: for the native speaker check)
+    en: { speak: "Speaking", rest: "Paused", hello: "Go ahead, I'm listening.", tap: "Tap to cut in", again: "I didn't catch that. Say it again?",
+      slow: "Still working…", bye: "Talk soon.", stop: "I'll stop here. Tap me when you need me.", check: "Tap to check it on screen", done: "Done", off: "Sorry, I couldn't hear that." },
+    pcm: { speak: "I dey talk", rest: "I don pause", hello: "Talk, I dey hear you.", tap: "Touch am make I stop", again: "I no catch am. Talk am again?",
+      slow: "I still dey work on am…", bye: "We go talk.", stop: "I go stop here. Touch me when you need me.", check: "Touch am to check am", done: "Done", off: "Sorry, I no hear am well." },
+    yo: { speak: "Mò ń sọ̀rọ̀", rest: "Mo dúró", hello: "Sọ ọ́, mò ń gbọ́.", tap: "Fọwọ́ kàn án láti dá mi dúró", again: "Mi ò gbọ́ ọ. Tún un sọ?",
+      slow: "Mo ṣì ń ṣiṣẹ́ lé e…", bye: "Ó dàbọ̀.", stop: "Màá dúró báyìí. Fọwọ́ kàn mí tí o bá nílò mi.", check: "Tẹ̀ ẹ́ láti yẹ̀ ẹ́ wò", done: "Ó tó", off: "Má bínú, mi ò gbọ́ ọ dáadáa." },
+    ha: { speak: "Ina magana", rest: "Na tsaya", hello: "Faɗa, ina saurare.", tap: "Taɓa don ka tsayar da ni", again: "Ban ji ba. Sake faɗa?",
+      slow: "Ina kan aiki…", bye: "Sai anjima.", stop: "Zan tsaya nan. Taɓa ni idan kana bukata ta.", check: "Taɓa don ka duba", done: "Shikenan", off: "Yi haƙuri, ban ji sosai ba." },
+    ig: { speak: "Ana m ekwu", rest: "Akwụsịrị m", hello: "Kwuo, ana m ege ntị.", tap: "Metụ ya aka ka m kwụsị", again: "Anụghị m ya. Kwughachi ya?",
+      slow: "Ana m arụ ya…", bye: "Ka ọ dị.", stop: "Aga m akwụsị ebe a. Metụ m aka mgbe ịchọrọ m.", check: "Pịa ka i lelee ya", done: "Ọ zuola", off: "Ndo, anụghị m nke ọma." },
+  };
+  // what to call the trader (same rule as the server's accounts.trader): "Ada Okafor" -> "Ada", "Mama Ngozi" stays
+  const callName = n => { const w = (n || "").trim().split(/\s+/); return w.length > 1 && /^(mama|iya|baba|papa|alhaji|alhaja|hajia|hajiya|madam|oga|chief|mr|mrs|aunty|auntie|uncle|dr|mallam|malam|sister|brother|nne|nna|ogbeni)\.?$/i.test(w[0]) ? w[0] + " " + w[1] : w[0] || ""; };
+  const BYE = /\b(that'?s all|that is all|bye( bye)?|goodbye|good bye|na im be that|o da ?bo|sai an ?jima|ka o di)\b/;
+  const plain = x => (x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // the orb: built only from the design's tokens (accent, canvas, fill, labels, radii, spacing), so it follows the theme
+  const ORB_CSS = `
+.tvc{display:flex;flex-direction:column;align-items:center;text-align:center;min-height:min(560px,76vh);padding-top:var(--s2)}
+.tvc-pill{display:inline-flex;align-items:center;gap:var(--s2);height:28px;padding:0 var(--s3);border-radius:var(--pill);background:var(--fill);color:var(--label2);font-size:.8125rem;font-weight:500;letter-spacing:-.01em}
+.tvc-pill i{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:tvc-dot 1.6s ease-in-out infinite}
+.tvc[data-st=think] .tvc-pill i{background:var(--label2);animation-duration:.8s}
+.tvc[data-st=rest] .tvc-pill i{animation:none;background:var(--label2)}
+.tvc-stage{flex:1;display:grid;place-items:center;width:100%;min-height:260px;padding:var(--s6) 0;-webkit-tap-highlight-color:transparent;outline:0}
+.tvc-orb{--lv:0;position:relative;width:184px;height:184px;animation:tvc-breathe 5.6s ease-in-out infinite}
+.tvc-orb:before{content:"";position:absolute;inset:-22%;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 42%,transparent),transparent);opacity:calc(.5 + var(--lv) * .5);transform:scale(calc(.92 + var(--lv) * .32));transition:opacity var(--d1),transform var(--d1)}
+.tvc-orb b{position:absolute;inset:0;border-radius:50%;transform:scale(calc(1 + var(--lv) * .14));transition:transform .1s linear;
+ background:radial-gradient(circle at 34% 26%,color-mix(in srgb,var(--accent) 30%,#fff) 0%,color-mix(in srgb,var(--accent) 80%,#fff) 18%,var(--accent) 56%,color-mix(in srgb,var(--accent) 52%,#000) 100%);
+ box-shadow:0 28px 72px -24px var(--accent),inset 0 -20px 44px color-mix(in srgb,var(--accent) 45%,#000),inset 0 12px 28px rgba(255,255,255,.32)}
+.tvc-orb u{position:absolute;inset:0;border-radius:50%;overflow:hidden;clip-path:circle(50%);-webkit-mask-image:radial-gradient(circle,#000 70%,#000 71%);isolation:isolate;transform:translateZ(0)}
+.tvc-orb b i{position:absolute;width:72%;height:72%;border-radius:50%;filter:blur(20px);mix-blend-mode:screen;opacity:.8;animation:tvc-swirl 12s linear infinite}
+.tvc-orb b i:nth-child(1){left:-12%;top:34%;background:color-mix(in srgb,var(--accent) 42%,#FF62A5);transform-origin:85% 15%}
+.tvc-orb b i:nth-child(2){right:-14%;top:-8%;background:color-mix(in srgb,var(--accent) 48%,#5AD8FF);transform-origin:15% 85%;animation-duration:15s;animation-direction:reverse}
+.tvc-orb b i:nth-child(3){left:22%;bottom:-26%;background:color-mix(in srgb,var(--accent) 25%,#fff);opacity:.45;transform-origin:50% 0;animation-duration:9s}
+.tvc[data-st=think] .tvc-orb{animation-duration:1.8s}
+.tvc[data-st=think] .tvc-orb b i{animation-duration:2.4s}
+.tvc[data-st=rest] .tvc-orb{animation-duration:8s;filter:saturate(.4);opacity:.75}
+.tvc-orb,.tvc-orb b{transition:filter var(--d3),opacity var(--d3),transform .1s linear}
+.tvc-say{min-height:3em;max-width:30ch;color:var(--label2);font-size:1.0625rem;line-height:1.45;letter-spacing:-.01em;margin-bottom:var(--s2)}
+.tvc-say b{color:var(--label);font-weight:500}
+button.tvc-say{text-decoration:none}
+.tvc-hint{color:var(--label2);font-size:.8125rem;min-height:1.3em;margin-bottom:var(--s3)}
+.tvc .btns{width:100%}
+@keyframes tvc-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.055)}}
+@keyframes tvc-swirl{to{transform:rotate(360deg)}}
+@keyframes tvc-dot{50%{opacity:.35;transform:scale(.7)}}`;
+
+  const chat = async function () {
+    const w = k => (LW[L] || LW.en)[k];
+    api("/api/warm", { body: {} });   // a sleeping N-ATLaS starts now, while you talk, not after
+    // during the tap (phones allow sound and audio meters only from a tap): the reply's player and the meters
+    let ac = null; try { ac = new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch (e) {}
+    const voice = new Audio();
+    try { voice.src = SILENT; const p = voice.play(); if (p) p.then(() => voice.pause()).catch(() => {}); } catch (e) {}
+    if (!$("#tvc-css")) { const s = document.createElement("style"); s.id = "tvc-css"; s.textContent = ORB_CSS; document.head.append(s); }
+    const o = sheet(`<div class="tvc" data-st="listen"><span class="tvc-pill"><i></i><span id="st">${t("listen")}</span></span>` +
+      `<button class="tvc-stage" id="orb" aria-label="${w("tap")}"><span class="tvc-orb"><b><u><i></i><i></i><i></i></u></b></span></button>` +
+      `<p class="tvc-say" id="cap" aria-live="polite">${w("hello")}</p><p class="tvc-hint" id="hint"></p>` +
+      `<div class="btns"><button class="btn w" id="dn">${w("done")}</button></div></div>`);
+    const box = $(".tvc", o), orb = $(".tvc-orb", o);
+    const set = st => { box.dataset.st = st; $("#st", o).textContent = { listen: t("listen"), think: t("think"), speak: w("speak"), rest: w("rest") }[st]; };
+    const caption = (h, hint = "") => { const c = $("#cap", o); if (c.tagName != "P") c.outerHTML = `<p class="tvc-say" id="cap" aria-live="polite"></p>`; $("#cap", o).innerHTML = h; $("#hint", o).textContent = hint; };
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } }); }
+    catch (e) { $(".in", o).innerHTML = `<h3>Microphone is off</h3><p class="s">Turn it on in your browser: Site settings, Microphone, Allow. Then try again.</p>`; ac && ac.close(); return; }
+    if (!o.isConnected) { stream.getTracks().forEach(x => x.stop()); ac && ac.close(); return; }
+
+    // meters: your voice (the mic) and TradeVoice's (the reply), both read by the orb
+    let micAn = null, outAn = null, wired = false;
+    if (ac) { micAn = ac.createAnalyser(); micAn.fftSize = 1024; ac.createMediaStreamSource(stream).connect(micAn); }
+    const buf = new Uint8Array(1024);
+    const rms = an => { an.getByteTimeDomainData(buf); let s = 0; for (const v of buf) s += (v - 128) ** 2; return Math.sqrt(s / buf.length); };
+    function wire() {   // the reply goes through the meter only when the audio engine is really running (else: silence)
+      if (wired || !ac || ac.state != "running") return;
+      try { outAn = ac.createAnalyser(); outAn.fftSize = 1024; const src = ac.createMediaElementSource(voice); src.connect(outAn); outAn.connect(ac.destination); wired = true; } catch (e) { outAn = null; }
+    }
+    let lv = 0, floor = 0; const first = [];
+    // the mic, read once a frame by the orb loop. Speech flickers (loud, soft, loud…), so "talking" = enough loud
+    // moments in the last 0.4 s, and "quiet" is counted from the last loud moment
+    const V = { loud: false, hits: [], lastLoud: 0, talking: false };
+    (function glow() {   // the orb's size follows whoever is talking
+      if (!o.isConnected) return;
+      const st = box.dataset.st; let target = 0;
+      if (st != "speak") hearMic();   // (not while it speaks: it would hear itself)
+      if (!calm && st == "listen" && micAn && first.length >= 15) target = Math.min(1, Math.max(0, rms(micAn) - floor) / 22);
+      else if (!calm && st == "speak") target = outAn ? Math.min(1, rms(outAn) / 26) : (Math.sin(Date.now() / 140) + 1) * .22;
+      lv += (target - lv) * (target > lv ? .35 : .12);
+      orb.style.setProperty("--lv", lv.toFixed(3));
+      requestAnimationFrame(glow);
+    })();
+
+    let cutIn = null;   // tap the orb: stop listening (and send), or stop talking (and listen)
+    $("#orb", o).onclick = () => { if (cutIn) cutIn(); else if (box.dataset.st == "rest") run(); };
+    $("#dn", o).onclick = () => shut(o);
+    const end = setInterval(() => {   // closed (Done, swipe, tap outside): the mic and the voice stop at once
+      if (o.isConnected) return;
+      clearInterval(end); if (cutIn) cutIn(); voice.pause(); stream.getTracks().forEach(x => x.stop()); ac && ac.close();
+    }, 250);
+
+    // ---- turn-taking: when have you really finished talking?
+    // A short pause (0.6 s) starts the hearing early, in the background, while it keeps listening. It answers only
+    // after a real stop: 1.3 s of quiet AND your words back. Talk again before that: the early hearing is thrown
+    // away and the whole thing, old words and new, is heard again. Talk while it is preparing the reply: it doesn't
+    // talk over you; what you said is kept as your next turn. (Nothing is recorded while it speaks: it would hear itself.)
+    const PAUSE = 600, DONE = 1300, MAX = 40000, NOTHING = 8000;
+    function hearMic() {
+      if (!micAn) return;
+      const r = rms(micAn);
+      if (first.length < 15) {   // the background, learned once per conversation (same rule as the card flow)
+        if (r > 0.5) first.push(r);
+        floor = first.length ? first.slice().sort((a, b) => a - b)[first.length >> 1] : 0;
+        V.loud = false;
+      } else {
+        floor = r < floor ? r : floor + (r - floor) * 0.002;
+        V.loud = r > Math.max(6, floor * 1.8 + 3);
+      }
+      const now = Date.now();
+      if (V.loud) { V.hits.push(now); V.lastLoud = now; }
+      while (V.hits.length && now - V.hits[0] > 400) V.hits.shift();
+      V.talking = V.hits.length >= 6;
+    }
+    function record() {   // a recording you can read while it goes on (in 0.2 s pieces)
+      const rec = new MediaRecorder(stream), parts = [], R = { t0: Date.now(), spoke: false };
+      rec.ondataavailable = e => e.data.size && parts.push(e.data);
+      R.stopped = new Promise(r => (rec.onstop = r));
+      R.blob = () => new Blob(parts, { type: rec.mimeType || "audio/webm" });
+      R.stop = () => { if (rec.state == "recording") rec.stop(); return R.stopped; };
+      rec.start(200);
+      return R;
+    }
+    function hearNow(blob) {   // words only: nothing in the book or the chat changes, so it can be thrown away
+      const ctrl = new AbortController(), e = { ctrl, result: null };
+      const fd = new FormData();
+      fd.append("file", blob, "note.webm"); fd.append("lang", lang()); fd.append("consent", "yes");
+      e.promise = fetch("/api/hear", { method: "POST", body: fd, signal: ctrl.signal })
+        .then(async r => ({ ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) }))
+        .catch(x => ({ ok: false, status: 0, aborted: x.name == "AbortError", data: { error: w("off") } }))
+        .then(x => (e.result = x));
+      return e;
+    }
+    // one turn: returns what you said ({ok, data:{heard}}), or null if nothing was said
+    function listen(carry) {
+      set("listen");
+      const R = carry || record();
+      let spoke = !!(carry && carry.spoke), tapped = false, early = null;
+      cutIn = () => { tapped = true; };   // tap: "I'm done", answer now
+      return new Promise(done => {
+        const finish = async () => {
+          cutIn = null;
+          await R.stop();
+          if (!spoke && !tapped) return done(null);
+          // the early hearing missed nothing if you stayed quiet; otherwise (a tap mid-word) hear the whole recording
+          if (!early || early.result && !early.result.ok && early.result.status != 422) { if (early) early.ctrl.abort(); early = hearNow(R.blob()); }
+          done(await early.promise);
+        };
+        (function watch() {
+          if (!o.isConnected || stopAll) { R.stop(); cutIn = null; return done(null); }
+          const now = Date.now();
+          if (!micAn) { if (tapped || now - R.t0 > 10000) { spoke = true; return finish(); } return setTimeout(watch, 100); }
+          if (V.talking) {   // talking (again): not finished after all
+            spoke = true;
+            if (early) { early.ctrl.abort(); early = null; }
+          }
+          const quiet = spoke && !V.talking ? now - V.lastLoud : 0;
+          if (quiet >= PAUSE && !early) early = hearNow(R.blob());   // a pause: start hearing, keep listening
+          if (tapped || now - R.t0 > MAX) return finish();
+          if (early && early.result && quiet >= DONE) return finish();   // a real stop, and the words are back
+          if (!spoke && now - R.t0 > NOTHING) return finish();
+          requestAnimationFrame(watch);
+        })();
+      });
+    }
+    // TradeVoice's answer, out loud (made on the server while the words were being worked out)
+    // The clip is fetched first: no voice (off, or Intron failed) moves on at once (a player left to find a missing
+    // clip by itself waits 5 to 10 s before giving up, while you wait in silence)
+    async function speak(sid) {
+      if (!sid || !o.isConnected) return;
+      set("speak"); wire();
+      let stop = false;
+      cutIn = () => { stop = true; voice.pause(); };
+      const r = await fetch(`/api/speak/${sid}`).catch(() => null);
+      const clip = r && r.ok ? await r.blob().catch(() => null) : null;
+      if (!clip || stop || !o.isConnected) { cutIn = null; return; }
+      const url = URL.createObjectURL(clip);
+      await new Promise(done => {
+        const fin = () => { voice.onended = voice.onerror = null; cutIn = null; URL.revokeObjectURL(url); done(); };
+        voice.onended = voice.onerror = fin;
+        cutIn = () => { voice.pause(); fin(); };
+        voice.src = url;
+        const p = voice.play(); if (p) p.catch(fin);
+      });
+    }
+    // one quiet line: the key facts of what's waiting to be saved, or the short answer
+    function line(d) {
+      const dr = d.draft;
+      if (d.pending && dr && dr.amount != null) {
+        const bits = [`<b>${f(dr.amount)}</b>`, dr.customer && esc(dr.customer), (TYPE[dr.type] || "").replace(/^[↑↓] /, ""), dr.due_date && day(dr.due_date)].filter(Boolean);
+        caption(bits.join(" · "), w("check"));
+        const c = $("#cap", o); c.outerHTML = `<button class="tvc-say" id="cap" aria-live="polite">${c.innerHTML}</button>`;
+        $("#cap", o).onclick = () => { stopAll = true; if (cutIn) cutIn(); shut(o); setTimeout(() => cardTalk(d), 300); };
+        return;
+      }
+      const s = (d.text || "").replace(/[*_]/g, "").split("\n")[0];
+      caption(esc(s.length > 140 ? s.slice(0, 137).trimEnd() + "…" : s));
+    }
+
+    let stopAll = false, running = false;
+    async function run() {
+      if (running) return; running = true;
+      let quiet = 0, fails = 0, carry = null;
+      const nm = A && callName(A.name), hi = w("hello");
+      caption(nm ? `${esc(nm)}, ${hi[0].toLowerCase()}${hi.slice(1)}` : hi);   // "Ada, go ahead, I'm listening."
+      while (o.isConnected && !stopAll) {
+        const h = await listen(carry); carry = null;
+        if (!o.isConnected || stopAll) break;
+        if (!h || h.status == 422) {   // nothing said: once, ask again; twice, rest (tap the orb to go on)
+          if (++quiet >= 2) { caption(w("stop")); set("rest"); break; }
+          if ($("#cap", o).tagName == "BUTTON") $("#hint", o).textContent = w("again"); else caption(w("again"));   // the facts stay
+          continue;
+        }
+        quiet = 0;
+        if (!h.ok) { if (++fails >= 3) { caption(esc(h.data.error || w("off"))); set("rest"); break; } caption(esc(h.data.error || w("off"))); continue; }
+        fails = 0;
+        const said = h.data.heard || "", heard = plain(said);
+        if (BYE.test(heard) && heard.split(/\s+/).length <= 5) { caption(w("bye")); set("rest"); setTimeout(() => shut(o), 900); break; }
+        // the reply. The mic stays open meanwhile: if you go on talking, that's kept for your next turn
+        set("think"); caption(`“${esc(said.length > 120 ? said.slice(0, 117) + "…" : said)}”`);
+        const next = micAn ? record() : null;
+        const minding = setInterval(() => { if (next && V.talking) next.spoke = true; }, 50);
+        const slow = setTimeout(() => $("#hint", o).textContent = w("slow"), 12000);
+        const r = await api("/api/say", { body: { session: SID, text: said, lang: lang(), shop: A ? A.biz : "" } });
+        clearTimeout(slow); clearInterval(minding); $("#hint", o).textContent = "";
+        if (!o.isConnected || stopAll) { if (next) next.stop(); break; }
+        if (!r.ok) { if (next) next.stop(); caption(esc(r.data.error || w("off"))); continue; }
+        const d = r.data;
+        line(d);
+        loadBook();   // a yes saved it: the book behind the sheet is already up to date when it closes
+        if (d.saved) toast(esc((d.text || "").replace(/\*/g, "").split("\n")[0]), async () => { await api("/api/v2/undo_last", { body: {} }); loadBook(); });
+        if (next && next.spoke) { carry = next; continue; }   // you were talking: listen on, the reply stays on screen
+        if (next) next.stop();
+        await speak(d.speak);
+      }
+      running = false;
+    }
+    run();
+  };
+  talk = () => (voiceOn() && window.MediaRecorder && navigator.mediaDevices ? chat() : cardTalk());
+  TVL.chat = chat;
 
   /* ---------------------------------------------------------------- reminders: drafted by TradeVoice, sent by YOU */
   remind = async function () {

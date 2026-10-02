@@ -1,17 +1,17 @@
 """The trust + money features, mounted in web.py:
 
-🏦 Lender link: the trader agrees, picks how long (1 / 7 / 30 days), and gets a private link to their score and
+Lender link: the trader agrees, picks how long (1 / 7 / 30 days), and gets a private link to their score and
    statement. Anyone with the link can view it until it expires or the trader revokes it; every view is counted.
-💸 Pay link in reminders: /pay/<token> shows what the customer owes. With PAYSTACK_SECRET_KEY set they pay by card,
+Pay link in reminders: /pay/<token> shows what the customer owes. With PAYSTACK_SECRET_KEY set they pay by card,
    transfer, USSD or bank on Paystack and the debt settles by itself: Paystack's signed webhook records it, and as a
    backup the pay page re-checks the payment with Paystack when the customer comes back. The trader gets a WhatsApp
-   message ("💸 Mama Tunde just paid ₦20,000 online. Still owes you: ₦25,000"). Without Paystack: the trader's bank
+   message ("Mama Tunde just paid ₦20,000 online. Still owes you: ₦25,000"). Without Paystack: the trader's bank
    details + "I have paid" -> the trader confirms in the customer's conversation.
-⏰ Automatic reminders: on the promised day, TradeVoice drafts the reminder (with the pay link) in each customer's
+Automatic reminders: on the promised day, TradeVoice drafts the reminder (with the pay link) in each customer's
    conversation and sends the trader one WhatsApp summary. The trader still presses send to the customer.
-🧾 Receipts: after a record for a customer, a receipt ready to send on WhatsApp (shows the new balance).
-🔒 PIN lock: a 4-digit PIN, checked by the server (the API refuses a locked session). 5 wrong -> wait 5 minutes.
-📤 CSV export of the whole book.
+Receipts: after a record for a customer, a receipt ready to send on WhatsApp (shows the new balance).
+PIN lock: a 4-digit PIN, checked by the server (the API refuses a locked session). 5 wrong -> wait 5 minutes.
+CSV export of the whole book.
 """
 import csv
 import datetime as dt
@@ -106,7 +106,7 @@ background:#F2A900;color:#13233F;text-decoration:none;margin-top:10px;cursor:poi
 </style></head><body><main>{body}</main></body></html>""")
 
 
-# ---------------------------------------------------------------- 🏦 lender link (consented, time-limited)
+# ---------------------------------------------------------------- lender link (consented, time-limited)
 
 class Share(BaseModel):
     days: int = 7
@@ -162,7 +162,7 @@ def lender_view(token: str):
         page = insights.statement_html(u.get("shop") or "Business", "", None)
     if not page:
         return _page("No records", "<h1>No records yet</h1>")
-    banner = (f"<p style='background:#FFF3D1;padding:10px 12px;border-radius:10px;font:14px system-ui'>🔒 Shared by the "
+    banner = (f"<p style='background:#FFF3D1;padding:10px 12px;border-radius:10px;font:14px system-ui'>Shared by the "
               f"business owner with their consent, until <b>{r['expires'][:10]}</b>. Phone ending "
               f"{r['phone'][-4:]}. From the owner's own confirmed records, not audited. Under the Nigeria Data "
               f"Protection Act the owner can stop sharing at any time; any lending decision needs the lender's own "
@@ -170,7 +170,7 @@ def lender_view(token: str):
     return HTMLResponse(page.replace("<h1>Business Record Statement</h1>", banner + "<h1>Business Record Statement</h1>"))
 
 
-# ---------------------------------------------------------------- 💸 pay link inside reminders
+# ---------------------------------------------------------------- pay link inside reminders
 
 def pay_link(base, phone, customer_id, amount):
     """A private link for this customer to pay this debt (valid 14 days)."""
@@ -208,7 +208,7 @@ def pay_page(token: str, reference: str = "", trxref: str = ""):
     u = _user(link["phone"])
     shop = u.get("shop") or "the trader"
     if owed <= 0:
-        return _page("Paid", f"<h1>{shop}</h1><div class='ok'>✅ Nothing to pay. Thank you!</div>")
+        return _page("Paid", f"<h1>{shop}</h1><div class='ok'>Nothing to pay. Thank you!</div>")
     bank = ""
     if u.get("account_number"):
         bank = (f"<div class='card'><b>Bank transfer</b><br>{u.get('bank_name') or ''}<br>"
@@ -231,12 +231,12 @@ def pay_claimed(token: str):
         raise HTTPException(404)
     owed, s = _owed_now(link)
     with _in_book(link["phone"]):
-        ledger.add_message(link["customer_id"], f"💸 {s.get('name', 'The customer')} says they paid ₦{owed:,.0f} by bank "
+        ledger.add_message(link["customer_id"], f"{s.get('name', 'The customer')} says they paid ₦{owed:,.0f} by bank "
                            f"transfer. Check your bank app, then confirm.", sender="customer", kind="payclaim",
                            status=f"claim:{owed:.0f}")
     with _lock, _db() as c:
         c.execute("UPDATE paylinks SET status='claimed' WHERE token_hash=?", (_h(token),))
-    return _page("Thank you", "<div class='ok'>✅ Thank you! The trader will confirm when the money arrives.</div>")
+    return _page("Thank you", "<div class='ok'>Thank you! The trader will confirm when the money arrives.</div>")
 
 
 @router.post("/pay/{token}/paystack")
@@ -327,7 +327,7 @@ def record_payment(link, amount, how, mark=True):
         ledger.add_entry({"type": "payment_received", "amount": amount, "customer_id": link["customer_id"]},
                          raw_text=f"(paid online: {how})", engine="paylink")
         s = ledger.customer_summary(link["customer_id"]) or {}
-        ledger.add_message(link["customer_id"], f"✅ Paid ₦{amount:,.0f} online ({how}). New balance: "
+        ledger.add_message(link["customer_id"], f"Paid ₦{amount:,.0f} online ({how}). New balance: "
                            f"₦{(s.get('owes_me') or 0):,.0f}.", sender="tradevoice", kind="note")
     if mark:
         with _lock, _db() as c:
@@ -385,31 +385,31 @@ def reminder_with_paylink(request_base, phone, cid, msg):
     s = ledger.customer_summary(cid) or {}
     if (s.get("owes_me") or 0) <= 0:
         return msg
-    return msg + f"\n\n💳 Pay here: {pay_link(request_base, phone, cid, s['owes_me'])}"
+    return msg + f"\n\nPay here: {pay_link(request_base, phone, cid, s['owes_me'])}"
 
 
-# ---------------------------------------------------------------- 🧾 receipt after a record
+# ---------------------------------------------------------------- receipt after a record
 
 RECEIPT = {
-    "English": {"sale": "Thank you for buying {item}for {amt} from {shop} today. 🙏",
+    "English": {"sale": "Thank you for buying {item}for {amt} from {shop} today.",
                 "credit_sale": "{shop}: you took {item}for {amt} on credit today.{due} You now owe {bal} in total.",
-                "payment_received": "{shop}: we received {amt} from you today. Thank you! 🙏 Balance left: {bal}.",
+                "payment_received": "{shop}: we received {amt} from you today. Thank you! Balance left: {bal}.",
                 "due": " You promised to pay by {d}."},
-    "Pidgin": {"sale": "Thank you as you buy {item}for {amt} from {shop} today. 🙏",
+    "Pidgin": {"sale": "Thank you as you buy {item}for {amt} from {shop} today.",
                "credit_sale": "{shop}: you carry {item}for {amt} on credit today.{due} Your total balance na {bal}.",
-               "payment_received": "{shop}: we don collect {amt} from you today. Thank you! 🙏 Wetin remain: {bal}.",
+               "payment_received": "{shop}: we don collect {amt} from you today. Thank you! Wetin remain: {bal}.",
                "due": " You talk say you go pay by {d}."},
-    "Yoruba": {"sale": "Ẹ ṣé tí ẹ ra {item}ní {amt} lọ́wọ́ {shop} lónìí. 🙏",
+    "Yoruba": {"sale": "Ẹ ṣé tí ẹ ra {item}ní {amt} lọ́wọ́ {shop} lónìí.",
                "credit_sale": "{shop}: ẹ mú {item}ní {amt} ní àwìn lónìí.{due} Gbogbo gbèsè yín jẹ́ {bal}.",
-               "payment_received": "{shop}: a ti gba {amt} lọ́wọ́ yín lónìí. Ẹ ṣé o! 🙏 Èyí tó kù: {bal}.",
+               "payment_received": "{shop}: a ti gba {amt} lọ́wọ́ yín lónìí. Ẹ ṣé o! Èyí tó kù: {bal}.",
                "due": " Ẹ ṣèlérí láti san ní {d}."},
-    "Hausa": {"sale": "Mun gode da kuka sayi {item}na {amt} daga {shop} yau. 🙏",
+    "Hausa": {"sale": "Mun gode da kuka sayi {item}na {amt} daga {shop} yau.",
               "credit_sale": "{shop}: kun ɗauki {item}na {amt} bashi yau.{due} Jimillar bashinku {bal}.",
-              "payment_received": "{shop}: mun karɓi {amt} daga gare ku yau. Mun gode! 🙏 Saura: {bal}.",
+              "payment_received": "{shop}: mun karɓi {amt} daga gare ku yau. Mun gode! Saura: {bal}.",
               "due": " Kun yi alkawarin biya kafin {d}."},
-    "Igbo": {"sale": "Daalụ maka ịzụta {item}na {amt} n'aka {shop} taa. 🙏",
+    "Igbo": {"sale": "Daalụ maka ịzụta {item}na {amt} n'aka {shop} taa.",
              "credit_sale": "{shop}: ị were {item}na {amt} n'ụgwọ taa.{due} Ngụkọta ụgwọ gị bụ {bal}.",
-             "payment_received": "{shop}: anyị natara {amt} n'aka gị taa. Daalụ! 🙏 Ihe fọdụrụ: {bal}.",
+             "payment_received": "{shop}: anyị natara {amt} n'aka gị taa. Daalụ! Ihe fọdụrụ: {bal}.",
              "due": " Ị kwere nkwa ịkwụ ụgwọ tupu {d}."},
 }
 
@@ -428,10 +428,10 @@ def receipt(cid, rec_type, amount, item, due, shop, lang="English"):
     txt = words[rec_type].format(item=(item or goods.get(lang, "goods")) + " ", amt=f"₦{amount:,.0f}", shop=shop,
                                  bal=f"₦{(s.get('owes_me') or 0):,.0f}",
                                  due=words["due"].format(d=due_txt) if due else "")
-    return "🧾 " + re.sub(r"\s{2,}", " ", txt)
+    return re.sub(r"\s{2,}", " ", txt)
 
 
-# ---------------------------------------------------------------- 📄 per-customer statement (the trader sends it)
+# ---------------------------------------------------------------- per-customer statement (the trader sends it)
 
 STATEMENT = {
     "English": {"head": "{shop}: your account", "owed": "You owe: {m}", "due": "please pay by {d}", "clear": "Nothing owed. Thank you!",
@@ -487,14 +487,14 @@ def customer_statement(cid, shop, lang="English", base="", phone=None, today=Non
         due_txt = f", {w['due'].format(d=dt.date.fromisoformat(due).strftime('%-d %b'))}" if due else ""
         out.append(f"*{w['owed'].format(m=f'₦{owed:,.0f}')}*{due_txt}.")
         if base and phone:
-            out.append(f"💳 {pay_link(base, phone, cid, owed)}")
+            out.append(f"{pay_link(base, phone, cid, owed)}")
         out.append(w["thanks"])
     else:
         out.append(w["clear"])
-    return "📄 " + "\n".join(out)
+    return "\n".join(out)
 
 
-# ---------------------------------------------------------------- ⏰ automatic reminders on the promised day
+# ---------------------------------------------------------------- automatic reminders on the promised day
 
 def run_due_reminders(base=None, today=None, send=True):
     """For every trader's book: draft today's reminders (once a day) and WhatsApp the trader a summary."""
@@ -534,10 +534,10 @@ def run_due_reminders(base=None, today=None, send=True):
                 parts = []
                 if due:
                     lines = "\n".join(f"• {d['customer']}: ₦{d['balance']:,.0f}" for d in due[:8])
-                    parts.append(f"📌 {len(due)} customer(s) promised to pay today:\n{lines}\n"
+                    parts.append(f"{len(due)} customer(s) promised to pay today:\n{lines}\n"
                                  "Your reminders are ready (with a pay link).")
                 if usual:
-                    parts.append("🔁 " + "\n🔁 ".join(converse.repeat_line(p, lang if lang in converse.LANGS else "English")
+                    parts.append("\n".join(converse.repeat_line(p, lang if lang in converse.LANGS else "English")
                                                        + f' Say "{p["customer"]} usual" to record it.' for p in usual[:5]))
                 whatsapp.send_text(phone, "\n\n".join(parts) + f"\n\nOpen: {base}/app")
             except Exception as e:  # noqa: BLE001 - WhatsApp may not reach them (24 h rule); drafts are still there
@@ -570,7 +570,7 @@ def start_scheduler():
     threading.Thread(target=purge, daemon=True).start()
 
 
-# ---------------------------------------------------------------- 🔒 PIN lock
+# ---------------------------------------------------------------- PIN lock
 
 class Pin(BaseModel):
     pin: str = ""
@@ -630,7 +630,7 @@ def pin_check(b: Pin, request: Request):
     return {"ok": True, "unlock": token}
 
 
-# ---------------------------------------------------------------- 📤 CSV export
+# ---------------------------------------------------------------- CSV export
 
 @router.post("/api/customers/{cid}/statement")
 def statement_draft(cid: int, request: Request):

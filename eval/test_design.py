@@ -43,7 +43,12 @@ for src, built in (("app.html", "app.html"), ("landing2.html", "landing.html")):
               "AC[a.phone]=a" not in b and "!==A.pw" not in b and "!==r.acct.pw" not in b)
     else:
         check(f"{built}: 'Open the app' goes to /app, not a preview link", "claude.ai/artifact" not in b
-              and b.count('href="/app"') == 3)
+              and b.count('href="/app"') == 4)
+sys.path.insert(0, os.path.join(ROOT, "src"))
+import plain  # noqa: E402
+for built in ("app.html", "landing.html"):
+    b = open(os.path.join(ROOT, "web", built), encoding="utf-8").read()
+    check(f"{built}: no emojis, no long dashes (words only)", not plain.EMOJI.search(b) and "—" not in b and "–" not in b)
 check("the design files themselves are untouched by the build",
       "TVL." not in open(os.path.join(DESIGN, "app.html"), encoding="utf-8").read())
 

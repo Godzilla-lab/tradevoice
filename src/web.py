@@ -10,6 +10,8 @@ import os
 import re
 import shutil
 import tempfile
+import threading
+import time
 import urllib.parse
 import uuid
 
@@ -21,6 +23,7 @@ from pydantic import BaseModel
 
 import accounts
 import converse
+import events
 import insights
 import ledger
 import photo
@@ -34,10 +37,10 @@ VOICE_LANGS = {"English": "English / Pidgin", "Pidgin": "English / Pidgin", "Yor
                "Igbo": "Igbo"}
 
 app = FastAPI(title="TradeVoice")
-import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, same book)
+import whatsapp  # noqa: E402  (the WhatsApp bot: same server, same link, same book)
 
 app.include_router(whatsapp.router)
-import team  # noqa: E402  (📊 /team: the team's dashboard + anonymised CSV, ADMIN_TOKEN only)
+import team  # noqa: E402  (/team: the team's dashboard + anonymised CSV, ADMIN_TOKEN only)
 app.include_router(team.router)
 import v2  # noqa: E402  (the TradeVoice 2.0 design's accounts + book: design/tradevoice-2.0/)
 app.include_router(v2.router)
@@ -87,6 +90,7 @@ app.add_middleware(BookPerTrader)
 SESSIONS = {}   # (book, browser session id) -> conversation state (who "her" is, the draft waiting for "yes")
 SPEAK = {}      # speak id -> (text, language) ; audio is made only when the page asks for it
 AUDIO = {}      # speak id -> audio file path
+MAKING = {}     # speak id -> threading.Event while its voice is being made (after a voice note: started at once)
 
 
 def _state(session, lang=None):
@@ -110,6 +114,28 @@ def _speak_id(text, lang):
     sid = uuid.uuid4().hex
     SPEAK[sid] = (text, lang if lang in tts.REPLY_LANGS else "English")
     return sid
+
+
+def _make_voice(sid):
+    try:
+        text, lang = SPEAK[sid]
+        out = tts.speak(text, lang)
+        AUDIO[sid] = out["path"] if out else None   # None = no voice for this reply (off, or Intron failed)
+    except Exception as e:  # noqa: BLE001  (no voice: the reply is still on screen)
+        AUDIO[sid] = None
+        print(f"voice reply failed: {type(e).__name__}: {e}")
+    finally:
+        ev = MAKING.pop(sid, None)
+        if ev:
+            ev.set()
+
+
+def _start_voice(sid):
+    """After a voice note the spoken reply is made straight away, while the trader reads the card: by the time the
+    page asks for it (/api/speak) it is ready or nearly. One Intron call per reply, never two."""
+    if sid and sid in SPEAK and sid not in AUDIO and sid not in MAKING:
+        MAKING[sid] = threading.Event()
+        threading.Thread(target=_make_voice, args=(sid,), daemon=True).start()
 
 
 def _upload(file: UploadFile, suffix):
@@ -143,11 +169,13 @@ def _draft(state):
             "limit": converse.draft_limit(rec)}
 
 
-def _reply_json(r, state, heard=None):
-    return {"text": r["text"], "english": r.get("english"), "lang": r["lang"], "heard": heard,
-            "message": r.get("message"), "link": r.get("link"), "choices": r.get("choices"),
-            "pending": bool(state.get("pending")), "draft": _draft(state),
-            "speak": _speak_id(r.get("spoken"), r["lang"])}
+def _reply_json(r, state, heard=None, live=False):
+    from plain import no_emoji   # words only, whatever wrote them (the AI included)
+    spoken = no_emoji(tts.live_ask(r.get("spoken"), r["lang"]) if live else r.get("spoken"))
+    return {"text": no_emoji(r["text"]), "english": no_emoji(r.get("english")), "lang": r["lang"], "heard": heard,
+            "message": no_emoji(r.get("message")), "link": r.get("link"), "choices": r.get("choices"),
+            "pending": bool(state.get("pending")), "draft": _draft(state), "saved": bool(r.get("saved")),
+            "speak": _speak_id(spoken, r["lang"])}
 
 
 class DraftEdit(BaseModel):
@@ -213,13 +241,26 @@ def _safe_reply(text, state, shop, lang):
         print(f"chat reply failed for {text!r}: {type(e).__name__}: {e}")
         import ui_text
 
-        lang = lang if lang in ui_text.LANGS else "English"
-        return {"text": ui_text.t("hello", lang), "spoken": ui_text.t("hello", lang), "lang": lang}
+        lang = lang if lang in ui_text.LANGS else "English"   # honest: never a "Hello" that ignores the question
+        said = converse.SAY["not_sure"].get(lang, converse.SAY["not_sure"]["English"])
+        return {"text": said, "spoken": said, "lang": lang}
 
 
 @app.post("/api/voice")
 def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str = Form("English"),
-          consent: str = Form(""), shop: str = Form("")):
+          consent: str = Form(""), shop: str = Form(""), live: str = Form("")):
+    """A voice note in, the reply out (its spoken voice is made at once in the background). live=1: the live
+    conversation (no buttons), so the read-back asks "Should I save it?" instead of "Press save"."""
+    heard = _hear(file, lang, consent)
+    if isinstance(heard, JSONResponse):
+        return heard
+    out = _say(heard["text"], session, lang, shop, live == "1")
+    out["engine"], out["detected"] = heard.get("engine"), heard.get("detected")
+    return out
+
+
+def _hear(file, lang, consent):
+    """Voice note -> words (nothing else changes: safe to run early and to throw away)."""
     if consent != "yes":
         raise HTTPException(400, "consent needed")
     path = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm")
@@ -232,14 +273,53 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
         return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
     finally:
         os.remove(path)  # the voice note is deleted as soon as it is read
-    text = heard["text"].strip()
-    if not text:
+    heard["text"] = (heard.get("text") or "").strip()
+    if not heard["text"]:
         return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
+    return heard
+
+
+def _say(text, session, lang, shop, live):
+    """Words -> the reply (the conversation moves on: a draft, a question, or a save), its voice started at once."""
     state = _state(session, lang)
-    out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text)
-    out["engine"] = heard.get("engine")
-    out["detected"] = heard.get("detected")
+    t0 = time.perf_counter()
+    out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text, live=live)
+    events.log("understand", channel="web", lang=lang, ms=(time.perf_counter() - t0) * 1000)   # speed check (E6)
+    _start_voice(out.get("speak"))
     return out
+
+
+@app.post("/api/hear")
+def hear(file: UploadFile = File(...), lang: str = Form("English"), consent: str = Form("")):
+    """Live talk, step 1: only the words. The page sends this at a short pause while it keeps listening; if the trader
+    goes on talking, it throws this away and sends the whole thing again. Nothing in the book or the chat changes."""
+    heard = _hear(file, lang, consent)
+    if isinstance(heard, JSONResponse):
+        return heard
+    return {"heard": heard["text"], "engine": heard.get("engine"), "detected": heard.get("detected")}
+
+
+class Said(BaseModel):
+    session: str = "anon"
+    text: str
+    lang: str = "English"
+    shop: str = ""
+
+
+@app.post("/api/say")
+def say(b: Said):
+    """Live talk, step 2: the trader has really finished; the words heard in step 1 get their (spoken) reply."""
+    if not b.text.strip():
+        raise HTTPException(400, "nothing was said")
+    return _say(b.text.strip(), b.session, b.lang, b.shop, live=True)
+
+
+@app.post("/api/warm")
+def warm():
+    """Talk was opened: wake the N-ATLaS servers now, so they are up by the time the voice note arrives."""
+    import natlas_watch
+
+    return {"waking": natlas_watch.wake()}
 
 
 @app.get("/api/voice_check")
@@ -257,8 +337,8 @@ def voice_check(lang: str = "Yoruba", fmt: str = "wav"):
             os.remove(path)
             return {"lang": lang, "ok": True, "format": "ogg (WhatsApp voice note)", "bytes": size}
         out = tts.speak(text, lang if lang in tts.REPLY_LANGS else "English")
-        if not out:
-            return {"lang": lang, "ok": False, "error": "no voice set up: add INTRON_API_KEY (or SPITCH_API_KEY) to .env"}
+        if not out:   # the real reason (no key, Intron refused the key / credit, or Intron's own error)
+            return {"lang": lang, "ok": False, "error": tts.why_not_intron() or "Intron gave no audio (see the server log)"}
         return {"lang": lang, "ok": True, "engine": out["engine"], "bytes": os.path.getsize(out["path"]),
                 "why_not_intron": None if out["engine"].startswith("intron") else tts.why_not_intron()}
     except Exception as e:  # noqa: BLE001
@@ -268,6 +348,9 @@ def voice_check(lang: str = "Yoruba", fmt: str = "wav"):
 @app.get("/api/speak/{sid}")
 def speak(sid: str):
     """The voice note for a reply, made on first request (so the text shows without waiting for the voice)."""
+    ev = MAKING.get(sid)
+    if ev:
+        ev.wait(90)   # already being made since the voice note came in
     if sid not in AUDIO:
         if sid not in SPEAK:
             raise HTTPException(404)
@@ -276,6 +359,8 @@ def speak(sid: str):
         if not out:
             raise HTTPException(404, "voice is off")
         AUDIO[sid] = out["path"]
+    if not AUDIO[sid]:
+        raise HTTPException(404, "no voice for this reply")
     return FileResponse(AUDIO[sid], media_type="audio/wav")
 
 
@@ -572,7 +657,7 @@ def read_audio(screen: str, lang: str = "English"):
     return FileResponse(out["path"], media_type="audio/wav")
 
 
-# ---------------------------------------------------------------- 🎙️ Ask TradeVoice (voice assistant on every screen)
+# ---------------------------------------------------------------- Ask TradeVoice (voice assistant on every screen)
 
 @app.get("/api/explain/{screen}")
 def explain(screen: str, lang: str = "English"):
@@ -666,7 +751,7 @@ def status():
                                                                or os.getenv("WHATSAPP_PHONE_NUMBER_ID")))}
 
 
-# ---------------------------------------------------------------- 🔐 log in with your phone number
+# ---------------------------------------------------------------- log in with your phone number
 
 class Start(BaseModel):
     phone: str
@@ -717,7 +802,7 @@ def auth_start(b: Start):
         try:
             words = {"Pidgin": "Your TradeVoice code na", "Yoruba": "Kóòdù TradeVoice rẹ ni",
                      "Hausa": "Lambar TradeVoice ɗinka ita ce", "Igbo": "Koodu TradeVoice gị bụ"}
-            whatsapp.send_text(phone, f"🔐 {words.get(b.lang, 'Your TradeVoice code is')} *{login['code']}*\n"
+            whatsapp.send_text(phone, f"{words.get(b.lang, 'Your TradeVoice code is')} *{login['code']}*\n"
                                       "Don't share it with anyone.")
             sent = True
         except Exception as e:  # noqa: BLE001 - expired token, or Meta's 24-hour rule
@@ -814,6 +899,9 @@ def demo_data():
 
 # ---------------------------------------------------------------- pages
 
+import mimetypes  # noqa: E402
+
+mimetypes.add_type("application/manifest+json", ".webmanifest")   # "Add to Home Screen": the app's install file
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "web")), name="static")
 
 
@@ -859,6 +947,7 @@ def _page(name):
     if bot:  # the website's "Use on WhatsApp" buttons open a chat with the bot
         html = html.replace('href="https://wa.me/"', f'href="https://wa.me/{bot}?text=Hi"')
         html = html.replace('window.open("https://wa.me/","_blank"', f'window.open("https://wa.me/{bot}?text=Hi","_blank"')
+        html = html.replace('"https://wa.me/?text="', f'"https://wa.me/{bot}?text="')   # "tell me when it's in the store"
     return HTMLResponse(html, headers=NO_CACHE)
 
 

@@ -46,16 +46,21 @@ class R:
             raise requests.HTTPError(self.status_code)
 
 
-SENT, MODE = [], {"limit": None, "accent_bad": False, "busy": False, "refuse": False}
+SENT, MODE = [], {"limit": None, "accent_bad": False, "busy": False, "refuse": False, "bad_accents": set()}
 
 
 def fake_post(url, json=None, headers=None, timeout=None):
     SENT.append((url, json, headers))
+    if MODE.get("delay"):
+        import time
+        time.sleep(MODE["delay"])
     if MODE["refuse"]:
         return R(402, {"message": "insufficient credits"})
     if MODE["limit"] and len(json["text"]) > MODE["limit"]:
         return R(400, {"message": f"text character count greater than the max limit of {MODE['limit']} characters"})
-    if MODE["accent_bad"] and "voice_accent" in json:
+    if "voice_accent" not in json:
+        return R(400, {"message": "voice accent is required"})   # Intron since Oct 2026
+    if MODE["accent_bad"] or json["voice_accent"] in MODE["bad_accents"]:
         return R(400, {"message": f"invalid text voice accent,{json['voice_accent']} not supported"})
     if MODE["busy"]:
         return R(503, {"data": {"text_id": "t1"}})
@@ -80,24 +85,53 @@ def main():
           and body["voice_accent"] == "yoruba", SENT[-1])
     check("audio downloaded as a WAV file", out["path"].endswith(".wav") and out["engine"] == "intron:yo", out)
     tts.speak("Hello", "Pidgin")
-    check("Pidgin uses the Nigerian English voice", SENT[-1][1]["voice_language"] == "en"
-          and SENT[-1][1]["voice_accent"] == "nigerian")
+    check("Pidgin uses Intron's Pidgin voice (pcm + pidgin)", SENT[-1][1]["voice_language"] == "pcm"
+          and SENT[-1][1]["voice_accent"] == "pidgin", SENT[-1])
+    tts.speak("Saved. Mama Tunde owes you forty-five thousand naira.", "English")
+    check("English replies are read by the Pidgin voice too", SENT[-1][1]["voice_language"] == "pcm"
+          and SENT[-1][1]["voice_accent"] == "pidgin", SENT[-1])
 
     SENT.clear()
     MODE["limit"] = 100
     long = " ".join(["Iya Bisi owes you twenty thousand naira for indomie."] * 6)
     out = tts.speak(long, "English")
     check("too long -> learns the 100-character limit, sends pieces, joins them", out["path"].endswith(".wav")
-          and all(len(b["text"]) <= 100 for _, b, _ in SENT[1:]) and tts._INTRON_MAX["chars"] <= 100, [len(b["text"]) for _, b, _ in SENT])
+          and all(len(b["text"]) <= 100 for _, b, _ in SENT[-len(tts._pieces(tts.speakable(long), tts._INTRON_MAX["chars"])):])
+          and tts._INTRON_MAX["chars"] <= 100, [len(b["text"]) for _, b, _ in SENT])
     with wave.open(out["path"]) as w:
         check("…into one clip", w.getnframes() == 800 * len(tts._pieces(tts.speakable(long), tts._INTRON_MAX["chars"])))
+    import time
+    MODE["delay"], t0 = 0.4, time.perf_counter()
+    out = tts.speak(" ".join(["Mama Tunde owes you ten thousand naira for garri."] * 4), "English")
+    took = time.perf_counter() - t0
+    n = len(tts._pieces(tts.speakable(" ".join(["Mama Tunde owes you ten thousand naira for garri."] * 4)), tts._INTRON_MAX["chars"]))
+    check(f"a long reply's {n} pieces are made at the same time, not one after another ({took:.1f} s, not {n * 0.4:.1f} s)",
+          out and n >= 2 and took < 0.4 * 1.6, (n, took))
+    MODE["delay"] = 0
     MODE["limit"] = None
 
     MODE["accent_bad"] = True
     SENT.clear()
     tts.speak("Ina kwana", "Hausa")
-    check("accent refused -> retried without an accent", "voice_accent" not in SENT[-1][1] and len(SENT) == 2, SENT)
+    try:
+        tts._intron_speak("Ina kwana", "Hausa")
+        check("no accent Intron takes -> a clear error with Intron's first message", False)
+    except RuntimeError as e:
+        check("no accent Intron takes -> a clear error with Intron's first message",
+              "hausa not supported" in str(e) and all("voice_accent" in b for _, b, _ in SENT), str(e))
     MODE["accent_bad"] = False
+    MODE["bad_accents"] = {"hausa"}   # an accent Intron renames or drops (as it did with "nigerian")
+    tts.INTRON_VOICES["Test"] = ("en", "hausa")
+    SENT.clear()
+    tts._intron_speak("Hello, I am your book", "Test")
+    check("accent refused -> the next likely one is tried, and works",
+          [b["voice_accent"] for _, b, _ in SENT if "voice_accent" in b][:2] == ["hausa", "yoruba"], SENT)
+    SENT.clear()
+    tts._intron_speak("Good morning", "Test")
+    check("…and remembered: the next reply goes straight to it", SENT[0][1]["voice_accent"] == "yoruba", SENT)
+    del tts.INTRON_VOICES["Test"]
+    MODE["bad_accents"] = set()
+    tts._GOOD_ACCENT.clear()
 
     MODE["busy"] = True
     check("503 with text_id -> polls the status until ready", tts.speak("Daalụ", "Igbo")["path"].endswith(".wav"))

@@ -12,6 +12,8 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "src"))
+from plain import no_emoji_keep_layout  # noqa: E402
 SRC = os.path.join(ROOT, "design", "tradevoice-2.0", "app.html")
 OUT = os.path.join(ROOT, "web", "app.html")
 LANDING_SRC = os.path.join(ROOT, "design", "tradevoice-2.0", "landing2.html")
@@ -19,12 +21,39 @@ LANDING_OUT = os.path.join(ROOT, "web", "landing.html")
 # the website: "Open the app" goes to our app (the design pointed at a preview link); the design editor button only
 # with ?demo=1. The WhatsApp links get the bot's number when the server sends the page (WHATSAPP_BOT_NUMBER).
 LANDING_PATCHES = [
-    ("app links", 'href="https://claude.ai/artifact/6R1XDoNUaLC2YsE7JjyFJD"', 'href="/app"', 3),
+    ("app links", 'href="https://claude.ai/artifact/6R1XDoNUaLC2YsE7JjyFJD"', 'href="/app"', 4),
+    # its settings key: "tv-ed-site", as the app's new editor names it (the app clears the old shared "tv-ed" key)
     ("editor button", '<script>\n(()=>{const K="tv-ed"',
-     '<script>window.TV_NO_FAB=!/[?&]demo=1\\b/.test(location.search)</script>\n<script>\n(()=>{const K="tv-ed"', 1),
+     '<script>window.TV_NO_FAB=!/[?&]demo=1\\b/.test(location.search)</script>\n<script>\n(()=>{const K="tv-ed-site"', 1),
+    ("logo", '<a class="logo" href="#top" aria-label="TradeVoice home"><svg viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="13" fill="var(--accent)" stroke="none"/><g stroke="var(--accent-fg)" stroke-width="3.2"><path d="M13 19v6M19 14v16M25 10v24M31 17v10"/></g></svg>TradeVoice</a>',
+     '<a class="logo" href="#top" aria-label="TradeVoice home"><img src="/static/logo.svg" alt="" aria-hidden="true" width="30" height="30">TradeVoice</a>', 1),
+    ("tab icon", '<title>TradeVoice: just talk am. Your book remembers.</title>',
+     '<title>TradeVoice: just talk am. Your book remembers.</title>\n<link rel="stylesheet" href="/static/site.css"><link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><link rel="manifest" href="/static/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="TradeVoice">', 1),
+    # --- the example's sum: owed ₦45,000, paid ₦12,000 -> ₦33,000 left (not ₦0)
+    ("example sum", 'Mama Tunde just paid ₦12,000 online. Still owes you ₦0.',
+     'Mama Tunde paid ₦12,000. She still owes you ₦33,000.', 1),
+    # --- the N-ATLaS licence requires this sentence wherever TradeVoice credits N-ATLaS
+    ("N-ATLaS attribution", 'Nigeria’s own multilingual AI model.</div>',
+     'Nigeria’s own multilingual AI model.<br>N-ATLaS is an initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri Technologies.</div>', 1),
 ]
 
 PATCHES = [
+    # --- 4 languages to choose (Pidgin is still understood: it is English's voice and the brain reads it)
+    ("no Pidgin tile", 'LG=[["en","English"],["pcm","Pidgin"],', 'LG=[["en","English"],'),
+    # --- the N-ATLaS licence sentence in Me > About
+    ("N-ATLaS attribution (app)", 'R("Powered by N-ATLaS","Nigeria\'s own AI model","")',
+     'R("Powered by N-ATLaS","Nigeria\'s own AI model. N-ATLaS is an initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri Technologies.","")'),
+    # --- the TradeVoice logo (web/logo.svg, the animated mic in a speech bubble) and the browser tab / home screen icon
+    ("logo", 'const LOGO=\'<svg class="lg" viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="13" fill="var(--accent)" stroke="none"/><g stroke="var(--accent-fg)" stroke-width="3.2"><path d="M13 19v6M19 14v16M25 10v24M31 17v10"/></g></svg>\';',
+     'const LOGO=\'<img class="lg" src="/static/logo.svg" alt="" aria-hidden="true" style="display:block">\';'),
+    ("tab icon", '<title>TradeVoice</title>', '<title>TradeVoice</title>\n<link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><link rel="manifest" href="/static/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="TradeVoice">'),
+    # --- typing an amount: the key handler returned false for every key but Enter, which cancels the key in a browser
+    ("amount keys (You got/gave)", 'fn(v);shut(o)};$("#go",o).onclick=g;i.onkeydown=e=>e.key=="Enter"&&g()}',
+     'fn(v);shut(o)};$("#go",o).onclick=g;i.onkeydown=e=>{if(e.key=="Enter")g()}}'),
+    ("amount keys (design talk)", 'amt=+v;card()};$("#go",o).onclick=g;i.onkeydown=e=>e.key=="Enter"&&g()}',
+     'amt=+v;card()};$("#go",o).onclick=g;i.onkeydown=e=>{if(e.key=="Enter")g()}}'),
+    # --- Me > Voice replies: a real switch (web/live.js keeps the choice on this phone)
+    ("voice switch", 'sw("voice",true,"Voice replies")', 'sw("voice",!window.TVL||TVL.voiceOn(),"Voice replies")'),
     # --- no sample customers on screen before the real book loads (the design starts with made-up ones)
     ("no sample data", 'let C=seed();', 'let C=[];'),
     ("no sample totals", 'inN=128500,outN=40000,', 'inN=0,outN=0,'),
@@ -120,6 +149,7 @@ def build():
         html = html.replace(old, new)
     if missing:
         sys.exit("The design changed; update these swaps in scripts/build_app.py:\n  " + "\n  ".join(missing))
+    html = no_emoji_keep_layout(html)   # words only, no emojis (the owner's rule): the design's 🎉 💸 go
     html = html.replace("</body>", '<script src="/static/live.js"></script>\n</body>', 1)
     html = html.replace("<!doctype html>", "<!doctype html>\n<!-- BUILT from design/tradevoice-2.0/app.html by "
                         "scripts/build_app.py: edit the design or the script, not this file -->", 1)
@@ -131,6 +161,7 @@ def build():
         if page.count(old) != times:
             sys.exit(f"The website design changed; update '{name}' in scripts/build_app.py")
         page = page.replace(old, new)
+    page = no_emoji_keep_layout(page)
     with open(LANDING_OUT, "w", encoding="utf-8") as f:
         f.write(page)
     print(f"built {os.path.relpath(LANDING_OUT, ROOT)} from the website design")

@@ -95,7 +95,7 @@ _FILLERS = {"ehn", "abeg", "sha", "um", "so", "okay", "o", "se", "to", "wai", "d
             "don", "go", "no", "na", "ti", "ta", "ya", "has", "paid", "carry", "take", "took"}
 _WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 # Weekday names in Yoruba / Hausa / Igbo, written WITHOUT tone marks (text is de-accented before matching).
-# ⚠️ Have native speakers check these lists.
+# Have native speakers check these lists.
 _LOCAL_WEEKDAYS = [
     ("aje", "litinin", "monde"), ("isegun", "talata", "tiuzdee"), ("ojoru", "laraba", "wenezdee"),
     ("ojobo", "alhamis", "tozdee"), ("eti", "juma'a", "fraidee"), ("abameta", "asabar", "satodee"),
@@ -109,7 +109,7 @@ _EXPENSE_NOUNS = (r"\b(?:ticket|tikeeti|agbero|keke|okada|bus fare|loader|loader
                   r"owo ile|hayar shago|ugwo ulo|utu ahia|kudin haraji|kudin mota|owo oko)\b")
 _EXPENSE_NOUN_RE = re.compile(_EXPENSE_NOUNS)
 
-# English / Pidgin keywords, then Yoruba (yo), Hausa (ha), Igbo (ig) WITHOUT tone marks. ⚠️ native-speaker check.
+# English / Pidgin keywords, then Yoruba (yo), Hausa (ha), Igbo (ig) WITHOUT tone marks. native-speaker check.
 _PAYMENT_KW = ("don pay", "don bring", "ti pay", "has paid", "have paid", "paid me", "pay me back", "come pay", "don settle",
                "settled", "don clear", "paid back", "payed back", "repaid", "cleared", "paid her debt", "paid his debt", "paid the balance",
                "pay the balance", "balance me",
@@ -140,7 +140,7 @@ _EXPENSE_RE = re.compile(r"\b(i|we)\s+(buy|bought|pay for|paid for|spend|spent|r
 
 
 _SELL_RE = re.compile(r"\b(sell|sold|ta|sayar|ere m|ree)\b")  # en, yo, ha, ig
-# The TRADER owes / pays back (first person). Checked before the customer-side words. ⚠️ yo/ha native check.
+# The TRADER owes / pays back (first person). Checked before the customer-side words. yo/ha native check.
 _I_OWE_RE = re.compile(r"\b(?:i|we)\s+(?:(?:still|dey|don|am|are)\s+)*(?:owe|owing)\b|\bon credit from\b"
                        r"|\b(?:give|gave|supply|supplied|lend|lent|borrow(?:ed)?)\s+me\b"
                        r"|\bi (?:borrow|borrowed|collect|collected|take|took)\b.*\b(?:on credit|credit|from)\b"
@@ -171,7 +171,7 @@ _CORRECT_RE = re.compile(r"\b(?:sorry|no no|i mean|correction|abeg no)\b|,\s*no\
 # Nigerian mobile numbers (0803 456 7812, +2348034567812) are never amounts
 _PHONE_RE = re.compile(r"(?:\+?234|\b0)[789][01]\d(?:[\s-]?\d){7}\b")
 
-# Number words -> value. ⚠️ Yoruba/Hausa/Igbo lists need a native-speaker check.
+# Number words -> value. Yoruba/Hausa/Igbo lists need a native-speaker check.
 _EN_NUM = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen "
                                       "fourteen fifteen sixteen seventeen eighteen nineteen".split())}
 _EN_NUM.update({w: 10 * i for i, w in enumerate("_ _ twenty thirty forty fifty sixty seventy eighty ninety".split())

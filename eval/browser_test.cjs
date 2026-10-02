@@ -86,8 +86,9 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
   let browser;
   try {
     await waitUp();
-    browser = await chromium.launch({ headless: !process.env.HEADED });
-    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
+    browser = await chromium.launch({ headless: !process.env.HEADED,   // a fake microphone (beeps) for the live talk
+      args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG", permissions: ["microphone"] });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());   // no internet needed
     page = await ctx.newPage();
     page.on("pageerror", e => errors.push(e.message));
@@ -102,12 +103,26 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
         .filter(h => h.length > 1 && !document.getElementById(h.slice(1))));
       if (miss.length) throw new Error("missing: " + miss.join(", "));
     });
+    await check("website: 'Get the app' has App Store / Google Play (Soon) and 'Open in browser' goes to the app", async () => {
+      const r = await page.evaluate(() => ({ stores: document.querySelectorAll("#download [data-store]").length,
+        soon: !document.getElementById("soonnote").hidden, open: document.querySelector('#download a.btn[href="/app"]') !== null }));
+      if (r.stores !== 2 || !r.soon || !r.open) throw new Error(JSON.stringify(r));
+    });
+    await check("website + app: installable ('Add to Home Screen' gets the TradeVoice name and icon)", async () => {
+      const m = await page.evaluate(async () => { const l = document.querySelector('link[rel=manifest]'); const r = await fetch(l.href);
+        return { type: r.headers.get("content-type"), j: await r.json() }; });
+      if (!/manifest\+json/.test(m.type) || m.j.start_url !== "/app" || m.j.icons.length < 2) throw new Error(JSON.stringify(m));
+      for (const i of m.j.icons) if ((await fetch(BASE + i.src)).status !== 200) throw new Error("missing " + i.src);
+    });
+    await check("website: no dashes (the line before each small heading is gone) and no emojis", async () =>
+      page.evaluate(() => getComputedStyle(document.querySelector(".k"), "::before").display === "none"
+        && !/[\u2014\u2013]|\p{Extended_Pictographic}/u.test(document.body.innerText.replace(/[↑↓✓✕]/g, ""))));
     await check("website: no sideways scroll on a phone", async () =>
       page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-    await todo("website: shows the N-ATLaS attribution", async () => {
+    await check("website: shows the N-ATLaS attribution", async () => {
       const txt = await page.evaluate(() => document.body.innerText);
       if (!/Federal Ministry of Communications, Innovation and Digital Economy/.test(txt) || !/Awarri/.test(txt))
-        throw new Error("the licence sentence isn't on the page (designer to-do)");
+        throw new Error("the licence sentence isn't on the page");
     });
     await check("website: 'Open the app' goes to /app", async () => {
       await Promise.all([page.waitForURL(/\/app$/), page.locator('a[href="/app"]').first().click()]);
@@ -115,9 +130,9 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
 
     /* ------------------------------------------------------------ sign-up */
     await page.waitForSelector("#gate [data-g=signup]");
-    await todo("welcome: the 4 languages, no Pidgin button", async () => {
+    await check("welcome: the 4 languages, no Pidgin button", async () => {
       const langs = await page.locator("#gate [data-a=lang]").allTextContents();
-      if (langs.some(l => /pidgin/i.test(l))) throw new Error("tiles: " + langs.join(", ") + " (designer to-do)");
+      if (langs.some(l => /pidgin/i.test(l))) throw new Error("tiles: " + langs.join(", "));
     });
     await page.click("#gate [data-g=signup]");
     await page.fill("#ph", PHONE);
@@ -166,7 +181,7 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       return (await page.locator("#det .who .money").textContent()).includes("50,000");
     });
     await page.click("#det [data-a=got]");
-    await page.fill(".ov.on #am", "5000"); await page.click(".ov.on #go");
+    await page.click(".ov.on #am"); await page.keyboard.type("5000"); await page.click(".ov.on #go");   // typed like a person
     await check("You got ₦5,000: toast says she still owes ₦45,000", async () => {
       await page.waitForFunction(() => /recorded/.test(document.querySelector(".toast")?.textContent || ""));
       const t = await toastText();
@@ -233,6 +248,61 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       await page.waitForFunction(async () => (await (await fetch("/api/v2/me")).json()).lang === "English", null, { timeout: 8000, polling: 500 });
       await page.waitForSelector("#tabs [data-k=me]");
     });
+    await check("Me: Voice replies switch turns off and stays off after a refresh, then back on", async () => {
+      const sw = () => page.locator('#me [data-a=voice]');
+      if (await sw().getAttribute("aria-checked") !== "true") throw new Error("not on at first");
+      await sw().click();
+      if (await sw().getAttribute("aria-checked") !== "false") throw new Error("didn't turn off");
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForFunction(() => window.TVL && TVL.A && !document.querySelector("#gate"));
+      await tab("me");
+      if (await sw().getAttribute("aria-checked") !== "false") throw new Error("came back on after refresh");
+      await sw().click();
+      if (await sw().getAttribute("aria-checked") !== "true") throw new Error("didn't turn back on");
+    });
+    await check("Talk (live): listen, answer, 'yes' saves, 'that's all' closes", async () => {
+      // N-ATLaS isn't here: what it "heard" is fed in, the rest is the real server (session, draft, save, book)
+      // (the fake microphone beeps, so the page may hear "early" more than once: what was heard only moves on when the
+      // page really replies, through the real /api/say)
+      const said = ["Mama Ngozi took beans 3000 on credit", "yes please", "that's all"]; let replies = 0;
+      await page.route("**/api/hear", route => route.fulfill({ status: 200, contentType: "application/json",
+        body: JSON.stringify({ heard: said[replies] || "" }) }));
+      await page.route("**/api/say", route => { replies++; route.continue(); });
+      await page.click("#tabs [data-a=talk]");
+      await page.waitForSelector(".ov.on .tvc[data-st=listen]");
+      const turn = async () => { await page.waitForSelector(".ov.on .tvc[data-st=listen]"); await sleep(600); await page.click(".ov.on #orb"); };
+      await turn();
+      await page.waitForFunction(() => /3,000 · Mama Ngozi/.test(document.querySelector(".ov.on #cap")?.textContent || ""), null, { timeout: 8000 });
+      await turn();
+      await page.waitForFunction(() => /Saved/.test(document.querySelector(".ov.on #cap")?.textContent || ""), null, { timeout: 8000 });
+      await turn();
+      await gone(".ov .tvc");
+      await page.unroute("**/api/hear"); await page.unroute("**/api/say");
+      const got = ((await book()).customers.find(c => c.n === "Mama Ngozi") || {}).b;
+      if (got !== 3000) throw new Error(`Mama Ngozi owes ${got}, not 3000`);
+      if (replies !== 2) throw new Error(`${replies} replies ("that's all" ends it without one)`);
+    });
+    await check("Customers filter: '₦10,000 to ₦100,000' shows the right people, with a removable chip", async () => {
+      await tab("cust");
+      await page.click("#cust [data-a=filt]");
+      await page.click('.ov.on [data-fv="amt|1"]');
+      const label = await page.locator(".ov.on #fgo").textContent();
+      if (!/Show 2 customers/.test(label)) throw new Error("button: " + label);
+      await page.click(".ov.on #fgo"); await gone(".ov .fh");
+      const names = await page.locator("#cust .list").textContent();
+      if (!names.includes("Iya Bisi") || !names.includes("Oga Emeka") || names.includes("Mama Ngozi")) throw new Error(names);
+      await page.click("#cust .fx"); await page.waitForFunction(() => /Mama Ngozi/.test(document.querySelector("#cust .list")?.textContent || ""));
+    });
+    await check("Customers filter: 'Last activity: Today' knows when each customer was last active (from the server)", async () => {
+      await page.click("#cust [data-a=filt]");
+      await page.click('.ov.on [data-fv="act|today"]');
+      const label = await page.locator(".ov.on #fgo").textContent();
+      if (!/Show 3 customers/.test(label)) throw new Error("button: " + label);
+      await page.click('.ov.on [data-fv="reset"]'); await page.click(".ov.on #fgo"); await gone(".ov .fh");
+      await tab("me");
+    });
+    await check("online: the design's 'Offline. Saved, will send later' banner is hidden", async () =>
+      page.evaluate(() => { const o = document.querySelector("#off"); return !o || getComputedStyle(o).display === "none"; }));
     await check("Me: Connect my WhatsApp says it's coming", async () => {
       await page.click('#me [data-a=wac]'); return /bot/.test(await toastText());
     });
@@ -275,6 +345,23 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       await page.reload({ waitUntil: "domcontentloaded" });
       await page.waitForFunction(() => window.TVL && TVL.A && !document.querySelector("#gate"), null, { timeout: 8000 });
       return true;
+    });
+
+    /* ------------------------------------------------------------ a team-created account (no WhatsApp code) */
+    const made = require("child_process").spawnSync(process.env.PYTHON || "python",
+      ["scripts/add_account.py", "08030000533", "Kemi Testtrader", "Kemi Test Stores"],
+      { cwd: ROOT, encoding: "utf8", env: Object.assign({}, process.env, { TV_NO_DOTENV: "1",
+        ACCOUNTS_DB: path.join(TMP, "accounts.db"), BOOKS_DIR: path.join(TMP, "books"), DB_PATH: path.join(TMP, "tradevoice.db") }) });
+    const temp = ((made.stdout || "").match(/^\s{4}(\S+)$/m) || [])[1];
+    await check("team account: made with a temporary password", async () => { if (!temp) throw new Error(made.stdout + made.stderr); });
+    await page.click('#tabs [data-k=me]'); await page.click('#me [data-a=logout]'); await page.click(".ov.on #y");
+    await page.waitForSelector("#gate #lp");
+    await page.fill("#id", "08030000533"); await page.fill("#lp", temp || "x"); await page.click("#go");
+    await check("team account: logs in through the real login page", async () => {
+      await gone("#gate");
+      await tab("me");
+      const t = await page.locator("#me .pcard").textContent();
+      if (!t.includes("Kemi Test Stores")) throw new Error(t);
     });
 
     /* ------------------------------------------------------------ the whole run */

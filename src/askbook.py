@@ -2,7 +2,7 @@
 
 The AI (or offline word lists) only turns the question into a SEARCH {what, item, customer, period, language};
 the numbers are added up here in plain Python, and the answer is built from templates, so nothing is invented.
-⚠️ Yoruba / Hausa / Igbo words and sentences need a native-speaker check.
+Yoruba / Hausa / Igbo words and sentences need a native-speaker check.
 """
 import datetime as dt
 import json
@@ -165,6 +165,15 @@ def same_person(asked, name):
     return a == n or (a and all(w in n for w in a))
 
 
+NOT_A_PERSON = {"total", "all", "everybody", "everyone", "people", "customers", "customer", "me", "them", "anybody",
+                "someone", "somebody", "nobody", "in total", "all of them", "my customers"}
+
+
+def _person(name):
+    """The AI sometimes reads "in total" or "everybody" as a customer's name ("How much is owed in total?" -> "Nobody")."""
+    return None if not name or str(name).strip().lower() in NOT_A_PERSON else name
+
+
 def parse(question, vocab=None):
     """Question -> search dict. AI when available (better with mixed/other phrasing), else word lists."""
     offline = parse_offline(question, vocab)
@@ -185,7 +194,7 @@ def parse(question, vocab=None):
         kind = "query" if offline["kind"] == "query" else q.get("kind")
         q = {"kind": kind if kind in ("query", "other") else offline["kind"],
              "what": q.get("what") if q.get("what") in dict(WHAT_WORDS) else offline["what"],
-             "item": q.get("item") or offline["item"], "customer": q.get("customer") or offline["customer"],
+             "item": q.get("item") or offline["item"], "customer": _person(q.get("customer")) or offline["customer"],
              "period": q.get("period") if q.get("period") in PERIODS else offline["period"],
              "language": q.get("language") if q.get("language") in LANGS else offline["language"]}
         return q, f"llm:{model}"

@@ -86,6 +86,65 @@ def main():
     check("Yoruba question answered in Yoruba from the same book", r["lang"] == "Yoruba" and "10,000" in r["text"], r)
     check("language switch did not reset the book", c.get("/api/debts").json()["owed_to_me"][0]["balance"] in (46000, 20000))
 
+    # spoken reply after a voice note: made straight away in the background, once (one Intron call), served on request
+    import threading
+    import time
+
+    import asr
+    import tts
+    calls = []
+
+    def fake_speak(text, lang="English", **k):
+        calls.append(text)
+        time.sleep(0.3)   # Intron takes a while
+        f = os.path.join(tempfile.mkdtemp(), "v.wav")
+        open(f, "wb").write(b"RIFF....WAVE")
+        return {"path": f, "engine": "intron:test"}
+    real_hear, real_speak = asr.transcribe_auto, tts.speak
+    asr.transcribe_auto = lambda path, language=None, vocab=None: {"text": "Mama Tunde took rice 20000", "engine": "test"}
+    tts.speak = fake_speak
+    try:
+        r = c.post("/api/voice", files={"file": ("note.webm", b"0" * 200)},
+                   data={"session": "voice", "lang": "English", "consent": "yes"}).json()
+        sid = r.get("speak")
+        time.sleep(0.05)
+        check("voice note: the spoken reply starts being made before the page asks", sid and calls, r)
+        a = c.get(f"/api/speak/{sid}")
+        check("…the page gets it, and Intron was called once (not again on request)",
+              a.status_code == 200 and a.content.startswith(b"RIFF") and len(calls) == 1, (a.status_code, len(calls)))
+        check("…the read-back on the card flow says to press Save", calls[0].endswith("Press save."), calls[0])
+        r = c.post("/api/voice", files={"file": ("note.webm", b"0" * 200)},
+                   data={"session": "voice-live", "lang": "English", "consent": "yes", "live": "1"}).json()
+        c.get(f"/api/speak/{r.get('speak')}")
+        check("live conversation (no buttons): it asks 'Should I save it?' out loud instead",
+              calls[-1].endswith("Should I save it?") and "Press save" not in calls[-1], calls[-1])
+        check("…and short, so it's said sooner (no 'Okay, I heard', no 'Is that correct?')",
+              not re.search(r"I heard|Alright, so|Is that correct", calls[-1]) and calls[-1][0].isupper(), calls[-1])
+        n = len(calls)
+        h = c.post("/api/hear", files={"file": ("note.webm", b"0" * 200)}, data={"lang": "English", "consent": "yes"}).json()
+        st = web._state("live-split")
+        check("live talk step 1 (/api/hear): only the words; the chat and the voice are untouched (safe to throw away)",
+              h.get("heard") == "Mama Tunde took rice 20000" and not st.get("pending") and len(calls) == n, h)
+        r = c.post("/api/say", json={"session": "live-split", "text": h["heard"], "lang": "English"}).json()
+        c.get(f"/api/speak/{r.get('speak')}")
+        check("live talk step 2 (/api/say): the draft, read back with 'Should I save it?'",
+              r["pending"] and r["draft"]["amount"] == 20000 and calls[-1].endswith("Should I save it?"), r)
+        r = c.post("/api/warm", json={})
+        check("opening Talk can wake N-ATLaS (nothing to wake here: says so, no error)", r.status_code == 200, r.text)
+        check("…in Yoruba too", tts.live_ask("Ó dáa, mo gbọ́ pé: … Ṣé bẹ́ẹ̀ ni? Tí ó bá tọ̀nà, tẹ save.", "Yoruba")
+              .endswith("Ṣé kí n kọ ọ́ sílẹ̀?"))
+        tts.speak = lambda *a, **k: calls.append("x") or None   # voice off / Intron failed
+        n = len(calls)
+        r = c.post("/api/voice", files={"file": ("note.webm", b"0" * 200)},
+                   data={"session": "voice2", "lang": "English", "consent": "yes"}).json()
+        time.sleep(0.1)
+        a = c.get(f"/api/speak/{r.get('speak')}")
+        check("no voice: the page gets 404 (text only) and Intron isn't tried a second time",
+              a.status_code == 404 and len(calls) == n + 1, (a.status_code, len(calls) - n))
+    finally:
+        asr.transcribe_auto, tts.speak = real_hear, real_speak
+        assert threading.active_count() >= 1
+
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} demo-flow checks pass")
     return all(CHECKS)
 

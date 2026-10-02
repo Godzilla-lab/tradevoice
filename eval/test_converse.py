@@ -63,7 +63,7 @@ def main():
         ("Alhaji Musa reminder on Friday", any(x["customer"] == "Alhaji Musa" and x["remind_on"] == "2026-10-02"
                                                for x in ledger.reminders(TODAY))),
         ("due list in Yoruba", converse.due_today("Yoruba", TODAY + dt.timedelta(days=1))
-         == ["📌 Lónìí: gba ₦75,000 lọ́wọ́ Mama Tunde."]),
+         == ["Lónìí: gba ₦75,000 lọ́wọ́ Mama Tunde."]),
     ]
     # two different customers called Feranmi: never merged, the chat asks which one
     import ledger as L
@@ -84,6 +84,14 @@ def main():
             converse.reply("remind Feranmi", st2, today=TODAY).get("link") or "")),
         ("reminder draft appears in her conversation", any(m["event"] == "message" and m["kind"] == "reminder"
                                                            for m in L.thread(f1))),
+    ]
+    total = converse.reply("How much is owed in total?", converse.new_state(), today=TODAY)["text"]
+    import askbook
+    checks += [
+        ("'How much is owed in total?' -> the exact total from the book, with who", "₦15,000" in total
+         and "Feranmi" in total and "in total" in total),
+        ("the AI reading 'total' / 'everybody' as a customer's name is ignored", askbook._person("total") is None
+         and askbook._person("Everybody") is None and askbook._person("Mama Tunde") == "Mama Tunde"),
     ]
     for name, ok in checks:
         fails += not ok

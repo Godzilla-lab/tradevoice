@@ -8,7 +8,7 @@ broken voice note). TTS_BACKEND=off turns voice off. Same sentence + language ag
 
 Amounts are always spoken as ENGLISH words ("forty-five thousand naira"): no engine reads digits reliably in
 Yoruba/Hausa/Igbo, and traders commonly say prices in English anyway.
-⚠️ The Yoruba/Hausa/Igbo sentences below were written by a non-native speaker: have native speakers check them.
+The Yoruba/Hausa/Igbo sentences below were written by a non-native speaker: have native speakers check them.
 """
 import os
 import re
@@ -17,10 +17,12 @@ import tempfile
 
 REPLY_LANGS = ["English", "Yoruba", "Hausa", "Igbo"]   # no Pidgin choice since 2 Oct
 
-# Intron: spoken language + accent are two fields. Accents are overridable (INTRON_ACCENT_YORUBA=...) because Intron's
-# accent list isn't public; a rejected accent is retried without one.
-INTRON_VOICES = {"English": ("en", "nigerian"), "Pidgin": ("en", "nigerian"), "Yoruba": ("yo", "yoruba"),
-                 "Hausa": ("ha", "hausa"), "Igbo": ("ig", "igbo")}
+# Intron: spoken language + accent are two fields (docs.voice.intron.io/docs/tts/supported-languages-and-accents).
+# English replies are read by Intron's Nigerian Pidgin voice (pcm + pidgin): it sounds like the market, and Intron has
+# no "nigerian" English accent any more. INTRON_ENGLISH_VOICE=en switches back to an accented English voice.
+_EN = ("en", "hausa") if os.getenv("INTRON_ENGLISH_VOICE", "pcm").lower() == "en" else ("pcm", "pidgin")
+INTRON_VOICES = {"English": _EN, "Pidgin": _EN, "Yoruba": ("yo", "yoruba"), "Hausa": ("ha", "hausa"),
+                 "Igbo": ("ig", "igbo")}
 INTRON_URL = os.getenv("INTRON_TTS_URL", "https://infer.voice.intron.io").rstrip("/")
 
 # ------------------------------------------------------------------ amounts in English words
@@ -165,6 +167,27 @@ PREFIX = {
              "ask": [" Ọ bụ otu a? Ọ bụrụ na ọ dị mma, pịa save."]},
 }
 
+# in a live voice conversation there is no Save button to press: the question is asked out loud, answered with yes/no
+ASK_LIVE = {"English": " Should I save it?", "Pidgin": " Make I save am?", "Yoruba": " Ṣé kí n kọ ọ́ sílẹ̀?",
+            "Hausa": " In rubuta?", "Igbo": " Ka m dee ya?"}
+
+
+def live_ask(spoken, language="English"):
+    """The read-back for the live conversation, short so it is said sooner: "Okay, I heard: <record>. Is that
+    correct? Press save." becomes "<record>. Should I save it?" (the trader just said it; a warning stays first)."""
+    pre = PREFIX.get(language, PREFIX["English"])
+    for ask in pre["ask"]:
+        if spoken and spoken.endswith(ask):
+            body = spoken[: -len(ask)]
+            for opener in pre["heard"]:
+                if opener in body:
+                    head, tail = body.split(opener, 1)
+                    body = head + tail[:1].upper() + tail[1:]
+                    break
+            return body + ASK_LIVE.get(language, ASK_LIVE["English"])
+    return spoken
+
+
 _FEMALE = ("mama", "iya", "aunty", "auntie", "madam", "hajiya", "hajia", "alhaja", "mrs", "sister", "iyawo", "mallama")
 
 
@@ -245,7 +268,7 @@ def speakable(text):
 
     text = re.sub(r"https?://\S+", "", text or "")
     text = re.sub(r"₦\s?", "naira ", text)
-    text = re.sub(r"[*_~`#>|•👉👇]", " ", text)
+    text = re.sub(r"[*_~`#>|•]", " ", text)
     text = "".join(c for c in text if not (0x1F000 <= ord(c) <= 0x1FAFF or 0x2600 <= ord(c) <= 0x27BF or ord(c) in (0xFE0F, 0x200D)))
     return re.sub(r"\s+", " ", text).strip()
 
@@ -286,15 +309,37 @@ def _join_wavs(paths):
 
 
 _INTRON_MAX = {"chars": 240}   # Intron's per-request text limit is learned from its own error message
+# Intron requires an accent and its names change between releases: when one is refused, try the next likely one and
+# remember the one Intron accepted (INTRON_ACCENT_ENGLISH=... in .env always goes first)
+ACCENT_TRIES = {"en": ["hausa", "yoruba", "igbo", "nigerian"], "pcm": ["pidgin"],
+                "yo": ["yoruba"], "ha": ["hausa"], "ig": ["igbo"]}
+_GOOD_ACCENT = {}
 
 
-def _intron_one(text, language, accent=True):
+class _BadAccent(Exception):
+    pass
+
+
+def _intron_one(text, language):
+    lang, acc = INTRON_VOICES[language]
+    first = os.getenv(f"INTRON_ACCENT_{language.upper()}") or _GOOD_ACCENT.get(language) or acc
+    tries = [first] + [a for a in ACCENT_TRIES.get(lang, []) if a != first]
+    refused = None
+    for a in tries:
+        try:
+            path = _intron_try(text, language, lang, a)
+            _GOOD_ACCENT[language] = a
+            return path
+        except _BadAccent as e:
+            refused = refused or str(e)   # Intron's own first message says what was wrong
+    raise RuntimeError(f"Intron refused every {language} accent tried ({', '.join(tries)}): {refused}")
+
+
+def _intron_try(text, language, lang, accent):
     import requests
 
-    lang, acc = INTRON_VOICES[language]
-    body = {"text": text, "voice_language": lang, "voice_gender": os.getenv("INTRON_GENDER", "female")}
-    if accent:
-        body["voice_accent"] = os.getenv(f"INTRON_ACCENT_{language.upper()}", acc)
+    body = {"text": text, "voice_language": lang, "voice_gender": os.getenv("INTRON_GENDER", "female"),
+            "voice_accent": accent}
     head = {"Authorization": f"Bearer {os.environ['INTRON_API_KEY']}"}
     for _ in range(2):
         r = requests.post(f"{INTRON_URL}/tts/v1/generate", json=body, headers=head, timeout=60)
@@ -310,15 +355,15 @@ def _intron_one(text, language, accent=True):
         tid, end = data.get("text_id") or j.get("text_id"), time.time() + 40
         while time.time() < end and data.get("processing_status") not in ("TTS_TEXT_AUDIO_GENERATED",
                                                                           "TTS_TEXT_AUDIO_PROCESSING_FAILED"):
-            time.sleep(1)
+            time.sleep(0.4)   # short replies are usually ready in well under a second
             data = (requests.get(f"{INTRON_URL}/tts/v1/status/{tid}", headers=head, timeout=20).json() or {}).get("data") or {}
     elif r.status_code != 200:
         msg = str(j.get("message") or r.text)[:200]
         m = re.search(r"max limit of (\d+) characters", msg)
         if m:
             raise _TooLong(int(m.group(1)))
-        if r.status_code == 400 and accent and "accent" in msg.lower():
-            return _intron_one(text, language, accent=False)
+        if r.status_code == 400 and "accent" in msg.lower():
+            raise _BadAccent(msg)
         raise RuntimeError(f"Intron voice HTTP {r.status_code}: {msg}")
     if data.get("processing_status") != "TTS_TEXT_AUDIO_GENERATED" or not data.get("audio_path"):
         raise RuntimeError(f"Intron voice not ready ({data.get('processing_status') or 'no audio'})")
@@ -355,16 +400,30 @@ def _intron_speak(text, language):
     text = speakable(text)
     if not text:
         raise RuntimeError("nothing to say")
+    from concurrent.futures import ThreadPoolExecutor
+
     for _ in range(2):
+        parts, paths = _pieces(text, _INTRON_MAX["chars"]), []
         try:
-            paths = []
-            for part in _pieces(text, _INTRON_MAX["chars"]):
-                paths.append(_intron_one(part, language))
+            if len(parts) == 1:
+                paths = [_intron_one(parts[0], language)]
+            else:   # a long reply: every piece is made at the same time (in order), not one after the other
+                with ThreadPoolExecutor(max_workers=min(4, len(parts))) as pool:
+                    jobs = [pool.submit(_intron_one, part, language) for part in parts]
+                    errors = [j.exception() for j in jobs]
+                    paths = [j.result() for j, e in zip(jobs, errors) if e is None]
+                    bad = next((e for e in errors if e is not None), None)
+                    if bad:
+                        raise bad
             break
         except _TooLong as e:
             for p in paths:
                 os.remove(p)
             _INTRON_MAX["chars"] = max(40, e.n - 5)
+        except Exception:
+            for p in paths:
+                os.remove(p)
+            raise
     else:
         raise RuntimeError("Intron kept refusing the text as too long")
     if len(paths) == 1:
@@ -374,10 +433,10 @@ def _intron_speak(text, language):
     raise RuntimeError("Intron sent a long reply in pieces that can't be joined (not WAV)")
 
 
-def _event(engine, ok, language):
+def _event(engine, ok, language, ms=None):
     try:
         import events
-        events.log("voice", engine=engine, ok=ok, lang=language)
+        events.log("voice", engine=engine, ok=ok, lang=language, ms=ms)
     except Exception:  # noqa: BLE001
         pass
 
@@ -394,17 +453,18 @@ def speak(text, language="English", fmt="wav", voice=None, speed=None):
 
     if backend() != "intron" or language not in INTRON_VOICES or time.time() < _INTRON_DOWN["until"]:
         return None
-    key = hashlib.sha256(f"{language}|{speakable(text)}".encode()).hexdigest()[:32]
+    key = hashlib.sha256(f"{INTRON_VOICES[language]}|{language}|{speakable(text)}".encode()).hexdigest()[:32]
     cached = os.path.join(_CACHE_DIR, key + ".wav")
     try:
-        fresh = not os.path.exists(cached)
+        fresh, t0 = not os.path.exists(cached), time.perf_counter()
         if fresh:
             made = _intron_speak(text, language)
             os.makedirs(_CACHE_DIR, exist_ok=True)
             shutil.move(made, cached)
         out = _tmp(".wav")
         shutil.copyfile(cached, out)
-        _event("intron" if fresh else "cache", True, language)   # /team: Intron calls vs free cached replays
+        _event("intron" if fresh else "cache", True, language,   # /team: Intron calls vs free cached replays
+               ms=(time.perf_counter() - t0) * 1000 if fresh else None)
         return {"path": out, "engine": f"intron:{INTRON_VOICES[language][0]}"}
     except Exception as e:  # noqa: BLE001
         print(f"Intron voice failed ({language}): {type(e).__name__}: {e}")

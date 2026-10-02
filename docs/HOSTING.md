@@ -75,6 +75,12 @@ anyone could open any trader's book). Until Meta verification is done, the Whats
 5 numbers registered in the Meta dashboard: the team and the 2 beta testers.
 While Meta verification is pending, either skip the WhatsApp questions (no sign-up yet) or use the test number's
 Phone number ID with a permanent **system user** token (the dashboard's temporary token stops working after 24 hours).
+Or the team creates accounts for people it knows (no WhatsApp code needed):
+```bash
+sudo bash /opt/tradevoice/app/deploy/server/add_account.sh 08031234567 "Ada" "Ada Stores"   # prints a temporary password
+sudo bash /opt/tradevoice/app/deploy/server/add_account.sh 08031234567 --reset              # forgot it: a new one
+```
+Give the password to the person directly (never in a group); they log in with phone + password, then Me → Password.
 
 ## 7. Backups off the server
 Oracle console → Storage → **Buckets** → Create bucket `tradevoice-backups` (private, the default). In the bucket:
@@ -118,6 +124,7 @@ The old `natlas` secret in the paused workspace still holds the Hugging Face tok
 | Is it up? | `systemctl status tradevoice` · or open `https://NAME.duckdns.org/api/status` |
 | Logs (live) | `sudo journalctl -u tradevoice -f` (Ctrl+C to leave) |
 | Put new code live | `sudo bash /opt/tradevoice/app/deploy/server/update.sh` (backs up, restarts, rolls back by itself if the new code doesn't start) |
+| How fast are voice replies? | `sudo bash /opt/tradevoice/app/deploy/server/speed.sh` (hearing, brain, voice: typical and slowest, last 7 days) |
 | Backups | `sudo ls -lh /var/lib/tradevoice/backups` |
 | Restore a backup | `sudo bash /opt/tradevoice/app/deploy/server/restore.sh /var/lib/tradevoice/backups/tradevoice-….tar.gz` (the replaced files are kept in `before-restore-…`) |
 | A backup onto the Mac | `ssh -i KEY ubuntu@PUBLIC_IP "sudo cat /var/lib/tradevoice/backups/FILE" > FILE` |

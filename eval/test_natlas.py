@@ -167,6 +167,37 @@ check("health checks only in market hours (Nigeria time)",
       natlas_watch._market_hours(dt.datetime(2026, 10, 6, 9)) and not natlas_watch._market_hours(
           dt.datetime(2026, 10, 6, 22)) and not natlas_watch._market_hours(dt.datetime(2026, 10, 6, 3)))
 
+# 10a. Talk opened: wake both servers; a brain that doesn't answer in 3 s is asleep -> backups answer until it's up
+import time as _time  # noqa: E402
+
+import requests as _rq  # noqa: E402
+
+_real_get, PINGS = _rq.get, []
+
+
+def _slow_get(url, timeout=None, headers=None):
+    PINGS.append(url)
+    if url.endswith("/models"):
+        _time.sleep(3.6)      # a sleeping GPU starting up
+    return type("R", (), {"status_code": 200, "text": "natlas"})()
+
+
+_rq.get = _slow_get
+os.environ.update(NATLAS_URL="https://natlas.test/v1", NATLAS_ASR_URL="https://asr.test")
+llm._resting.pop("natlas", None)
+natlas_watch._WOKEN["at"] = 0
+first = natlas_watch.wake()
+_time.sleep(3.3)
+asleep = llm._resting.get("natlas", 0) > _time.time()
+again = natlas_watch.wake()
+_time.sleep(0.8)
+check("Talk opened: both N-ATLaS servers are pinged at once (brain + speech)",
+      first and {u.split("/")[-1] for u in PINGS} == {"models", "health"})
+check("…a brain that takes over 3 s is starting up: backups answer meanwhile (no 20 s wait per message)", asleep)
+check("…and N-ATLaS leads again as soon as it answers", "natlas" not in llm._resting)
+check("…at most one wake-up a minute", again is False)
+_rq.get = _real_get
+
 # 10b. N-ATLaS calls a book question "other": the word lists still route it as a question (live bug, 2 Oct)
 import askbook  # noqa: E402
 

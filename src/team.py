@@ -36,7 +36,7 @@ def team(request: Request):
     _allowed(request)
     s = events.summary()
     key = html.escape(request.query_params.get("key", ""))
-    cap = (f"<p class='warn'>⚠️ {s['active_30d']} active traders in 30 days: the N-ATLaS licence allows 1,000. "
+    cap = (f"<p class='warn'>{s['active_30d']} active traders in 30 days: the N-ATLaS licence allows 1,000. "
            "Contact Awarri (datasupport@awarri.com) now.</p>") if s["licence_warn"] else ""
     tiles = [("Active traders (30 days)", f"{s['active_30d']} / 1,000"), ("New today", s["new_today"]),
              ("New this week", s["new_7d"]), ("Active this week", s["active_7d"]),

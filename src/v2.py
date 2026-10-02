@@ -489,6 +489,10 @@ def book(request: Request):
     _phone(request)
     today = dt.date.today()
     out = []
+    with ledger.conn() as c:   # each customer's latest record: the Customers filters' "last activity" and sorts
+        last = {e["customer_id"]: dict(e) for e in c.execute(
+            "SELECT customer_id, type, amount, created_at FROM entries WHERE id IN "
+            "(SELECT max(id) FROM entries WHERE customer_id IS NOT NULL GROUP BY customer_id)")}
     for r in ledger.conversations(today):
         if r.get("i_owe") and not r.get("owes_me"):
             continue   # the design's Customers are people who owe ME (suppliers show in the book, not here)
@@ -499,8 +503,9 @@ def book(request: Request):
                           ).fetchone()[0]
         if d and r.get("owes_me"):
             due = _due_label(d, today)
+        e = last.get(r["id"])
         out.append({"id": r["id"], "n": r["name"], "b": round(r.get("owes_me") or 0), "late": r.get("days_late") or 0,
-                    "due": due, "h": []})
+                    "due": due, "h": [], "last": _h_row(e, today) if e else None})
     s = ledger.day_summary(today)
     return {"customers": out, "in": round(s["money_in"]), "out": round(s["money_out"]), "count": s["count"]}
 
@@ -511,11 +516,16 @@ def customer(cid: int, request: Request):
     today = dt.date.today()
     h = []
     for e in reversed(ledger.thread(cid)):
-        if e["event"] != "record":
-            continue
-        label, sign = KIND.get(e["type"], (e["type"], 0))
-        h.append([label, (-1 if sign < 0 else 1) * round(e["amount"]), _day_label(e["created_at"], today)])
+        if e["event"] == "record":
+            h.append(_h_row(e, today))
     return {"h": h}
+
+
+def _h_row(e, today):
+    """One line of a customer's history, as the design reads it: [label, amount (- = money in), day, days ago]."""
+    label, sign = KIND.get(e["type"], (e["type"], 0))
+    return [label, (-1 if sign < 0 else 1) * round(e["amount"]), _day_label(e["created_at"], today),
+            max((today - dt.date.fromisoformat(str(e["created_at"])[:10])).days, 0)]
 
 
 def _event(kind, phone):

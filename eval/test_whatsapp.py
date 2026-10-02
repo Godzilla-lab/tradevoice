@@ -80,6 +80,7 @@ def check(name, ok, out=""):
 
 
 def main():
+    global PHONE
     ledger.use_book(PHONE)  # the WhatsApp sender's own book (same one the web app opens after login)
     ledger.add_entry({"type": "credit_sale", "item": "rice", "amount": 30000, "customer": "Mama Tunde"},
                      created_at=dt.datetime(2026, 9, 20, 10))
@@ -126,7 +127,7 @@ def main():
           and "Ẹ káàárọ̀ Mama Tunde" in out, out)
 
     out = text_of(post({"type": "image", "image": {"id": "i1"}}))
-    check("photo → numbered lines + Save/Cancel", "1." in out and "2." in out and "Save ticked" in out, out)
+    check("photo → numbered lines + Save/Cancel", "1." in out and "2." in out and "'Save', 'Cancel'" in out, out)
     out = text_of(post({"type": "text", "text": {"body": "2 = 40k"}}))
     check("'2 = 40k' fixes line 2", "₦40,000" in out, out)
     before = len(ledger.entries(limit=100))
@@ -143,6 +144,16 @@ def main():
     global n
     n -= 1  # same message id again (Meta retry)
     check("duplicate delivery is ignored", post(dup) == [])
+    keep, PHONE = PHONE, "2348000000009"   # someone new, from the website's "App Store (Soon)" button
+    out = text_of(post({"type": "text", "text": {"body": "Tell me when TradeVoice is on the App Store"}}))
+    wait = whatsapp.store_wait(PHONE)
+    check("website 'App Store (Soon)' → noted, told it works on WhatsApp now (not the sign-up questions)",
+          "App Store" in out and "Which language" not in out and wait == "ios", out)
+    PHONE = keep
+    import plain
+    check("no emojis in anything the bot sent (text, buttons, lists): words only",
+          not any(plain.EMOJI.search(json.dumps(x, ensure_ascii=False)) for x in ALL),
+          [x for x in ALL if plain.EMOJI.search(json.dumps(x, ensure_ascii=False))][:2])
     check("no 'Something went wrong' after normal messages", not any("went wrong" in json.dumps(x) for x in ALL),
           [x for x in ALL if "went wrong" in json.dumps(x)][:2])
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} WhatsApp checks pass")

@@ -1,10 +1,10 @@
-"""The main words on screen in 4 languages (tab names, main buttons, consent). Picked with "🌍 App language".
+"""The main words on screen in 4 languages (tab names, main buttons, consent). Picked with "App language".
 
 Languages = N-ATLaS's: English (Nigerian English), Yoruba, Hausa, Igbo. Pidgin was dropped as a CHOICE on 2 Oct
 (N-ATLaS has no Pidgin model): Pidgin speakers are still heard and understood, and get English. The tables below
 still hold a Pidgin column (TABLE_LANGS) so nothing shifts; it is never shown.
 
-Short, everyday words on purpose. ⚠️ Pidgin/Yoruba/Hausa/Igbo written by a non-native speaker: have native speakers
+Short, everyday words on purpose. Pidgin/Yoruba/Hausa/Igbo written by a non-native speaker: have native speakers
 check and fix this file (one place for all of it). Anything not listed here stays in English.
 """
 TABLE_LANGS = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"]   # column order of the tables below
@@ -16,25 +16,25 @@ def choose(lang):
     return lang if lang in LANGS else "English"
 
 UI = {
-    "tab_talk": ["💬 Talk to TradeVoice", "💬 Yarn with TradeVoice", "💬 Bá TradeVoice sọ̀rọ̀", "💬 Yi hira da TradeVoice",
-                 "💬 Gwa TradeVoice okwu"],
-    "tab_speak": ["🎙️ Speak", "🎙️ Talk am", "🎙️ Sọ̀rọ̀", "🎙️ Yi magana", "🎙️ Kwuo okwu"],
-    "tab_snap": ["📸 Snap your book", "📸 Snap your book", "📸 Ya fọ́tò ìwé rẹ", "📸 Ɗauki hoton littafinka",
-                 "📸 See foto akwụkwọ gị"],
-    "tab_today": ["📊 Today", "📊 Today", "📊 Òní", "📊 Yau", "📊 Taa"],
-    "tab_owes": ["📒 Who owes me / who I owe", "📒 Who dey owe me / who I owe", "📒 Gbèsè", "📒 Bashi", "📒 Ụgwọ"],
-    "tab_insights": ["🔮 Insights", "🔮 Wetin dey come", "🔮 Ìmọ̀ràn", "🔮 Shawarwari", "🔮 Ndụmọdụ"],
-    "tab_ask": ["💬 Ask my book", "💬 Ask your book", "💬 Béèrè lọ́wọ́ ìwé rẹ", "💬 Tambayi littafinka",
-                "💬 Jụọ akwụkwọ gị"],
-    "tab_credit": ["🏦 Credit profile", "🏦 Your record for loan", "🏦 Àkọsílẹ̀ fún owó yíyá", "🏦 Bayanan rance",
-                   "🏦 Ndekọ maka mbinye ego"],
-    "tab_data": ["🔒 My data", "🔒 My data", "🔒 Àkọsílẹ̀ mi", "🔒 Bayanaina", "🔒 Data m"],
+    "tab_talk": ["Talk to TradeVoice", "Yarn with TradeVoice", "Bá TradeVoice sọ̀rọ̀", "Yi hira da TradeVoice",
+                 "Gwa TradeVoice okwu"],
+    "tab_speak": ["Speak", "Talk am", "Sọ̀rọ̀", "Yi magana", "Kwuo okwu"],
+    "tab_snap": ["Snap your book", "Snap your book", "Ya fọ́tò ìwé rẹ", "Ɗauki hoton littafinka",
+                 "See foto akwụkwọ gị"],
+    "tab_today": ["Today", "Today", "Òní", "Yau", "Taa"],
+    "tab_owes": ["Who owes me / who I owe", "Who dey owe me / who I owe", "Gbèsè", "Bashi", "Ụgwọ"],
+    "tab_insights": ["Insights", "Wetin dey come", "Ìmọ̀ràn", "Shawarwari", "Ndụmọdụ"],
+    "tab_ask": ["Ask my book", "Ask your book", "Béèrè lọ́wọ́ ìwé rẹ", "Tambayi littafinka",
+                "Jụọ akwụkwọ gị"],
+    "tab_credit": ["Credit profile", "Your record for loan", "Àkọsílẹ̀ fún owó yíyá", "Bayanan rance",
+                   "Ndekọ maka mbinye ego"],
+    "tab_data": ["My data", "My data", "Àkọsílẹ̀ mi", "Bayanaina", "Data m"],
     "process": ["Process", "Check am", "Ṣàyẹ̀wò", "Duba", "Lelee"],
-    "confirm": ["✅ Confirm & save", "✅ Correct, save am", "✅ Ó tọ̀nà, kọ ọ́ sílẹ̀", "✅ Daidai ne, adana",
-                "✅ Ọ dị mma, chekwaa"],
-    "read": ["🔊 Read it to me", "🔊 Read am for me", "🔊 Kà á fún mi", "🔊 Karanta min", "🔊 Gụọrọ m ya"],
+    "confirm": ["Confirm & save", "Correct, save am", "Ó tọ̀nà, kọ ọ́ sílẹ̀", "Daidai ne, adana",
+                "Ọ dị mma, chekwaa"],
+    "read": ["Read it to me", "Read am for me", "Kà á fún mi", "Karanta min", "Gụọrọ m ya"],
     "ask": ["Ask", "Ask", "Béèrè", "Tambaya", "Jụọ"],
-    "refresh": ["🔄 Refresh", "🔄 Refresh", "🔄 Tún un wò", "🔄 Sabunta", "🔄 Megharịa"],
+    "refresh": ["Refresh", "Refresh", "Tún un wò", "Sabunta", "Megharịa"],
     "voice_note": ["Voice note", "Voice note", "Ohùn", "Saƙon murya", "Ozi olu"],
     "type_it": ["…or type it", "…or type am", "…tàbí kọ ọ́", "…ko rubuta", "…ma ọ bụ dee ya"],
     # ---- web app (web/): words on the WhatsApp-style screens
@@ -46,25 +46,25 @@ UI = {
     "online": ["online · hears English, Pidgin, Yoruba, Hausa, Igbo", "online · e dey hear English, Pidgin, Yoruba, "
                "Hausa, Igbo", "wà lórí ayélujára", "yana kan layi", "nọ n'ịntanetị"],
     "message": ["Message", "Message", "Kọ ọ̀rọ̀", "Rubuta saƙo", "Dee ozi"],
-    "hold": ["Hold 🎤 to talk", "Hold 🎤 make you talk", "Tẹ 🎤 mọ́lẹ̀ láti sọ̀rọ̀", "Riƙe 🎤 don yin magana",
-             "Jide 🎤 ka i kwuo okwu"],
+    "hold": ["Hold the mic to talk", "Hold the mic make you talk", "Tẹ mic mọ́lẹ̀ láti sọ̀rọ̀", "Riƙe makirufo don yin magana",
+             "Jide mic ka i kwuo okwu"],
     "recording": ["Recording… let go to send", "I dey record… leave am make e send", "Ó ń gbà ohùn… fi sílẹ̀ láti fi ránṣẹ́",
                   "Ana nadi… saki don aika", "A na-edekọ… hapụ ka o ziga"],
-    "tap_send": ["Tap 🎤 again to send · tap here to cancel", "Tap 🎤 again make e send · tap here to cancel",
-                 "Tẹ 🎤 lẹ́ẹ̀kan sí i láti fi ránṣẹ́", "Sake taɓa 🎤 don aikawa", "Pịa 🎤 ọzọ ka o ziga"],
+    "tap_send": ["Tap the mic again to send · tap here to cancel", "Tap the mic again make e send · tap here to cancel",
+                 "Tẹ mic lẹ́ẹ̀kan sí i láti fi ránṣẹ́", "Sake taɓa makirufo don aikawa", "Pịa mic ọzọ ka o ziga"],
     "i_speak": ["I'm speaking", "I dey talk", "Mo ń sọ", "Ina magana da", "Ana m asụ"],
     "yes_save": ["Yes, save", "Yes, save am", "Bẹ́ẹ̀ni, kọ ọ́", "Eh, adana", "Ee, chekwaa"],
     "no": ["No", "No", "Rárá", "A'a", "Mba"],
-    "hello": ["Hello 👋 I'm your book. Tell me what you sold, who owes you, or ask me anything. Hold 🎤 to talk, or 📷 "
-              "to snap your notebook.",
-              "Hello 👋 Na me be your book. Tell me wetin you sell, who dey owe you, or ask me anything. Hold 🎤 make "
-              "you talk, or 📷 to snap your book.",
-              "Ẹ n lẹ́ o 👋 Èmi ni ìwé rẹ. Sọ ọjà tí o tà, ẹni tó jẹ ọ́, tàbí béèrè ohunkóhun. Tẹ 🎤 mọ́lẹ̀ láti sọ̀rọ̀, "
-              "tàbí 📷 láti ya fọ́tò ìwé rẹ.",
-              "Sannu 👋 Ni ne littafinka. Faɗa min abin da ka sayar, wanda ke da bashinka, ko ka tambaye ni komai. "
-              "Riƙe 🎤 don yin magana, ko 📷 don ɗaukar hoton littafinka.",
-              "Ndewo 👋 Abụ m akwụkwọ gị. Gwa m ihe i rere, onye ji gị ụgwọ, ma ọ bụ jụọ m ihe ọ bụla. Jide 🎤 ka i "
-              "kwuo okwu, ma ọ bụ 📷 iji see foto akwụkwọ gị."],
+    "hello": ["Hello. I'm your book. Tell me what you sold, who owes you, or ask me anything. Talk to me, or send a "
+              "photo of your notebook.",
+              "Hello. Na me be your book. Tell me wetin you sell, who dey owe you, or ask me anything. Talk to me, or "
+              "send photo of your book.",
+              "Ẹ n lẹ́ o. Èmi ni ìwé rẹ. Sọ ọjà tí o tà, ẹni tó jẹ ọ́, tàbí béèrè ohunkóhun. Bá mi sọ̀rọ̀, "
+              "tàbí fi fọ́tò ìwé rẹ ránṣẹ́.",
+              "Sannu. Ni ne littafinka. Faɗa min abin da ka sayar, wanda ke da bashinka, ko ka tambaye ni komai. "
+              "Yi min magana, ko aiko hoton littafinka.",
+              "Ndewo. Abụ m akwụkwọ gị. Gwa m ihe i rere, onye ji gị ụgwọ, ma ọ bụ jụọ m ihe ọ bụla. Gwa m okwu, "
+              "ma ọ bụ ziga foto akwụkwọ gị."],
     "reading_photo": ["Reading your photo…", "I dey read your photo…", "Mo ń ka fọ́tò rẹ…", "Ina karanta hotonka…",
                       "A na m agụ foto gị…"],
     "save_ticked": ["Save ticked", "Save the ones wey I tick", "Kọ àwọn tí mo yàn", "Adana waɗanda aka zaɓa",
@@ -116,11 +116,11 @@ UI = {
     "edit_contact": ["Edit contact", "Edit contact", "Ṣàtúnṣe olùbáṣepọ̀", "Gyara bayanai", "Dezie kọntaktị"],
     "open_whatsapp": ["Open WhatsApp", "Open WhatsApp", "Ṣí WhatsApp", "Buɗe WhatsApp", "Mepee WhatsApp"],
     "edit_message": ["Edit message", "Edit message", "Ṣàtúnṣe ọ̀rọ̀", "Gyara saƙo", "Dezie ozi"],
-    "paid_notice": ["💸 {name} just paid ₦{amount} online. Still owes you: ₦{left}.",
-                    "💸 {name} don pay ₦{amount} online. Wetin remain: ₦{left}.",
-                    "💸 {name} ṣẹ̀ṣẹ̀ san ₦{amount} lórí ayélujára. Èyí tó kù: ₦{left}.",
-                    "💸 {name} ya biya ₦{amount} ta yanar gizo. Saura: ₦{left}.",
-                    "💸 {name} kwụrụ ₦{amount} n'ịntanetị ugbu a. Ihe fọdụrụ: ₦{left}."],
+    "paid_notice": ["{name} just paid ₦{amount} online. Still owes you: ₦{left}.",
+                    "{name} don pay ₦{amount} online. Wetin remain: ₦{left}.",
+                    "{name} ṣẹ̀ṣẹ̀ san ₦{amount} lórí ayélujára. Èyí tó kù: ₦{left}.",
+                    "{name} ya biya ₦{amount} ta yanar gizo. Saura: ₦{left}.",
+                    "{name} kwụrụ ₦{amount} n'ịntanetị ugbu a. Ihe fọdụrụ: ₦{left}."],
     "draft_note": ["TradeVoice prepared this. You send it yourself.", "TradeVoice write am. Na you go send am.",
                    "TradeVoice ló kọ èyí. Ìwọ ni yóò fi ránṣẹ́.", "TradeVoice ne ya rubuta. Kai za ka aika.",
                    "TradeVoice dere ya. Ọ bụ gị ga-ezipu ya."],
@@ -234,12 +234,12 @@ UI = {
                    "Na karanta layi {n}. Duba sunaye da adadi, cire wanda bai dace ba, sannan ka adana.",
                    "Agụrụ m ahịrị {n}. Lelee aha na ego, wepụ nke na-ezighi ezi, mgbe ahụ chekwaa."],
     "cancelled": ["Cancelled", "Cancelled", "A ti fagilé", "An soke", "Akagbuola"],
-    "remind_none": ["{n} doesn't owe you anything 🎉", "{n} no dey owe you 🎉", "{n} kò jẹ ọ́ ní nǹkankan 🎉",
-                    "{n} ba shi da bashinka 🎉", "{n} ejighị gị ụgwọ 🎉"],
-    "nobody_owes": ["Nobody owes you 🎉", "Nobody dey owe you 🎉", "Kò sí ẹni tó jẹ ọ́ 🎉", "Babu mai bashinka 🎉",
-                    "Onweghị onye ji gị ụgwọ 🎉"],
-    "you_owe_nobody": ["You owe nobody 🎉", "You no owe anybody 🎉", "O kò jẹ ẹnikẹ́ni 🎉", "Ba ka da bashin kowa 🎉",
-                       "I jighị onye ọ bụla ụgwọ 🎉"],
+    "remind_none": ["{n} doesn't owe you anything", "{n} no dey owe you", "{n} kò jẹ ọ́ ní nǹkankan",
+                    "{n} ba shi da bashinka", "{n} ejighị gị ụgwọ"],
+    "nobody_owes": ["Nobody owes you", "Nobody dey owe you", "Kò sí ẹni tó jẹ ọ́", "Babu mai bashinka",
+                    "Onweghị onye ji gị ụgwọ"],
+    "you_owe_nobody": ["You owe nobody", "You no owe anybody", "O kò jẹ ẹnikẹ́ni", "Ba ka da bashin kowa",
+                       "I jighị onye ọ bụla ụgwọ"],
     "wd_0": ["Monday", "Monday", "Ajé", "Litinin", "Mọnde"],
     "wd_1": ["Tuesday", "Tuesday", "Ìṣẹ́gun", "Talata", "Tiuzdee"],
     "wd_2": ["Wednesday", "Wednesday", "Ọjọ́rú", "Laraba", "Wenezdee"],

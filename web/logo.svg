@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="132 142 760 760" width="760" height="760">
+  <style>
+    .bar { transform-box: fill-box; transform-origin: 50% 100%; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+    .b1 { animation-name: b1; animation-duration: 1.1s; }
+    .b2 { animation-name: b2; animation-duration: 1.3s; animation-delay: -0.4s; }
+    .b3 { animation-name: b3; animation-duration: 1.5s; animation-delay: -0.8s; }
+    @keyframes b1 { 0%,100% { transform: scaleY(1); } 30% { transform: scaleY(1.55); } 60% { transform: scaleY(0.7); } }
+    @keyframes b2 { 0%,100% { transform: scaleY(1); } 35% { transform: scaleY(0.6); } 70% { transform: scaleY(1.25); } }
+    @keyframes b3 { 0%,100% { transform: scaleY(1); } 40% { transform: scaleY(0.62); } 75% { transform: scaleY(0.9); } }
+    @media (prefers-reduced-motion: reduce) { .bar { animation: none; } }
+  </style>
+  <defs>
+    <linearGradient id="tvbg" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#0E7A5A"/>
+      <stop offset="1" stop-color="#064A39"/>
+    </linearGradient>
+      </defs>
+  <!-- speech bubble: one continuous shape, tail included -->
+  <path fill="url(#tvbg)" d="
+    M 340 150 H 684
+    A 190 190 0 0 1 874 340 V 610
+    A 190 190 0 0 1 684 800 H 420
+    C 360 800 300 850 238 888
+    C 222 898 204 886 210 868
+    C 222 832 232 800 230 770
+    A 190 190 0 0 1 150 610 V 340
+    A 190 190 0 0 1 340 150 Z"/>
+  <!-- microphone capsule -->
+  <rect x="412" y="246" width="200" height="344" rx="100" fill="#FBF8F1"/>
+  <!-- rising bars, equal width, equal steps, shared baseline -->
+  <g>
+    <rect class="bar b1" x="444" y="480" width="36" height="60" rx="11" fill="#5CC27A"/>
+    <rect class="bar b2" x="494" y="435" width="36" height="105" rx="11" fill="#26A062"/>
+    <rect class="bar b3" x="544" y="390" width="36" height="150" rx="11" fill="#0B6B4F"/>
+  </g>
+  <!-- stand: symmetric U + stem -->
+  <path d="M 362 456 V 500 A 150 150 0 0 0 662 500 V 456" fill="none" stroke="#FBF8F1" stroke-width="40" stroke-linecap="round"/>
+  <path d="M 512 650 V 730" fill="none" stroke="#FBF8F1" stroke-width="40" stroke-linecap="round"/>
+</svg>

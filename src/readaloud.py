@@ -1,8 +1,8 @@
-"""🔊 "Read it to me": each main screen as a short spoken summary in the trader's language.
+""""Read it to me": each main screen as a short spoken summary in the trader's language.
 
 For traders who can't read (in any language): the app talks. Numbers come from the book (ledger/insights), written
 as words by tts.naira_words; the sentences are fixed templates, never AI-written.
-⚠️ Yoruba / Hausa / Igbo sentences need a native-speaker check.
+Yoruba / Hausa / Igbo sentences need a native-speaker check.
 """
 import insights
 import ledger
