@@ -82,8 +82,11 @@ def main():
           and body["voice_accent"] == "yoruba", SENT[-1])
     check("audio downloaded as a WAV file", out["path"].endswith(".wav") and out["engine"] == "intron:yo", out)
     tts.speak("Hello", "Pidgin")
-    check("Pidgin uses the Nigerian English voice", SENT[-1][1]["voice_language"] == "en"
-          and SENT[-1][1]["voice_accent"] == "nigerian")
+    check("Pidgin uses Intron's Pidgin voice (pcm + pidgin)", SENT[-1][1]["voice_language"] == "pcm"
+          and SENT[-1][1]["voice_accent"] == "pidgin", SENT[-1])
+    tts.speak("Saved. Mama Tunde owes you forty-five thousand naira.", "English")
+    check("English replies are read by the Pidgin voice too", SENT[-1][1]["voice_language"] == "pcm"
+          and SENT[-1][1]["voice_accent"] == "pidgin", SENT[-1])
 
     SENT.clear()
     MODE["limit"] = 100
@@ -105,14 +108,16 @@ def main():
         check("no accent Intron takes -> a clear error with Intron's first message",
               "hausa not supported" in str(e) and all("voice_accent" in b for _, b, _ in SENT), str(e))
     MODE["accent_bad"] = False
-    MODE["bad_accents"] = {"nigerian"}   # English: Intron renamed its Nigerian accent
+    MODE["bad_accents"] = {"hausa"}   # an accent Intron renames or drops (as it did with "nigerian")
+    tts.INTRON_VOICES["Test"] = ("en", "hausa")
     SENT.clear()
-    tts._intron_speak("Hello, I am your book", "English")
-    check("English accent refused -> the next likely one is tried, and works",
-          [b["voice_accent"] for _, b, _ in SENT if "voice_accent" in b][:2] == ["nigerian", "yoruba"], SENT)
+    tts._intron_speak("Hello, I am your book", "Test")
+    check("accent refused -> the next likely one is tried, and works",
+          [b["voice_accent"] for _, b, _ in SENT if "voice_accent" in b][:2] == ["hausa", "yoruba"], SENT)
     SENT.clear()
-    tts._intron_speak("Good morning", "English")
+    tts._intron_speak("Good morning", "Test")
     check("…and remembered: the next reply goes straight to it", SENT[0][1]["voice_accent"] == "yoruba", SENT)
+    del tts.INTRON_VOICES["Test"]
     MODE["bad_accents"] = set()
     tts._GOOD_ACCENT.clear()
 

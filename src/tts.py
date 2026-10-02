@@ -17,10 +17,12 @@ import tempfile
 
 REPLY_LANGS = ["English", "Yoruba", "Hausa", "Igbo"]   # no Pidgin choice since 2 Oct
 
-# Intron: spoken language + accent are two fields. Accents are overridable (INTRON_ACCENT_YORUBA=...) because Intron's
-# accent list isn't public; a rejected accent is retried without one.
-INTRON_VOICES = {"English": ("en", "nigerian"), "Pidgin": ("en", "nigerian"), "Yoruba": ("yo", "yoruba"),
-                 "Hausa": ("ha", "hausa"), "Igbo": ("ig", "igbo")}
+# Intron: spoken language + accent are two fields (docs.voice.intron.io/docs/tts/supported-languages-and-accents).
+# English replies are read by Intron's Nigerian Pidgin voice (pcm + pidgin): it sounds like the market, and Intron has
+# no "nigerian" English accent any more. INTRON_ENGLISH_VOICE=en switches back to an accented English voice.
+_EN = ("en", "hausa") if os.getenv("INTRON_ENGLISH_VOICE", "pcm").lower() == "en" else ("pcm", "pidgin")
+INTRON_VOICES = {"English": _EN, "Pidgin": _EN, "Yoruba": ("yo", "yoruba"), "Hausa": ("ha", "hausa"),
+                 "Igbo": ("ig", "igbo")}
 INTRON_URL = os.getenv("INTRON_TTS_URL", "https://infer.voice.intron.io").rstrip("/")
 
 # ------------------------------------------------------------------ amounts in English words
@@ -288,7 +290,7 @@ def _join_wavs(paths):
 _INTRON_MAX = {"chars": 240}   # Intron's per-request text limit is learned from its own error message
 # Intron requires an accent and its names change between releases: when one is refused, try the next likely one and
 # remember the one Intron accepted (INTRON_ACCENT_ENGLISH=... in .env always goes first)
-ACCENT_TRIES = {"en": ["nigerian", "yoruba", "igbo", "hausa", "pidgin", "nigerian_english", "nigeria"],
+ACCENT_TRIES = {"en": ["hausa", "yoruba", "igbo", "nigerian"], "pcm": ["pidgin"],
                 "yo": ["yoruba"], "ha": ["hausa"], "ig": ["igbo"]}
 _GOOD_ACCENT = {}
 
@@ -416,7 +418,7 @@ def speak(text, language="English", fmt="wav", voice=None, speed=None):
 
     if backend() != "intron" or language not in INTRON_VOICES or time.time() < _INTRON_DOWN["until"]:
         return None
-    key = hashlib.sha256(f"{language}|{speakable(text)}".encode()).hexdigest()[:32]
+    key = hashlib.sha256(f"{INTRON_VOICES[language]}|{language}|{speakable(text)}".encode()).hexdigest()[:32]
     cached = os.path.join(_CACHE_DIR, key + ".wav")
     try:
         fresh = not os.path.exists(cached)
