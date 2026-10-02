@@ -21,7 +21,8 @@ Return ONLY a JSON object with these keys:
 - "item": short product or expense name, or null
 - "quantity": number or null
 - "unit": e.g. "bag", "carton", "crate", "paint", "mudu", or null
-- "amount": TOTAL amount in naira as a plain number (45k -> 45000, 1.5m -> 1500000, "twenty thousand" -> 20000), or null if not said
+- "amount": the money number EXACTLY as said, in naira as a plain number (45k -> 45000, 1.5m -> 1500000, "twenty thousand" -> 20000). Never multiply or add. null if no money number was said
+- "each": true ONLY if that amount is a price per unit ("each", "per", "ọ̀kọ̀ọ̀kan" (yo), "kowanne" (ha), "otu ọ bụla" (ig)), else false. Our code does the multiplying
 - "customer": the other person's name as said (customer, or the supplier/lender for credit_purchase/payment_made, or the supplier for goods bought for cash: "I buy 10 bags rice from Alhaji Sani" -> "Alhaji Sani"), or null
 - "item": for money borrowed (not goods), use "loan"
 - "due_date": date the customer promised to pay, as YYYY-MM-DD, or null
@@ -32,8 +33,8 @@ Yoruba/Hausa/Igbo hints: "mo ta" (yo), "na sayar" (ha), "ere m" (ig) = I SOLD, s
 word appears), never an expense. "mo san" (yo), "na biya" (ha), "akwụrụ m" (ig) = I paid = expense. Debt words:
 "gbèsè"/"jẹ mí" (yo), "bashi" (ha), "ụgwọ"/"ji m" (ig) = credit_sale. "ti san" (yo), "ta biya"/"biya bashi" (ha),
 "akwụọla" (ig) = payment_received.
-Amounts: the number said IS the total ("2 cartons indomie 3500" = 3500). Multiply ONLY when the price is per unit:
-"each", "per", "ọ̀kọ̀ọ̀kan" (yo), "kowanne" (ha), "otu ọ bụla" (ig). If the trader corrects themself ("10k, no, 12k"),
+Amounts: never do sums. "2 cartons indomie 3500" -> amount 3500, each false. "2 cartons, 3500 each" -> amount 3500,
+each true. A number of goods ("4 bags") is the quantity, never the amount. If the trader corrects themself ("10k, no, 12k"),
 use the last amount. Number words: "dubu" (ha), "puku" (ig), "ẹgbẹ̀rún" (yo) = thousand ("dubu biyar" = 5000,
 "puku iri abụọ" = 20000, "ẹgbẹ̀rún mẹ́wàá" = 10000); "ẹgbàá" (yo) = 2000. Phone numbers and dates are not amounts.
 Not yet paid = still owes = credit_sale: "has not paid", "never pay", "no pay yet", "kò tíì san" (yo),
@@ -45,15 +46,19 @@ Never invent an amount or a name that was not said."""
 # Worked examples for N-ATLaS (an 8B model: examples in the prompt add ~10 points, AfroBench evaluation). One per
 # language, made-up names, none copied from the eval sets. Only N-ATLaS gets them (llm.chat shots=).
 def _shot(text, **rec):
-    full = {"type": None, "item": None, "quantity": None, "unit": None, "amount": None, "customer": None,
-            "due_date": None, "confidence": 0.9, "note": None}
+    full = {"type": None, "item": None, "quantity": None, "unit": None, "amount": None, "each": False,
+            "customer": None, "due_date": None, "confidence": 0.9, "note": None}
     full.update(rec)
     return text, json.dumps(full, ensure_ascii=False)
 
 
+# Includes a note with NO amount (else the model learns to always give one, and copied an example's price on 2 Oct)
+# and a per-unit price (the model reports it; code multiplies).
 SHOTS = [
-    _shot("Mrs Adaeze took 3 crates of eggs, 4,500 each, she will pay later",
-          type="credit_sale", item="eggs", quantity=3, unit="crate", amount=13500, customer="Mrs Adaeze"),
+    _shot("Mrs Adaeze took 3 rolls of lace, 4,500 each, she will pay later",
+          type="credit_sale", item="lace", quantity=3, unit="roll", amount=4500, each=True, customer="Mrs Adaeze"),
+    _shot("Uncle Femi carry 2 tin of paint, he go pay me later", type="credit_sale", item="paint", quantity=2,
+          unit="tin", customer="Uncle Femi", confidence=0.5, note="No amount said"),
     _shot("I pay motor fare 1500 carry goods come shop", type="expense", item="motor fare", amount=1500),
     _shot("Mo ta paint ẹ̀wà mẹ́ta fún Iya Sade ní ẹgbẹ̀rún mẹ́wàá, kò tíì san",
           type="credit_sale", item="beans", quantity=3, unit="paint", amount=10000, customer="Iya Sade"),
@@ -578,6 +583,12 @@ def _normalise(rec, text, today):
         out["type"] = parse_type(text)
     if isinstance(out["amount"], str):
         out["amount"] = parse_amount(out["amount"])
+    # the model says the price as heard and whether it was per unit; the multiplying is done here, in code
+    if rec.get("each") is True and isinstance(out["amount"], (int, float)) and isinstance(out["quantity"], (int, float)) \
+            and out["quantity"] > 0:
+        out["amount"] = out["amount"] * out["quantity"]
+        if isinstance(out["amount"], float) and out["amount"].is_integer():
+            out["amount"] = int(out["amount"])
     if out["due_date"]:
         try:
             dt.date.fromisoformat(str(out["due_date"]))
@@ -618,7 +629,7 @@ def extract(text, today=None, vocab=None):
 MANY_PROMPT = """You get several lines copied from a Nigerian market trader's record book (English, Pidgin or shorthand).
 Today is __TODAY__ (__WEEKDAY__). Turn EACH line that records money into one record.
 Return ONLY a JSON object: {"entries": [ ... ]} where each entry has the keys
-"line" (the line number given, starting at 1), "type", "item", "quantity", "unit", "amount", "customer", "due_date",
+"line" (the line number given, starting at 1), "type", "item", "quantity", "unit", "amount", "each", "customer", "due_date",
 "confidence", "note" with the same meaning as below.
 """ + SYSTEM_PROMPT.split("Return ONLY a JSON object with these keys:")[1]
 

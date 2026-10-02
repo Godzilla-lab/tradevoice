@@ -128,8 +128,15 @@ REPLY["natlas"] = json.dumps({"type": "credit_sale", "item": "rice", "quantity":
                               "customer": "Mama Ada", "due_date": None, "confidence": 0.9, "note": None})
 rec, meta = extract.extract("Sold 2 bags of rice to Mama Ada for 20k, she will pay later", today=TODAY)
 check("extract() says N-ATLaS made the record", llm.is_natlas(meta["engine"]) and rec["amount"] == 20000)
-check("extract() sends N-ATLaS the 5 worked examples (one per language)",
-      len(CALLS[0][1]["messages"]) == 2 + 2 * len(extract.SHOTS) and len(extract.SHOTS) == 5)
+check("extract() sends N-ATLaS the worked examples (every language, one with no amount)",
+      len(CALLS[0][1]["messages"]) == 2 + 2 * len(extract.SHOTS)
+      and any(json.loads(a)["amount"] is None for _, a in extract.SHOTS))
+REPLY["natlas"] = json.dumps({"type": "sale", "quantity": 4, "unit": "bag", "amount": 7500, "each": True})
+rec, meta = extract.extract("Sold 4 bags of rice, 7,500 each", today=TODAY)
+check("model reports a per-unit price, CODE multiplies (4 x 7,500 = 30,000)", rec["amount"] == 30000)
+REPLY["natlas"] = json.dumps({"type": "sale", "quantity": 4, "unit": "bag", "amount": 3500, "each": False})
+rec, meta = extract.extract("Sold 4 bags of rice for 3,500", today=TODAY)
+check("a total stays a total (no 'each' -> no multiplying)", rec["amount"] == 3500)
 REPLY["natlas"] = json.dumps({"type": "sale", "amount": 5000, "customer": "Mama Ada"})
 rec, meta = extract.extract("Mama Ada never pay the 5000 for rice", today=TODAY)
 check("rules still overrule N-ATLaS ('never pay' = credit, not a sale)", rec["type"] == "credit_sale")
