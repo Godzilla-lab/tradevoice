@@ -39,6 +39,8 @@ import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, s
 app.include_router(whatsapp.router)
 import team  # noqa: E402  (📊 /team: the team's dashboard + anonymised CSV, ADMIN_TOKEN only)
 app.include_router(team.router)
+import v2  # noqa: E402  (the TradeVoice 2.0 design's accounts + book: design/tradevoice-2.0/)
+app.include_router(v2.router)
 import extras  # noqa: E402  (lender link, pay links, automatic reminders, receipts, PIN, CSV)
 
 app.include_router(extras.router)
@@ -849,15 +851,20 @@ def _version():
 
 
 def _page(name):
+    """The TradeVoice 2.0 pages (built from design/tradevoice-2.0/ by scripts/build_app.py)."""
     html = open(os.path.join(HERE, "web", name), encoding="utf-8").read()
     v = _version()
     html = re.sub(r'(/static/[\w.-]+\.(?:css|js|svg|png))(?=["\'])', rf"\1?v={v}", html)
+    bot = os.getenv("WHATSAPP_BOT_NUMBER") or whatsapp.bot_number()
+    if bot:  # the website's "Use on WhatsApp" buttons open a chat with the bot
+        html = html.replace('href="https://wa.me/"', f'href="https://wa.me/{bot}?text=Hi"')
+        html = html.replace('window.open("https://wa.me/","_blank"', f'window.open("https://wa.me/{bot}?text=Hi","_blank"')
     return HTMLResponse(html, headers=NO_CACHE)
 
 
 @app.get("/app")
 def index():
-    return _page("index.html")
+    return _page("app.html")
 
 
 if os.getenv("TRADEVOICE_ADMIN", "1") == "1":  # the old Gradio screens, as a backup, at /admin

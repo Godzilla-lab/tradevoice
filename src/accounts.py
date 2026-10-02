@@ -151,7 +151,7 @@ def new_session(phone):
     token = secrets.token_urlsafe(32)
     now = _now()
     with _lock, db() as c:
-        c.execute("INSERT INTO sessions VALUES (?,?,?,?)",
+        c.execute("INSERT INTO sessions (token_hash, phone, created_at, expires) VALUES (?,?,?,?)",
                   (_h(token), phone, now.isoformat(), (now + dt.timedelta(days=SESSION_DAYS)).isoformat()))
         c.execute("INSERT INTO users (phone, created_at, last_login) VALUES (?,?,?) "
                   "ON CONFLICT(phone) DO UPDATE SET last_login=excluded.last_login",

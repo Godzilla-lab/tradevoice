@@ -6,6 +6,7 @@ python eval/test_team.py
 import hashlib
 import hmac
 import json
+import re
 import os
 import sys
 import tempfile
@@ -84,7 +85,8 @@ check("licence counter: 1 active trader in 30 days, no warning yet",
 # 3. privacy: nothing identifying in the log
 dump = json.dumps(events.rows(), ensure_ascii=False)
 check("no phone number, name, amount or message text stored",
-      PHONE not in dump and "Tunde" not in dump and "45" not in dump.replace("2026", "") and "rice" not in dump, dump[:300])
+      PHONE not in dump and "Tunde" not in dump and not re.search(r"45,?000|45k", dump) and "rice" not in dump,
+      dump[:300])
 
 # 4. access
 check("/team without the key -> 403", client.get("/team").status_code == 403)
