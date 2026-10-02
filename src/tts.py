@@ -286,15 +286,37 @@ def _join_wavs(paths):
 
 
 _INTRON_MAX = {"chars": 240}   # Intron's per-request text limit is learned from its own error message
+# Intron requires an accent and its names change between releases: when one is refused, try the next likely one and
+# remember the one Intron accepted (INTRON_ACCENT_ENGLISH=... in .env always goes first)
+ACCENT_TRIES = {"en": ["nigerian", "yoruba", "igbo", "hausa", "pidgin", "nigerian_english", "nigeria"],
+                "yo": ["yoruba"], "ha": ["hausa"], "ig": ["igbo"]}
+_GOOD_ACCENT = {}
 
 
-def _intron_one(text, language, accent=True):
+class _BadAccent(Exception):
+    pass
+
+
+def _intron_one(text, language):
+    lang, acc = INTRON_VOICES[language]
+    first = os.getenv(f"INTRON_ACCENT_{language.upper()}") or _GOOD_ACCENT.get(language) or acc
+    tries = [first] + [a for a in ACCENT_TRIES.get(lang, []) if a != first]
+    refused = None
+    for a in tries:
+        try:
+            path = _intron_try(text, language, lang, a)
+            _GOOD_ACCENT[language] = a
+            return path
+        except _BadAccent as e:
+            refused = refused or str(e)   # Intron's own first message says what was wrong
+    raise RuntimeError(f"Intron refused every {language} accent tried ({', '.join(tries)}): {refused}")
+
+
+def _intron_try(text, language, lang, accent):
     import requests
 
-    lang, acc = INTRON_VOICES[language]
-    body = {"text": text, "voice_language": lang, "voice_gender": os.getenv("INTRON_GENDER", "female")}
-    if accent:
-        body["voice_accent"] = os.getenv(f"INTRON_ACCENT_{language.upper()}", acc)
+    body = {"text": text, "voice_language": lang, "voice_gender": os.getenv("INTRON_GENDER", "female"),
+            "voice_accent": accent}
     head = {"Authorization": f"Bearer {os.environ['INTRON_API_KEY']}"}
     for _ in range(2):
         r = requests.post(f"{INTRON_URL}/tts/v1/generate", json=body, headers=head, timeout=60)
@@ -317,8 +339,8 @@ def _intron_one(text, language, accent=True):
         m = re.search(r"max limit of (\d+) characters", msg)
         if m:
             raise _TooLong(int(m.group(1)))
-        if r.status_code == 400 and accent and "accent" in msg.lower():
-            return _intron_one(text, language, accent=False)
+        if r.status_code == 400 and "accent" in msg.lower():
+            raise _BadAccent(msg)
         raise RuntimeError(f"Intron voice HTTP {r.status_code}: {msg}")
     if data.get("processing_status") != "TTS_TEXT_AUDIO_GENERATED" or not data.get("audio_path"):
         raise RuntimeError(f"Intron voice not ready ({data.get('processing_status') or 'no audio'})")

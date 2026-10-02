@@ -46,7 +46,7 @@ class R:
             raise requests.HTTPError(self.status_code)
 
 
-SENT, MODE = [], {"limit": None, "accent_bad": False, "busy": False, "refuse": False}
+SENT, MODE = [], {"limit": None, "accent_bad": False, "busy": False, "refuse": False, "bad_accents": set()}
 
 
 def fake_post(url, json=None, headers=None, timeout=None):
@@ -55,7 +55,9 @@ def fake_post(url, json=None, headers=None, timeout=None):
         return R(402, {"message": "insufficient credits"})
     if MODE["limit"] and len(json["text"]) > MODE["limit"]:
         return R(400, {"message": f"text character count greater than the max limit of {MODE['limit']} characters"})
-    if MODE["accent_bad"] and "voice_accent" in json:
+    if "voice_accent" not in json:
+        return R(400, {"message": "voice accent is required"})   # Intron since Oct 2026
+    if MODE["accent_bad"] or json["voice_accent"] in MODE["bad_accents"]:
         return R(400, {"message": f"invalid text voice accent,{json['voice_accent']} not supported"})
     if MODE["busy"]:
         return R(503, {"data": {"text_id": "t1"}})
@@ -96,8 +98,23 @@ def main():
     MODE["accent_bad"] = True
     SENT.clear()
     tts.speak("Ina kwana", "Hausa")
-    check("accent refused -> retried without an accent", "voice_accent" not in SENT[-1][1] and len(SENT) == 2, SENT)
+    try:
+        tts._intron_speak("Ina kwana", "Hausa")
+        check("no accent Intron takes -> a clear error with Intron's first message", False)
+    except RuntimeError as e:
+        check("no accent Intron takes -> a clear error with Intron's first message",
+              "hausa not supported" in str(e) and all("voice_accent" in b for _, b, _ in SENT), str(e))
     MODE["accent_bad"] = False
+    MODE["bad_accents"] = {"nigerian"}   # English: Intron renamed its Nigerian accent
+    SENT.clear()
+    tts._intron_speak("Hello, I am your book", "English")
+    check("English accent refused -> the next likely one is tried, and works",
+          [b["voice_accent"] for _, b, _ in SENT if "voice_accent" in b][:2] == ["nigerian", "yoruba"], SENT)
+    SENT.clear()
+    tts._intron_speak("Good morning", "English")
+    check("…and remembered: the next reply goes straight to it", SENT[0][1]["voice_accent"] == "yoruba", SENT)
+    MODE["bad_accents"] = set()
+    tts._GOOD_ACCENT.clear()
 
     MODE["busy"] = True
     check("503 with text_id -> polls the status until ready", tts.speak("Daalụ", "Igbo")["path"].endswith(".wav"))
