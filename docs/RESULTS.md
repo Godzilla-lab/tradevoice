@@ -29,6 +29,19 @@ N-ATLaS adds 15 points over the rules, but the app is far from safe yet. Main fa
 5. Our rules sometimes OVERRULE a right N-ATLaS answer (full app wrote more wrong amounts than N-ATLaS alone: 7 vs 4).
 After fixing, these 100 become "seen": the next honest score must come from new sentences (team, natives, pilot).
 
+**After the fixes (2 Oct, same day):** general rules, not per-sentence patches: everyday costs (ticket/agbero, keke,
+loader, NEPA, rent and levy words in yo/ha/ig) are expenses even with "paid"; "Bought…"/mo ra/na sayi/azụrụ m = stock
+bought; transfers and alerts = payments; supplier credit and paying a supplier back in all languages; money lent out;
+"sold … has paid" = cash sale; corrections in yo/ha/ig/Pidgin ("8,000 ni, kì í ṣe 9,000", "a'a 14,000 ne",
+"mba, ọ bụ 8,000", "no be 17k, na 19k"); "each" with quantities said in words; non-names (Agbero, Customer, Mile);
+"transferred but no alert" -> ask.
+
+| | Rules alone | **Full app (N-ATLaS + rules)** |
+|---|---|---|
+| These 100 (now SEEN) | 54% -> 89% | 69% -> **98%** (1 wrong amount, 0 invented, asked 5/5) |
+| cases_hard / fresh / 1000 / owe | 100% (no regressions) | |
+⚠️ 98% is on sentences we fixed against. The honest next number comes from the pilot's real voice notes.
+
 ## 2 Oct 2026: N-ATLaS benchmark (NCAIR1/N-ATLaS on Modal L4, vLLM 0.10.2; for the NAIC integration PDF)
 **Question:** what does N-ATLaS add for Nigerian market bookkeeping, compared with the model it was built from
 (Meta-Llama-3-8B-Instruct, same size and design)?

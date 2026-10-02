@@ -102,10 +102,22 @@ _LOCAL_WEEKDAYS = [
     ("aiku", "lahadi", "sondee"),
 ]
 
+# Everyday market costs: when one of these is what the money was for, it is an expense, even with "paid"/"ti san"
+# (market ticket / agbero, keke / okada / bus, loaders, NEPA / light, rent in yo/ha/ig, market levy in ig/ha).
+_EXPENSE_NOUNS = (r"\b(?:ticket|tikeeti|agbero|keke|okada|bus fare|loader|loaders|labourer|alabaru|offload(?:ing)?|"
+                  r"nepa|light bill|electricity|generator|petrol|airtime|union dues|"
+                  r"owo ile|hayar shago|ugwo ulo|utu ahia|kudin haraji|kudin mota|owo oko)\b")
+_EXPENSE_NOUN_RE = re.compile(_EXPENSE_NOUNS)
+
 # English / Pidgin keywords, then Yoruba (yo), Hausa (ha), Igbo (ig) WITHOUT tone marks. ⚠️ native-speaker check.
 _PAYMENT_KW = ("don pay", "don bring", "ti pay", "has paid", "have paid", "paid me", "pay me back", "come pay", "don settle",
                "settled", "don clear", "paid back", "payed back", "repaid", "cleared", "paid her debt", "paid his debt", "paid the balance",
                "pay the balance", "balance me",
+               # transfers (most payments now): "send alert", "sent the alert", "send transfer"
+               "send alert", "sent alert", "send the alert", "sent the alert", "send transfer", "sent transfer",
+               "fi transfer san",                          # yo: paid by transfer
+               "tura min", "tura mini",                    # ha: sent (money) to me
+               "zitere m",                                 # ig: sent me
                "ti san",                                   # yo: has paid
                "biya bashi", "biyan bashi", "na bashin",   # ha: paid the debt
                "akwuola", "kwuola", "kwuru ugwo")          # ig: has paid / paid the debt
@@ -115,12 +127,15 @@ _CREDIT_KW = ("owe", "owes", "owing", "go pay", "will pay", "on credit", "na cre
               "bashi", "za ta biya", "za ya biya", "zai biya", "za ta pay", "za ya pay", "zai pay",  # ha: debt, will pay
               "ugwo", "ji m", "ga-akwu", "ga akwu")         # ig: debt, owes me, will pay
 _EXPENSE_RE = re.compile(r"\b(i|we)\s+(buy|bought|pay for|paid for|spend|spent|restock|restocked)\b"
+                         r"|^\s*(?:today\s+)?(?:bought|buy|spent|spend|restocked)\b"   # "Bought 2 paints of crayfish…"
+                         r"|\bmo ra\b|\bna say[ia]\b|\b(?:a?zuru|zutara) m\b"        # yo / ha / ig: I bought
                          r"|\b(i|we)\s+(pay|paid)\s+(n|₦)?\d"
                          r"|\b(transport|motor fare|rent|levy|fuel|diesel|salary|shop rent|market levy|restock|tax|taxes|dues)\b"
                          r"|\b(owo ori|haraji|utu isi)\b"          # yo / ha / ig: tax
                          r"|\bmo san\b|\bowo oko\b"                # yo: I paid, transport money
                          r"|\bna biya\b|\bkudin mota\b"            # ha: I paid, transport money
-                         r"|\bakwuru m\b|\bugbo ala\b",            # ig: I paid, vehicle
+                         r"|\bakwuru m\b|\bugbo ala\b"             # ig: I paid, vehicle
+                         r"|" + _EXPENSE_NOUNS,
                          re.IGNORECASE)
 
 
@@ -133,18 +148,24 @@ _I_OWE_RE = re.compile(r"\b(?:i|we)\s+(?:(?:still|dey|don|am|are)\s+)*(?:owe|owi
                        r"|\bi (?:go|will) pay (?:him|her|am|them)\b"
                        r"|\b(?:i|we)\s+(?:has not|have not|haven'?t|did not|didn'?t|never|no|not)\s+(?:yet\s+)?"
                        r"(?:pay|paid)\s+(?:him|her|am|them|my supplier|back|alhaji|oga|madam|mama|hajiya)\b"
-                       r"|\bmo je\b|\bina da bashin\b")
+                       r"|\bmo je\b|\bina da bashin\b"
+                       r"|\bgba\b.*\blawin\b|\blawin lodo\b"               # yo: took on credit from
+                       r"|\bkarbi\b.*\bbashi daga\b|\bbashi daga\b"        # ha: took on credit from
+                       r"|\bn'ugwo n'aka\b|\bnugwo naka\b")                  # ig: on credit from
 _I_PAID_BACK_RE = re.compile(r"\b(?:i|we)\s+(?:don\s+|have\s+|just\s+)?(?:pay|paid|settle|settled|clear|cleared|"
                              r"repay|repaid|return|returned)\s+(?:back\s+)?(?:my\s+)?(?:supplier|alhaji|oga|madam|"
                              r"mama|hajiya|chief|mallam|aunty|uncle|iya|baba|him|her|am|them)\b"
-                             r"|\b(?:i|we)\s+(?:don\s+)?(?:pay|paid)\s+back\b|\bmo ti san gbese\b")
+                             r"|\b(?:i|we)\s+(?:don\s+)?(?:pay|paid)\s+back\b|\bmo ti san gbese\b"
+                             r"|^\s*paid back\b|\bout of what i owe\b"
+                             # yo / ha / ig: "I paid X out of the <goods> money (that I owe)"
+                             r"|\b(?:mo (?:ti )?san|na biya|akwuru m)\b.*\b(?:ninu owo|daga kudin|n'ime ego)\b")
 _SOLD_RE = re.compile(r"\b(sell|sold|mo ta|sayar|ere m|gave|took|carry)\b")  # stricter: Hausa "ta biya" is not "sold"
 # "has not paid" = still owes. Checked BEFORE the "paid me" payment words. (text is folded: no tone marks)
 _NEG_PAY_RE = re.compile(r"\b(?:has not|have not|hasn'?t|haven'?t|did not|didn'?t|does not|doesn'?t|never|no|not)\s+"
                          r"(?:yet\s+)?(?:pay|paid)\b|\bko tii? i? ?san\b|\bbai biya\b|\bba (?:ta|ya|su) biya\b"
                          r"|\b(?:a?kwubeghi|kwughi)\b")
 _PART_RE = re.compile(r"\b(out of|remain|remaining|balance is|balance na|saura|o ku|foduru|ninu|daga cikin|n'ime)\b")
-_PAYVERB_RE = re.compile(r"\b(paid|pay|bring|brought|ti san|biya|akwuola|kwuola)\b")
+_PAYVERB_RE = re.compile(r"\b(paid|pay|bring|brought|send|sent|ti san|san|biya|tura|akwuola|kwuola|kwuru|zitere)\b")
 _EACH_RE = re.compile(r"\b(each|per (?:one|bag|carton|crate|piece|unit)|one one|okookan|kowanne|kowane|otu o bula)\b")
 _CORRECT_RE = re.compile(r"\b(?:sorry|no no|i mean|correction|abeg no)\b|,\s*no\s*,")
 # Nigerian mobile numbers (0803 456 7812, +2348034567812) are never amounts
@@ -220,7 +241,7 @@ def _words_amount(text):
     return None
 
 
-_NOT = r"(?:no\s+be|not|isn'?t|is\s+not|ba|kii?\s+se|abughi|abụghị)"
+_NOT = r"(?:no\s+be|not|isn'?t|is\s+not|ba|kii?\s+se|ki\s+i\s+se|abughi|abụghị)"
 
 
 def _corrected(text):
@@ -231,11 +252,16 @@ def _corrected(text):
         v = float(m.group("num").replace(",", "")) * _SUFFIX.get((m.group("suf") or "").lower(), 1)
         if (v >= 100 or m.group("suf") or m.group("cur")) and not re.match(rf"\s*({_UNITS}|pairs?)\b", text[m.end():m.end() + 12], re.I):
             spans.append((m.start(), m.end(), v))
-    low = text.lower()
+    low = fold(text)   # same length as text for the tone-marked letters we use (fold only drops combining marks)
+    low = low if len(low) == len(text) else text.lower()
     for (s1, e1, v1), (s2, e2, v2) in zip(spans, spans[1:]):
-        between = low[e1:s2]
-        if re.fullmatch(rf"[\s,.;:-]*{_NOT}[\s,.;:-]*", between):
-            return v1                                          # "A no be B"
+        between = fold(text[e1:s2])
+        if v1 == v2:
+            continue                                           # "17k, no be 17k, na 19k": look at the next pair
+        if re.fullmatch(rf"[\s,.;:-]*(?:ni|ne|na)?[\s,.;:-]*{_NOT}[\s,.;:-]*", between):
+            return v1                                          # "A no be B", yo "A ni, ki i se B"
+        if re.fullmatch(r"[\s,.;:-]*(?:a'?a|mba|no)[\s,.;:-]*(?:o\s*bu|it'?s|na|ne)?[\s,.;:-]*", between):
+            return v2                                          # ha "A, a'a B ne", ig "A, mba, o bu B", "A, no, B"
         if (re.fullmatch(r"[\s,.;:-]*(?:na|but|it'?s|e be|i mean|sai|ni)?[\s,.;:-]*", between)
                 and re.search(rf"{_NOT}[\s,]*$", low[max(0, s1 - 12):s1])):
             return v2                                          # "no be B, na A"
@@ -272,6 +298,23 @@ def _amount_values(text):
     return out
 
 
+def _word_quantity(t, price_m):
+    """A quantity said in words before the price: "kongo marun-un" (yo 5), "galan … uku" (ha 3), "ji ise" (ig 5),
+    "four bags". Digits win (checked by the caller after this). Number words right after dubu/puku/egberun are
+    thousands (part of an amount), and "one" words are skipped (they often mean "a", or "each" in Igbo)."""
+    if re.search(r"(?<![\d.,])\d{1,3}(?![\d.,])(?!\s*(?:k|thousand|m\b|naira))", t[:price_m.start()]):
+        return None
+    words = re.findall(r"[a-z'-]+", t[:price_m.start()])
+    for i, w in enumerate(words):
+        if i and words[i - 1] in ("dubu", "puku", "egberun", "thousand"):
+            continue
+        for table in (_YO_NUM, _HA_NUM, _IG_NUM, _EN_NUM):
+            v = table.get(w)
+            if v and v > 1 and w not in ("ta",):
+                return v
+    return None
+
+
 def unit_total(text):
     """'5 bags at 15k each' -> 75000. None if no per-unit price is said."""
     t = _PHONE_RE.sub(" ", fold(text))
@@ -284,6 +327,10 @@ def unit_total(text):
         return None
     price_m = min(prices, key=lambda p: p[0])[1]
     price = float(price_m.group("num").replace(",", "")) * _SUFFIX.get((price_m.group("suf") or "").lower(), 1)
+    qty = _word_quantity(t, price_m)
+    if qty:
+        total = qty * price
+        return int(total) if total == int(total) else total
     for q in re.finditer(r"(?<![\d.,])(\d{1,3})(?![\d.,])(?!\s*(?:k|thousand|m\b|naira))", t):
         if price_m.start() <= q.start() < price_m.end():
             continue
@@ -378,8 +425,22 @@ def parse_type(text):
         return "credit_purchase"
     if _I_PAID_BACK_RE.search(t) and not re.search(r"\bfor (?:transport|rent|levy|motor|fuel)\b", t):
         return "payment_made"
+    owe_words = re.search(r"\b(?:owe|owes|owing|je mi|ji m|bashi|gbese|ugwo)\b", t)
+    if _EXPENSE_NOUN_RE.search(t) and not owe_words and not _SOLD_RE.search(t):
+        return "expense"                       # "Mo san 500 fun tikeeti", "Owo ile … mo ti san an", "Agbero collect 1,000"
+    # money lent TO someone (they owe me): "lent", yo "ya … lowo mi", ha "na ba … rance", ig "agbazinyere m"
+    if re.search(r"\b(?:i|we) (?:lend|lent)\b|\blowo mi\b.*\b(?:da a pada|yoo san)\b|\bya\b[^.]*\blowo mi\b"
+                 r"|\bna ba\b.*\brance\b|\bagbazinyere m\b", t):
+        return "credit_sale"
+    # a loan coming back: "returned the 3,000 he borrowed"
+    if re.search(r"\b(?:returned|return|don return|brought back)\b.*\bborrow", t):
+        return "payment_received"
     if _NEG_PAY_RE.search(t):
         return "credit_sale"
+    # "I sold … she has paid" (yo "mo ta … o ti san", ig "ere m … o kwuola"): a cash sale, not a debt paid back
+    if (re.search(r"\b(?:mo ta|ere m|na sayar|i sell|i sold|sold)\b", t) and not owe_words
+            and not _PART_RE.search(t) and re.search(r"\b(?:ti san|kwuola|akwuola|don pay|has paid|paid)\b", t)):
+        return "sale"
     if part_payment_amount(text) is not None:
         return "payment_received"
     if re.search(r"\bpay me\b.*\bwey (?:he|she|e) (?:owe|dey owe)\b", t):  # "Emeka pay me 20k wey he owe"
@@ -394,6 +455,15 @@ def parse_type(text):
     if any(re.search(rf"(?<![\w-]){re.escape(k)}(?!\w)", t) for k in _CREDIT_KW):
         return "credit_sale"
     return "sale"
+
+
+# Words that look like names at the start of a note but are not customers ("Agbero collect 1,000", "Keke from Mile 12")
+NOT_NAMES = {"customer", "customers", "agbero", "keke", "okada", "mile", "ticket", "nepa", "loader", "market",
+             "transfer", "alert", "pos", "today", "shop", "rent", "bus", "danfo"}
+# "she transferred but the alert never came": don't record it as paid, ask
+_ALERT_MISSING_RE = re.compile(r"\balert\b.*\b(?:never came|never come|no come|not come|didn'?t come|has not come|"
+                               r"hasn'?t come|no show|bai zo|ba ta zo|abiabeghi|abiaghi|o tii de|ko tii de|ko de)\b"
+                               r"|\b(?:ko|o) tii de\b.*\balert\b")
 
 
 def rule_extract(text, today=None):
@@ -417,7 +487,13 @@ def rule_extract(text, today=None):
     if rec["type"] in ("credit_sale", "credit_purchase"):
         rec["due_date"] = parse_due(text, today)
     t = fold(text)
-    if _SOLD_RE.search(t) and _PART_RE.search(t) and re.search(r"\b(paid|pay)\b", t):
+    if rec["customer"] and fold(rec["customer"]).split()[0] in NOT_NAMES:
+        rec["customer"] = None
+    if _ALERT_MISSING_RE.search(t):
+        rec["note"] = "They say they transferred, but no alert yet. Save it only when the money shows."
+        rec["confidence"] = 0.3
+    elif ((_SOLD_RE.search(t) or re.search(r"\bbought\b", t)) and (_PART_RE.search(t) or "balance me" in t)
+          and re.search(r"\b(paid|pay)\b", t)):
         rec["note"] = "Two things in one note? A sale and a part payment. Please check."
         rec["confidence"] = 0.3
     elif rec["amount"] is not None:
@@ -535,6 +611,10 @@ def _check_guard(rec, rules, text, today):
     if rec.get("type") in flip.get(rules["type"], ()):
         _fix(rec, "type", rules["type"], "Corrected: YOU owe / YOU paid back (the words say 'I').")
     # two things in one note (a sale AND a part payment): never trust one confident answer, ask the trader
+    if rec.get("customer") and fold(rec["customer"]).split()[0] in NOT_NAMES:
+        rec["customer"] = rules.get("customer")   # "Agbero", "Customer", "Mile" are not people in the book
+    if (rules.get("note") or "").startswith("They say they transferred"):
+        rec["note"], rec["confidence"] = rules["note"], min(rec.get("confidence") or 0.3, 0.3)
     if (rules.get("note") or "").startswith("Two things in one note"):
         rec["note"] = ((rec.get("note") or "") + " " + rules["note"]).strip()
         rec["confidence"] = min(rec.get("confidence") or 0.3, 0.3)
