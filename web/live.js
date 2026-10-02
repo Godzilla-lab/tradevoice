@@ -203,7 +203,7 @@
     const live = s => `<div class="wave">${"<i></i>".repeat(24)}</div><ol class="steps">${["listen", "hear", "think"].map((k, i) => `<li class="${i < s ? "done" : i == s ? "on" : ""}">${t(k)}</li>`).join("")}</ol><div class="quote" id="qt">&nbsp;</div>`;
     const err = (h, p) => { box.innerHTML = `<h3>${h}</h3><p class="s">${p}</p><div class="btns"><button class="btn p w" id="re">Try again</button></div>`; $("#re", o).onclick = () => { shut(o); setTimeout(talk, 300); }; };
     let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } }); }
     catch (e) { return err("Microphone is off", "Turn it on in your browser: Site settings, Microphone, Allow. Then try again."); }
     box.innerHTML = `<h3>${t("listen")}…</h3>` + live(0);
     // record until the trader stops talking (about 1.2 s of quiet after speech), taps the sheet, or 30 s
@@ -214,15 +214,27 @@
     const ctx = new (window.AudioContext || window.webkitAudioContext)(), an = ctx.createAnalyser();
     ctx.createMediaStreamSource(stream).connect(an); an.fftSize = 1024;
     const buf = new Uint8Array(an.fftSize); let spoke = false, quietSince = 0; const t0 = Date.now();
+    // noise floor: learned from the first quarter second, follows the background down at once and up only slowly,
+    // so in a noisy market "quiet" means back to the market's level, not silence (which never comes there)
+    const first = []; let floor = 0;
     const stop = () => { if (rec.state == "recording") rec.stop(); };
     $(".wave", box).style.cursor = "pointer"; $(".wave", box).onclick = stop;
+    $("#qt", box).textContent = "Tap when you're done";   // the quiet line under the steps; the words appear here next
     (function watch() {
       if (rec.state != "recording") return;
       if (!o.isConnected) return stop();
       an.getByteTimeDomainData(buf); let s = 0; for (const v of buf) s += (v - 128) ** 2;
-      const loud = Math.sqrt(s / buf.length) > 6;
+      const rms = Math.sqrt(s / buf.length);
+      if (first.length < 15) {   // learn the background first (the stream starts with empty frames: skip them)
+        if (rms > 0.5) first.push(rms);
+        floor = first.length ? first.slice().sort((a, b) => a - b)[first.length >> 1] : 0;
+        if (!spoke && Date.now() - t0 > 8000) return stop();
+        return requestAnimationFrame(watch);
+      }
+      floor = rms < floor ? rms : floor + (rms - floor) * 0.002;
+      const loud = rms > Math.max(6, floor * 1.8 + 3);
       if (loud) { spoke = true; quietSince = 0; } else if (spoke && !quietSince) quietSince = Date.now();
-      if ((spoke && quietSince && Date.now() - quietSince > 1200) || Date.now() - t0 > 30000 || (!spoke && Date.now() - t0 > 8000)) return stop();
+      if ((spoke && quietSince && Date.now() - quietSince > 1200) || Date.now() - t0 > 20000 || (!spoke && Date.now() - t0 > 8000)) return stop();
       requestAnimationFrame(watch);
     })();
     await stopped; stream.getTracks().forEach(x => x.stop()); ctx.close();
@@ -279,12 +291,28 @@
       q("x").onclick = () => { api("/api/message", { body: { session: SID, text: "no", lang: lang() } }); shut(o); };
     }
     function re(m, dr) {
-      box.innerHTML = `<h3>${m ? "I didn't catch the amount." : "Change the amount"}</h3><p class="s">Say it again or type it.</p><label class="inp">₦<input id="am" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="Amount"></label><div class="btns"><button class="btn p w" id="go">Continue</button></div>`;
-      const i = $("#am", o); i.focus();
-      const g = async () => { const v = +i.value.replace(/\D/g, ""); if (!v) return i.focus();
-        const x = await api("/api/draft", { body: { session: SID, lang: lang(), amount: v } });
-        if (x.ok && x.data.draft) card(x.data.draft); else { dr.amount = v; card(dr); } };
-      $("#go", o).onclick = g; i.onkeydown = e => e.key == "Enter" && g();
+      // the design's Change: the amount, big. A record about a person also gets the name (the design's own form field),
+      // so a misheard name can be fixed without starting again; it's ready to type when the card flagged it.
+      const person = /credit_sale|payment_received|credit_purchase|payment_made/.test(dr.type) || !!dr.customer;
+      const nameFirst = person && (dr.unsure || []).includes("customer");
+      box.innerHTML = `<h3>${m ? "I didn't catch the amount." : person ? "Change the details" : "Change the amount"}</h3><p class="s">Say it again or type it.</p><label class="inp">₦<input id="am" inputmode="numeric" autocomplete="off" placeholder="${dr.amount ? Number(dr.amount).toLocaleString("en-NG") : "0"}" aria-label="Amount"></label>` +
+        (person ? `<div style="margin-top:var(--s4)">${fld("cn", "Customer", { ac: "off", v: dr.customer || "", ph: "Their name, e.g. Mama Tunde" })}</div>` : "") +
+        `<div class="btns"><button class="btn p w" id="go">Continue</button></div>`;
+      const i = $("#am", o), n = $("#cn", o);
+      (nameFirst && n ? n : i).focus();
+      const g = async () => {
+        const v = +i.value.replace(/\D/g, "") || +dr.amount || 0;
+        if (!v) return i.focus();
+        const name = n ? n.value.trim() : null;
+        if (n && !name && nameFirst) return n.focus();
+        const body = { session: SID, lang: lang(), amount: v };
+        if (n && name !== (dr.customer || "")) body.customer = name;
+        const x = await api("/api/draft", { body });
+        if (x.ok && x.data.draft) card(x.data.draft);
+        else toast("Couldn't change it. Check your connection and try again.");   // never show a card the server doesn't hold
+      };
+      $("#go", o).onclick = g;
+      for (const el of [i, n]) if (el) el.onkeydown = e => { if (e.key == "Enter") g(); };   // (returning false would block every key)
     }
   };
 

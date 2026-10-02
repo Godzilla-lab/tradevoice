@@ -166,7 +166,7 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       return (await page.locator("#det .who .money").textContent()).includes("50,000");
     });
     await page.click("#det [data-a=got]");
-    await page.fill(".ov.on #am", "5000"); await page.click(".ov.on #go");
+    await page.click(".ov.on #am"); await page.keyboard.type("5000"); await page.click(".ov.on #go");   // typed like a person
     await check("You got ₦5,000: toast says she still owes ₦45,000", async () => {
       await page.waitForFunction(() => /recorded/.test(document.querySelector(".toast")?.textContent || ""));
       const t = await toastText();

@@ -25,6 +25,11 @@ LANDING_PATCHES = [
 ]
 
 PATCHES = [
+    # --- typing an amount: the key handler returned false for every key but Enter, which cancels the key in a browser
+    ("amount keys (You got/gave)", 'fn(v);shut(o)};$("#go",o).onclick=g;i.onkeydown=e=>e.key=="Enter"&&g()}',
+     'fn(v);shut(o)};$("#go",o).onclick=g;i.onkeydown=e=>{if(e.key=="Enter")g()}}'),
+    ("amount keys (design talk)", 'amt=+v;card()};$("#go",o).onclick=g;i.onkeydown=e=>e.key=="Enter"&&g()}',
+     'amt=+v;card()};$("#go",o).onclick=g;i.onkeydown=e=>{if(e.key=="Enter")g()}}'),
     # --- Me > Voice replies: a real switch (web/live.js keeps the choice on this phone)
     ("voice switch", 'sw("voice",true,"Voice replies")', 'sw("voice",!window.TVL||TVL.voiceOn(),"Voice replies")'),
     # --- no sample customers on screen before the real book loads (the design starts with made-up ones)
