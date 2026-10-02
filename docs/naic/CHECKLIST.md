@@ -154,9 +154,12 @@ results, or confirmation from beta testers.
 - [ ] **Get consent:** a simple consent form, read to each trader in their language. Owner: ____
 - [ ] **Pilot from 6 to 10 Oct:** reach **50 or more real interactions**, meaning recordings, questions and
       corrections. Owner: ____
+- [ ] **At least 2 EXTERNAL beta testers (PS2 minimum, NAIC 2026):** people outside the team who test the app and
+      give a signed or recorded confirmation (name, role, date, what they tested). Owner: ____ Due: 8 Oct
 - [ ] **Collect short quotes or confirmations** from 3–5 testers, as written notes or voice notes, with
       permission. Owner: ____
-- [ ] **Export the anonymised session log** (`/team/export.csv`): no names and no amounts. Owner: ____
+- [ ] **Export the anonymised session log** (`/team/export.csv`, built 2 Oct; open `/team?key=<ADMIN_TOKEN>`):
+      no names and no amounts. Watch "Real interactions" reach 50+. Owner: ____
 - [ ] **Write up the results:** the number of traders, languages, interactions, the funnel, what went wrong and
       what we fixed. Owner: ____
 - [ ] Export to PDF. Owner: ____
