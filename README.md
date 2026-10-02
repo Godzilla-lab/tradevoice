@@ -71,8 +71,7 @@ To switch on speech, the AI models and the WhatsApp bot, copy `.env.example` to 
 On an NVIDIA Brev GPU, `bash scripts/start_brev.sh` starts both models, the app and a public link.
 `python scripts/check_models.py` and `python scripts/check_whatsapp.py` test each part and say what to fix.
 Full setup and every setting: [`docs/TECHNICAL.md`](docs/TECHNICAL.md) · WhatsApp bot: [`docs/WHATSAPP.md`](docs/WHATSAPP.md) ·
-Live: an AWS server [`docs/HOSTING_AWS.md`](docs/HOSTING_AWS.md) · a free Oracle server [`docs/HOSTING.md`](docs/HOSTING.md) ·
-or a Mac + Cloudflare Tunnel [`docs/HOSTING_MAC.md`](docs/HOSTING_MAC.md)
+Live: an AWS server [`docs/HOSTING_AWS.md`](docs/HOSTING_AWS.md) · later a free Oracle server [`docs/HOSTING.md`](docs/HOSTING.md)
 
 ## Tests
 ```bash

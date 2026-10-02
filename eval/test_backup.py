@@ -137,7 +137,7 @@ def main():
     for k in ("BACKUP_SUPABASE_URL", "BACKUP_SUPABASE_KEY"):
         os.environ.pop(k)
 
-    # BACKUP_COPY_DIR: each backup also lands in a folder (the Mac: Google Drive)
+    # BACKUP_COPY_DIR: each backup also lands in a folder
     copy_dir = os.path.join(D, "drive", "TradeVoice backups")
     os.environ["BACKUP_COPY_DIR"] = copy_dir
     rc = backup.main([])

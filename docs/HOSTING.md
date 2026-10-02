@@ -3,8 +3,8 @@
 The web app, the WhatsApp and Paystack webhooks, every trader's book and the accounts run on **one free Oracle Cloud
 server** in Johannesburg (the closest Oracle region to Nigeria), at a free fixed address **https://NAME.duckdns.org**.
 N-ATLaS and the speech models stay on Modal (they need a GPU; the server only calls them).
-Until the Oracle account works (it needs a card that pays abroad), TradeVoice runs on a Mac: [`HOSTING_MAC.md`](HOSTING_MAC.md).
-The same scripts work on any Ubuntu 24.04 server: AWS step by step in [`HOSTING_AWS.md`](HOSTING_AWS.md).
+Live now on AWS (free-plan credits): [`HOSTING_AWS.md`](HOSTING_AWS.md). This guide is for moving to Oracle's free server
+later (it needs a card that pays abroad); the same scripts work on any Ubuntu 24.04 server.
 
 | What | Where | Cost |
 |---|---|---|
@@ -80,9 +80,10 @@ Oracle console → Storage → **Buckets** → Create bucket `tradevoice-backups
 Check: `sudo systemctl start tradevoice-backup && sudo journalctl -u tradevoice-backup -n 5` → "uploaded off the server ✅".
 Backups hold traders' personal data: the bucket stays private, and a backup is never emailed or shared.
 
-## 8. Move the books from Modal (or from the Mac)
-From the Mac instead: `bash deploy/mac/tradevoice.sh stop && bash deploy/mac/tradevoice.sh backup`, copy the newest
-`~/tradevoice-data/backups/tradevoice-….tar.gz` to the server, then `sudo bash /opt/tradevoice/app/deploy/server/restore.sh FILE`.
+## 8. Move the books from Modal (or from the AWS server)
+From another TradeVoice server (AWS → Oracle): `sudo systemctl stop tradevoice && sudo systemctl start tradevoice-backup`
+there, copy the newest `/var/lib/tradevoice/backups/tradevoice-….tar.gz` to the new server, then
+`sudo bash /opt/tradevoice/app/deploy/server/restore.sh FILE`, and point the DuckDNS name / webhooks at the new server.
 
 From Modal: (once, after steps 1–7 work)
 On the Mac (where `modal` is set up):

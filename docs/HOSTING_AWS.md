@@ -47,11 +47,18 @@ and prints the links. "https … ✅" = the certificate is in place. A ❌ there
 80 and 443 from anywhere (EC2 → the instance → Security), wait 5 minutes, run the same command again.
 
 ## 5. Keys, backups, books, webhooks
-Same as the Oracle guide: **keys** ([`HOSTING.md`](HOSTING.md) step 6), **moving the books** from Modal or the Mac
+Same as the Oracle guide: **keys** ([`HOSTING.md`](HOSTING.md) step 6), **moving the books** from Modal
 (step 8), **webhooks** (step 9), and the **every day** commands.
 For the **copy off the server**, use Supabase Storage (free, no card, a different company from AWS):
-[`HOSTING_MAC.md`](HOSTING_MAC.md) step 5 (the same two lines go in the server's `.env`), then
-`sudo systemctl start tradevoice-backup && sudo journalctl -u tradevoice-backup -n 5` → "copied to Supabase ✅".
+supabase.com → New project `tradevoice-backups` (only for backups) → **Storage → New bucket** `backups`, private →
+**Project Settings → API Keys**: put the project URL and the **secret** key in the server's `.env`:
+```
+BACKUP_SUPABASE_URL=https://PROJECT.supabase.co
+BACKUP_SUPABASE_KEY=...        # the secret key: treat it like a password
+```
+Then `sudo systemctl start tradevoice-backup && sudo journalctl -u tradevoice-backup -n 5` → "copied to Supabase ✅".
+Hourly uploads keep the free project from pausing; old copies there are pruned like the ones on the server.
+Backups hold traders' personal data: keep the bucket private and never share a backup.
 
 ## Notes
 - Data location: the region you picked (Ireland or London). Say so in the privacy notice.

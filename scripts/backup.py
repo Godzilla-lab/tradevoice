@@ -10,8 +10,7 @@ BACKUP_UPLOAD_URL (optional, in .env): where each backup is also uploaded, so a 
 Azure Blob Storage container SAS URL (https://ACCOUNT.blob.core.windows.net/CONTAINER?sv=…&sig=…) or an Oracle Object
 Storage pre-authenticated request URL (ends in /o/). The file's name goes into the path, before any ?query. Backups hold traders' personal data: keep them private.
 BACKUP_SUPABASE_URL + BACKUP_SUPABASE_KEY (optional): a copy in Supabase Storage (free, no card), see supabase_upload.
-BACKUP_COPY_DIR (optional): a folder that also gets each backup, pruned the same way. On the Mac: a Google Drive
-folder (Google Drive for desktop), so a copy lives off the Mac.
+BACKUP_COPY_DIR (optional): a folder that also gets each backup, pruned the same way (e.g. a mounted drive).
 On the live server the hourly timer runs this (deploy/server/setup.sh); restore there with deploy/server/restore.sh.
 """
 import argparse
