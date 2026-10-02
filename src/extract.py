@@ -447,6 +447,12 @@ def parse_type(text):
         return "payment_received"
     if any(k in t for k in _PAYMENT_KW):
         return "payment_received"
+    # "Iya Bisi paid 10000": a named customer paying with nothing bought = paying back (not "paid 5000 for 2 bags")
+    who = parse_customer(text)
+    m = who and re.match(rf"\s*{re.escape(who)}\s+paid\b(.*)", text, re.IGNORECASE)
+    if m and not re.search(r"\bfor\b", m.group(1), re.IGNORECASE) and not any(
+            re.search(rf"(?<![\w-]){re.escape(k)}(?!\w)", t) for k in _CREDIT_KW):
+        return "payment_received"
     # ha: "ta/ya biya" = she/he paid, but "za ta/ya biya", "zai biya" = will pay (a promise, so credit)
     if re.search(r"\b(ta|ya) biya\b", t) and not re.search(r"\bza (ta|ya) biya\b", t):
         return "payment_received"

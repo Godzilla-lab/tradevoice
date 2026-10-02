@@ -43,6 +43,7 @@ python eval/test_converse.py                   # offline: one conversation switc
 python eval/run_eval.py --cases eval/cases_owe.jsonl   # "I owe" / "I paid back" vs the customer side
 python eval/lang_check.py                      # which model is best per language (text + photos)
 python eval/tts_check.py                       # voice-reply samples + scores.txt form for native speakers
+NODE_PATH=$(npm root -g) node eval/browser_test.cjs   # the whole app in Chromium (own server, AUTH_DEMO=1, fresh temp db)
 ```
 The report shows: accuracy per field **with 95% range (Wilson)**, all-fields score, type macro-F1,
 🚨 **wrong amount written** (the worst mistake: a wrong number is worse than an empty one), invented amounts,
