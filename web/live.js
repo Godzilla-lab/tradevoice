@@ -21,6 +21,25 @@
   }
   const lang = () => LANG[L] || "English";
 
+  /* spoken replies: after a voice note TradeVoice answers out loud (Me > Voice replies turns it off).
+     Phones only let a page play sound it was allowed to during a tap, so the tap on the mic unlocks the player. */
+  const player = new Audio();
+  const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+  const voiceOn = () => { try { return localStorage.getItem("tv-voice") !== "off"; } catch (e) { return true; } };
+  function unlock() { try { player.src = SILENT; const p = player.play(); if (p) p.then(() => player.pause()).catch(() => {}); } catch (e) {} }
+  function say(sid) {
+    if (!sid || !voiceOn()) return;
+    try { player.pause(); player.src = `/api/speak/${sid}`; const p = player.play(); if (p) p.catch(() => {}); } catch (e) {}
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-a=voice]"); if (!b) return;
+    const on = !voiceOn();
+    try { localStorage.setItem("tv-voice", on ? "on" : "off"); } catch (x) {}
+    b.setAttribute("aria-checked", String(on));
+    if (!on) player.pause();
+    toast(on ? "Voice replies on: I answer out loud after a voice note." : "Voice replies off.");
+  });
+
   function fromServer(m) {
     return { phone: m.phone, name: m.name, biz: m.biz, type: m.type, mk: m.mk, addr: m.addr, rc: m.rc, photo: m.photo,
       email: m.email, emailOk: m.emailOk, bank: m.bank, acctNo: m.acctNo, acctName: m.acctName, notif: m.notif,
@@ -45,7 +64,7 @@
   }
 
   const TVL = window.TVL = {
-    demo, A: null,
+    demo, A: null, voiceOn, say,
     async boot() {
       const r = await api("/api/v2/me");
       if (r.ok) {
@@ -179,6 +198,7 @@
   const day = d => { if (!d) return ""; const x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString("en-NG", { weekday: "long" }); };
 
   talk = async function () {
+    unlock();   // during the tap: lets the spoken reply play later on phones
     const o = sheet(""), box = $(".in", o);
     const live = s => `<div class="wave">${"<i></i>".repeat(24)}</div><ol class="steps">${["listen", "hear", "think"].map((k, i) => `<li class="${i < s ? "done" : i == s ? "on" : ""}">${t(k)}</li>`).join("")}</ol><div class="quote" id="qt">&nbsp;</div>`;
     const err = (h, p) => { box.innerHTML = `<h3>${h}</h3><p class="s">${p}</p><div class="btns"><button class="btn p w" id="re">Try again</button></div>`; $("#re", o).onclick = () => { shut(o); setTimeout(talk, 300); }; };
@@ -224,6 +244,7 @@
     show(r.data);
 
     function show(d) {
+      say(d.speak);
       const dr = d.draft;
       if (!dr) {   // a question or a chat answer, not a record
         box.innerHTML = `<h3>${esc(d.text)}</h3><div class="btns"><button class="btn p w" id="ok">Done</button></div>`;

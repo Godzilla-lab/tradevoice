@@ -25,6 +25,8 @@ LANDING_PATCHES = [
 ]
 
 PATCHES = [
+    # --- Me > Voice replies: a real switch (web/live.js keeps the choice on this phone)
+    ("voice switch", 'sw("voice",true,"Voice replies")', 'sw("voice",!window.TVL||TVL.voiceOn(),"Voice replies")'),
     # --- no sample customers on screen before the real book loads (the design starts with made-up ones)
     ("no sample data", 'let C=seed();', 'let C=[];'),
     ("no sample totals", 'inN=128500,outN=40000,', 'inN=0,outN=0,'),

@@ -86,6 +86,44 @@ def main():
     check("Yoruba question answered in Yoruba from the same book", r["lang"] == "Yoruba" and "10,000" in r["text"], r)
     check("language switch did not reset the book", c.get("/api/debts").json()["owed_to_me"][0]["balance"] in (46000, 20000))
 
+    # spoken reply after a voice note: made straight away in the background, once (one Intron call), served on request
+    import threading
+    import time
+
+    import asr
+    import tts
+    calls = []
+
+    def fake_speak(text, lang="English", **k):
+        calls.append(text)
+        time.sleep(0.3)   # Intron takes a while
+        f = os.path.join(tempfile.mkdtemp(), "v.wav")
+        open(f, "wb").write(b"RIFF....WAVE")
+        return {"path": f, "engine": "intron:test"}
+    real_hear, real_speak = asr.transcribe_auto, tts.speak
+    asr.transcribe_auto = lambda path, language=None, vocab=None: {"text": "Mama Tunde took rice 20000", "engine": "test"}
+    tts.speak = fake_speak
+    try:
+        r = c.post("/api/voice", files={"file": ("note.webm", b"0" * 200)},
+                   data={"session": "voice", "lang": "English", "consent": "yes"}).json()
+        sid = r.get("speak")
+        time.sleep(0.05)
+        check("voice note: the spoken reply starts being made before the page asks", sid and calls, r)
+        a = c.get(f"/api/speak/{sid}")
+        check("…the page gets it, and Intron was called once (not again on request)",
+              a.status_code == 200 and a.content.startswith(b"RIFF") and len(calls) == 1, (a.status_code, len(calls)))
+        tts.speak = lambda *a, **k: calls.append("x") or None   # voice off / Intron failed
+        n = len(calls)
+        r = c.post("/api/voice", files={"file": ("note.webm", b"0" * 200)},
+                   data={"session": "voice2", "lang": "English", "consent": "yes"}).json()
+        time.sleep(0.1)
+        a = c.get(f"/api/speak/{r.get('speak')}")
+        check("no voice: the page gets 404 (text only) and Intron isn't tried a second time",
+              a.status_code == 404 and len(calls) == n + 1, (a.status_code, len(calls) - n))
+    finally:
+        asr.transcribe_auto, tts.speak = real_hear, real_speak
+        assert threading.active_count() >= 1
+
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} demo-flow checks pass")
     return all(CHECKS)
 

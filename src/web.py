@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import tempfile
+import threading
 import urllib.parse
 import uuid
 
@@ -87,6 +88,7 @@ app.add_middleware(BookPerTrader)
 SESSIONS = {}   # (book, browser session id) -> conversation state (who "her" is, the draft waiting for "yes")
 SPEAK = {}      # speak id -> (text, language) ; audio is made only when the page asks for it
 AUDIO = {}      # speak id -> audio file path
+MAKING = {}     # speak id -> threading.Event while its voice is being made (after a voice note: started at once)
 
 
 def _state(session, lang=None):
@@ -110,6 +112,28 @@ def _speak_id(text, lang):
     sid = uuid.uuid4().hex
     SPEAK[sid] = (text, lang if lang in tts.REPLY_LANGS else "English")
     return sid
+
+
+def _make_voice(sid):
+    try:
+        text, lang = SPEAK[sid]
+        out = tts.speak(text, lang)
+        AUDIO[sid] = out["path"] if out else None   # None = no voice for this reply (off, or Intron failed)
+    except Exception as e:  # noqa: BLE001  (no voice: the reply is still on screen)
+        AUDIO[sid] = None
+        print(f"voice reply failed: {type(e).__name__}: {e}")
+    finally:
+        ev = MAKING.pop(sid, None)
+        if ev:
+            ev.set()
+
+
+def _start_voice(sid):
+    """After a voice note the spoken reply is made straight away, while the trader reads the card: by the time the
+    page asks for it (/api/speak) it is ready or nearly. One Intron call per reply, never two."""
+    if sid and sid in SPEAK and sid not in AUDIO and sid not in MAKING:
+        MAKING[sid] = threading.Event()
+        threading.Thread(target=_make_voice, args=(sid,), daemon=True).start()
 
 
 def _upload(file: UploadFile, suffix):
@@ -239,6 +263,7 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
     out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text)
     out["engine"] = heard.get("engine")
     out["detected"] = heard.get("detected")
+    _start_voice(out.get("speak"))
     return out
 
 
@@ -268,6 +293,9 @@ def voice_check(lang: str = "Yoruba", fmt: str = "wav"):
 @app.get("/api/speak/{sid}")
 def speak(sid: str):
     """The voice note for a reply, made on first request (so the text shows without waiting for the voice)."""
+    ev = MAKING.get(sid)
+    if ev:
+        ev.wait(90)   # already being made since the voice note came in
     if sid not in AUDIO:
         if sid not in SPEAK:
             raise HTTPException(404)
@@ -276,6 +304,8 @@ def speak(sid: str):
         if not out:
             raise HTTPException(404, "voice is off")
         AUDIO[sid] = out["path"]
+    if not AUDIO[sid]:
+        raise HTTPException(404, "no voice for this reply")
     return FileResponse(AUDIO[sid], media_type="audio/wav")
 
 

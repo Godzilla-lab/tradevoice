@@ -233,6 +233,18 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       await page.waitForFunction(async () => (await (await fetch("/api/v2/me")).json()).lang === "English", null, { timeout: 8000, polling: 500 });
       await page.waitForSelector("#tabs [data-k=me]");
     });
+    await check("Me: Voice replies switch turns off and stays off after a refresh, then back on", async () => {
+      const sw = () => page.locator('#me [data-a=voice]');
+      if (await sw().getAttribute("aria-checked") !== "true") throw new Error("not on at first");
+      await sw().click();
+      if (await sw().getAttribute("aria-checked") !== "false") throw new Error("didn't turn off");
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForFunction(() => window.TVL && TVL.A && !document.querySelector("#gate"));
+      await tab("me");
+      if (await sw().getAttribute("aria-checked") !== "false") throw new Error("came back on after refresh");
+      await sw().click();
+      if (await sw().getAttribute("aria-checked") !== "true") throw new Error("didn't turn back on");
+    });
     await check("Me: Connect my WhatsApp says it's coming", async () => {
       await page.click('#me [data-a=wac]'); return /bot/.test(await toastText());
     });
