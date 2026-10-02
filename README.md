@@ -6,7 +6,7 @@
 
 **Records that speak your language.**
 
-Voice-first bookkeeping for market traders. Say what you sold, in English, Pidgin, Yorùbá, Hausa or Igbo,
+Voice-first bookkeeping for market traders. Say what you sold, in English, Yorùbá, Hausa or Igbo (Pidgin is understood too),
 on WhatsApp or the web, and TradeVoice keeps the book.
 
 </div>
@@ -37,7 +37,7 @@ of, and saves **only when the trader taps Save**. Corrections like *"no be 20k, 
  Voice note / photo / text   (WhatsApp bot or web app)
         │
         ▼
- Intron Sahara ── hears English, Pidgin, Yorùbá, Hausa, Igbo (and mixed sentences)
+ N-ATLaS ASR ── hears Nigerian English (and Pidgin), Yorùbá, Hausa, Igbo
         │
         ▼
  Qwen2.5 LLM on our NVIDIA Brev GPU (vLLM) ── words → transaction
@@ -99,7 +99,7 @@ tradevoice/
 │   ├── ledger.py, insights.py, assistant.py   the book, the maths, exact answers to questions
 │   ├── extras.py       lender link, pay links (Paystack), reminders, receipts, PIN, CSV
 │   ├── accounts.py     one private book per phone
-│   ├── ui_text.py, tax.py   every screen word in 5 languages; sourced tax information
+│   ├── ui_text.py, tax.py   every screen word in 4 languages (N-ATLaS's: English, Yorùbá, Hausa, Igbo); sourced tax information
 │   └── app.py, asr_server/  old Gradio screens (/admin) and an optional speech server
 ├── web/            the front end: HTML, CSS, JavaScript, service worker, icons
 ├── eval/           tests (python eval/run_all.py) and 464 test sentences

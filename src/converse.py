@@ -486,7 +486,7 @@ def _remind(text, lang, state, vocab, today, shop, forced_id=None):
                     english=SAY["remind_none"]["English"].format(who=who))
     day = _when(text, today)
     their_lang = next((l for l in insights.TEMPLATES if re.search(rf"\bin {l.lower()}\b", fold(text))),
-                      lang if lang in insights.TEMPLATES else "Pidgin")
+                      lang if lang in insights.TEMPLATES and lang != "Pidgin" else "English")
     ledger.add_reminder(d["customer"], day.isoformat(), their_lang, customer_id=d["customer_id"])
     msg, link = insights.reminder(d["customer"], their_lang, shop, today=today, customer_id=d["customer_id"])
     if d.get("customer_id"):  # the draft also shows in this customer's conversation

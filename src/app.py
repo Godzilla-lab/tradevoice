@@ -152,7 +152,7 @@ def _process_long(text, asr_info, voice_lang, reply_lang):
     """A long voice note: every money entry + a summary in the trader's language + helpful extras."""
     import note
 
-    lang = reply_lang if reply_lang in tts.REPLY_LANGS else VOICE_TO_REPLY.get(voice_lang, "Pidgin")
+    lang = reply_lang if reply_lang in tts.REPLY_LANGS else VOICE_TO_REPLY.get(voice_lang, "English")
     r = note.understand(text, lang, vocab=ledger.known_words())
     # written reply: always simple English; the voice note says the same in the trader's language
     md = ["### 📝 What you told me", r["summary_en"] or "_(nothing with money found)_"]
@@ -504,7 +504,7 @@ def talk(consent, audio_path, voice_lang, typed, history, state, shop):
                   "(you choose the contact and press send)")
     voice = None
     try:
-        out = tts.speak(r["spoken"], r["lang"] if r["lang"] in tts.REPLY_LANGS else "Pidgin")
+        out = tts.speak(r["spoken"], r["lang"] if r["lang"] in tts.REPLY_LANGS else "English")
         voice = out["path"] if out else None
     except Exception as e:  # noqa: BLE001 - voice is a bonus
         print(f"chat voice failed: {type(e).__name__}: {e}")
@@ -553,7 +553,7 @@ def switch_language(lang):
             gr.update(value=t("process")), gr.update(value=t("confirm")), gr.update(value=t("ask")),
             gr.update(value=t("refresh")), gr.update(label=t("voice_note")), gr.update(label=t("type_it")),
             gr.update(label=t("consent"))] + [gr.update(value=t("read"))] * 4 + [
-            gr.update(value=lang if lang in tts.REPLY_LANGS else "Pidgin")]
+            gr.update(value=lang if lang in tts.REPLY_LANGS else "English")]
 
 
 def chat(question, history):
@@ -621,10 +621,10 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
             typed = gr.Textbox(label="…or type it", lines=3,
                                placeholder="I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday")
         with gr.Row():
-            reply_lang = gr.Radio(["Off"] + tts.REPLY_LANGS, value="Pidgin",
+            reply_lang = gr.Radio(["Off"] + tts.REPLY_LANGS, value="English",
                                   label="🔊 Read it back to me in (for traders who prefer listening)")
             gr.Markdown(voice_status())
-        voice_lang.change(lambda v: VOICE_TO_REPLY.get(v, "Pidgin"), voice_lang, reply_lang)
+        voice_lang.change(lambda v: VOICE_TO_REPLY.get(v, "English"), voice_lang, reply_lang)
         go = gr.Button("Process", variant="primary")
         status = gr.Markdown()
         heard_audio = gr.Audio(label="🔊 What I heard", autoplay=True, interactive=False)
@@ -683,7 +683,7 @@ with gr.Blocks(title="TradeVoice", **({} if GRADIO6 else {"theme": THEME})) as d
         gr.Markdown("### 📲 Send a polite reminder")
         with gr.Row():
             r_who = gr.Dropdown(label="Customer", choices=[])
-            r_lang = gr.Radio(["Pidgin", "English", "Yoruba"], value="Pidgin", label="Language")
+            r_lang = gr.Radio(["Pidgin", "English", "Yoruba"], value="English", label="Language")
         r_btn = gr.Button("Write reminder")
         r_msg = gr.Textbox(label="Message (edit before sending)", lines=3)
         r_link = gr.Markdown()

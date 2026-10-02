@@ -95,12 +95,13 @@ def main():
     check("fake (unsigned) messages are refused", bad.status_code == 401)
 
     out = text_of(post({"type": "text", "text": {"body": "hi"}}))
-    check("first message → language list", "Which language" in out and "Yorùbá" in out, out)
+    check("first message → language list (4 N-ATLaS languages, no Pidgin)", "Which language" in out
+          and "Yorùbá" in out and "Pidgin" not in out, out)
     out = text_of(post({"type": "interactive", "interactive": {"type": "list_reply",
                                                                 "list_reply": {"id": "lang:Pidgin"}}}))
-    check("language picked → consent with 'I agree' button", "I gree" in out, out)
+    check("an old 'Pidgin' button → English, consent with 'Agree' button", "Agree and continue" in out, out)
     out = text_of(post({"type": "audio", "audio": {"id": "a1"}}))
-    check("no processing before consent", "I gree" in out and "Mama Tunde" not in out, out)
+    check("no processing before consent", "Agree and continue" in out and "Mama Tunde" not in out, out)
     out = text_of(post({"type": "interactive", "interactive": {"type": "button_reply",
                                                                 "button_reply": {"id": "consent:yes"}}}))
     check("agreed → hello", "Hello" in out, out)

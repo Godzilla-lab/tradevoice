@@ -55,7 +55,7 @@ LANGS = list(T["today"])
 
 
 def _lang(lang):
-    return lang if lang in LANGS else "Pidgin"
+    return lang if lang in LANGS and lang != "Pidgin" else "English"
 
 
 def today(lang):

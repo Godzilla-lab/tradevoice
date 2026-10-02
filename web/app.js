@@ -7,7 +7,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
 };
 const S = {
-  lang: store.get("tv_lang", "English"),          // ONE language for everything: screens, replies, voice, hearing
+  lang: ((l) => (l === "Pidgin" ? "English" : l))(store.get("tv_lang", "English")),          // ONE language for everything: screens, replies, voice, hearing
   shop: store.get("tv_shop", ""),
   consent: store.get("tv_consent", "") === "yes",
   unlock: (() => { try { return sessionStorage.getItem("tv_unlock") || ""; } catch { return ""; } })(),
@@ -15,7 +15,7 @@ const S = {
   voice: null, T: {}, pending: null,
 };
 store.set("tv_session", S.session);
-const LANGS = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"];
+const LANGS = ["English", "Yoruba", "Hausa", "Igbo"];   // N-ATLaS languages; Pidgin dropped as a choice (2 Oct)
 const TYPES = {
   sale: ["🛒", "Sold (paid)"], credit_sale: ["📝", "Sold on credit"], payment_received: ["💰", "Paid me back"],
   expense: ["💸", "Spent"], credit_purchase: ["📦", "Bought on credit (I owe)"], payment_made: ["↩️", "I paid back"],
@@ -883,7 +883,7 @@ function taxHtml(y, tax) {
 document.addEventListener("click", async (e) => {
   const who = e.target.dataset?.remind, del = e.target.dataset?.del;
   if (who) {
-    const lang = ["English", "Pidgin", "Yoruba"].includes(S.lang) ? S.lang : "Pidgin";
+    const lang = ["English", "Yoruba"].includes(S.lang) ? S.lang : "English";
     const r = await api(`/api/reminder?customer=${encodeURIComponent(who)}&lang=${lang}&shop=${encodeURIComponent(S.shop)}`);
     if (!r.message) return toast(t("remind_none", "{n} doesn't owe you anything").replace("{n}", who));
     sheet(`<h3>${esc(t("remind", "Remind"))} ${esc(who)}</h3><div class="quote">${fmt(r.message)}</div>
@@ -1187,7 +1187,7 @@ document.addEventListener("visibilitychange", () => {
 
 function loggedIn(me) {
   clearInterval(L.poll); S.me = me;
-  if (me.lang && me.lang !== S.lang) { S.lang = me.lang; store.set("tv_lang", me.lang); }
+  if (me.lang && me.lang !== "Pidgin" && me.lang !== S.lang) { S.lang = me.lang; store.set("tv_lang", me.lang); }
   if (me.new) return loginShop();
   finishLogin();
 }

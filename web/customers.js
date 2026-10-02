@@ -230,7 +230,7 @@ $("#cthread").addEventListener("click", async (e) => {
     if (act === "pay") return recordSheet(c, "payment_received");
     if (act === "sale") return recordSheet(c, "credit_sale");
     if (act === "remind") {
-      const lang = ["English", "Pidgin", "Yoruba"].includes(S.lang) ? S.lang : "Pidgin";
+      const lang = ["English", "Yoruba"].includes(S.lang) ? S.lang : "English";
       const r = await post(`/api/customers/${c.id}/reminder`, { lang, shop: S.shop || null });
       if (!r.message) return toast(t("remind_none", "{n} doesn't owe you anything").replace("{n}", c.name));
       return refreshThread(r);

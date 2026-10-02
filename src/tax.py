@@ -102,7 +102,7 @@ CHECK = ["The rules are being reviewed now (September 2026). Check with your sta
 
 
 def _pick(values, lang):
-    return values[LANGS.index(lang)] if lang in LANGS else values[0]
+    return values[ui_text.TABLE_LANGS.index(ui_text.choose(lang))]
 
 
 def facts(lang="English"):

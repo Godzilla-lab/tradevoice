@@ -1,9 +1,19 @@
-"""The main words on screen in 5 languages (tab names, main buttons, consent). Picked with "🌍 App language".
+"""The main words on screen in 4 languages (tab names, main buttons, consent). Picked with "🌍 App language".
+
+Languages = N-ATLaS's: English (Nigerian English), Yoruba, Hausa, Igbo. Pidgin was dropped as a CHOICE on 2 Oct
+(N-ATLaS has no Pidgin model): Pidgin speakers are still heard and understood, and get English. The tables below
+still hold a Pidgin column (TABLE_LANGS) so nothing shifts; it is never shown.
 
 Short, everyday words on purpose. ⚠️ Pidgin/Yoruba/Hausa/Igbo written by a non-native speaker: have native speakers
 check and fix this file (one place for all of it). Anything not listed here stays in English.
 """
-LANGS = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"]
+TABLE_LANGS = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"]   # column order of the tables below
+LANGS = ["English", "Yoruba", "Hausa", "Igbo"]                     # what a trader can choose
+
+
+def choose(lang):
+    """A language the app speaks: anything else (old 'Pidgin' settings, unknown) -> English."""
+    return lang if lang in LANGS else "English"
 
 UI = {
     "tab_talk": ["💬 Talk to TradeVoice", "💬 Yarn with TradeVoice", "💬 Bá TradeVoice sọ̀rọ̀", "💬 Yi hira da TradeVoice",
@@ -502,5 +512,6 @@ def t(key, lang):
     values = UI.get(key)
     if not values:
         return ""
-    v = values[LANGS.index(lang)] if lang in LANGS and LANGS.index(lang) < len(values) else ""
+    lang = choose(lang)
+    v = values[TABLE_LANGS.index(lang)] if TABLE_LANGS.index(lang) < len(values) else ""
     return v or values[0]

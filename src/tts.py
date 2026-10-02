@@ -15,7 +15,7 @@ import re
 import time
 import tempfile
 
-REPLY_LANGS = ["Pidgin", "English", "Yoruba", "Hausa", "Igbo"]
+REPLY_LANGS = ["English", "Yoruba", "Hausa", "Igbo"]   # no Pidgin choice since 2 Oct
 
 # Intron: spoken language + accent are two fields. Accents are overridable (INTRON_ACCENT_YORUBA=...) because Intron's
 # accent list isn't public; a rejected accent is retried without one.
@@ -173,7 +173,7 @@ def _female(name):
     return bool(name) and name.split()[0].lower().rstrip(".") in _FEMALE
 
 
-def entry_sentence(rec, language="Pidgin", money=None):
+def entry_sentence(rec, language="English", money=None):
     """The core sentence for one entry ("Mama Tunde go pay you forty-five thousand naira, for Friday.").
     money: how to write amounts (default: English words, for speaking)."""
     return _sentence(rec, language, money or naira_words)[0]
@@ -199,7 +199,7 @@ def _sentence(rec, language, money):
     return t.get(rec.get("type"), t["sale"]).format(due=due, **slots), t, slots
 
 
-def confirmation_text(rec, language="Pidgin", balance=None, saved=True, rng=None):
+def confirmation_text(rec, language="English", balance=None, saved=True, rng=None):
     """Short spoken confirmation for one entry. saved=False reads it back for checking before saving.
     `balance` = the customer's total debt after this entry (only spoken once saved). rng: for repeatable tests."""
     import random
@@ -385,7 +385,7 @@ def _event(engine, ok, language):
 _CACHE_DIR = os.path.join(tempfile.gettempdir(), "tradevoice-voice-cache")
 
 
-def speak(text, language="Pidgin", fmt="wav", voice=None, speed=None):
+def speak(text, language="English", fmt="wav", voice=None, speed=None):
     """Return {path, engine} for an Intron audio file of `text`, or None (voice off, no key, or Intron failed:
     the caller then sends text only). The path is a fresh copy the caller may delete.
     An Intron refusal for credit/key reasons rests it for 10 minutes. voice/speed/fmt are kept for old callers."""

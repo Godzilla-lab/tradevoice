@@ -27,13 +27,14 @@ BOOK = [  # (date, type, item, amount, customer)
 ]
 # message, expected reply language, text that must be in the reply (written in that language)
 TURNS = [
-    ("Mama Tunde dey owe me forty-five thousand", "Pidgin", "₦45,000"),
-    ("yes", "Pidgin", "₦75,000"),                                  # saved; her total is now 30k + 45k
+    # Pidgin is still UNDERSTOOD, but answered in English (Pidgin dropped as a reply language, 2 Oct)
+    ("Mama Tunde dey owe me forty-five thousand", "English", "₦45,000"),
+    ("yes", "English", "₦75,000"),                                  # saved; her total is now 30k + 45k
     ("Ṣé mo ní gbèsè lọ́wọ́ Alhaji?", "Yoruba", "O jẹ Alhaji Sani ní ₦70,000"),  # "Alhaji" = the one I owe
     ("Remind her tomorrow", "English", "₦75,000 from Mama Tunde"),  # "her" = the last WOMAN who owes me, not Alhaji
-    ("How much she dey owe me now?", "Pidgin", "Mama Tunde dey owe you ₦75,000"),  # "she" = Mama Tunde
-    ("Alhaji Musa don pay me 5k", "Pidgin", "₦5,000"),
-    ("ok", "Pidgin", "₦7,000"),                                    # 12k - 5k
+    ("How much she dey owe me now?", "English", "Mama Tunde owes you ₦75,000"),  # "she" = Mama Tunde
+    ("Alhaji Musa don pay me 5k", "English", "₦5,000"),
+    ("ok", "English", "₦7,000"),                                    # 12k - 5k
     ("Remind him on Friday", "English", "₦7,000 from Alhaji Musa"),  # "him" = Alhaji Musa
     ("Ina bin Alhaji Musa bashi nawa?", "Hausa", "₦7,000"),
     ("Mama Tunde ji m ego ole?", "Igbo", "Mama Tunde ji gị ₦75,000"),

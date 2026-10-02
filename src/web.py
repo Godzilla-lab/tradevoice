@@ -106,7 +106,7 @@ def _speak_id(text, lang):
     if not text:
         return None
     sid = uuid.uuid4().hex
-    SPEAK[sid] = (text, lang if lang in tts.REPLY_LANGS else "Pidgin")
+    SPEAK[sid] = (text, lang if lang in tts.REPLY_LANGS else "English")
     return sid
 
 
@@ -436,7 +436,7 @@ def customer_say(cid: int, m: CustSay):
 
 
 class Remind(BaseModel):
-    lang: str = "Pidgin"
+    lang: str = "English"
     shop: str | None = None
 
 
@@ -444,7 +444,7 @@ class Remind(BaseModel):
 def customer_reminder(cid: int, b: Remind, request: Request):
     """TradeVoice drafts the reminder (with a pay link); the trader edits it and sends it from their own WhatsApp."""
     cust = _customer_or_404(cid)
-    msg, link = insights.reminder(cust["name"], b.lang if b.lang in insights.TEMPLATES else "Pidgin",
+    msg, link = insights.reminder(cust["name"], b.lang if b.lang in insights.TEMPLATES and b.lang != "Pidgin" else "English",
                                   b.shop or SHOP_NAME, customer_id=cid)
     if not msg:
         return {"message": None}
@@ -483,8 +483,8 @@ def debts():
 
 
 @app.get("/api/reminder")
-def reminder(customer: str, request: Request, lang: str = "Pidgin", shop: str = ""):
-    msg, link = insights.reminder(customer, lang if lang in insights.TEMPLATES else "Pidgin", shop or SHOP_NAME)
+def reminder(customer: str, request: Request, lang: str = "English", shop: str = ""):
+    msg, link = insights.reminder(customer, lang if lang in insights.TEMPLATES and lang != "Pidgin" else "English", shop or SHOP_NAME)
     d = next((x for x in ledger.debtors() if ledger.customer_key(x["customer"]) == ledger.customer_key(customer)), None)
     if msg and d and d.get("customer_id"):
         msg = extras.reminder_with_paylink(extras._base(request), request.scope["state"].get("phone"), d["customer_id"], msg)
@@ -564,7 +564,7 @@ def read_audio(screen: str, lang: str = "English"):
     if screen not in readaloud.SCREENS:
         raise HTTPException(404)
     lang = lang if lang in readaloud.LANGS else "English"
-    out = tts.speak(readaloud.text(screen, lang), lang if lang in tts.REPLY_LANGS else "Pidgin")
+    out = tts.speak(readaloud.text(screen, lang), lang if lang in tts.REPLY_LANGS else "English")
     if not out:
         raise HTTPException(404, "voice is off")
     return FileResponse(out["path"], media_type="audio/wav")
@@ -586,7 +586,7 @@ def explain_audio(screen: str, lang: str = "English"):
     import assistant
 
     e = assistant.explain(screen, lang)
-    out = tts.speak(e.get("spoken") or e["text"], lang if lang in tts.REPLY_LANGS else "Pidgin")
+    out = tts.speak(e.get("spoken") or e["text"], lang if lang in tts.REPLY_LANGS else "English")
     if not out:
         raise HTTPException(404, "voice is off")
     return FileResponse(out["path"], media_type="audio/wav")

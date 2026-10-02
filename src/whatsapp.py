@@ -47,7 +47,7 @@ SEEN = OrderedDict()           # message ids already handled (Meta sometimes sen
 LOCKS = {}                     # phone -> lock, so one trader's messages are answered in order
 VOICE_LANGS = {"English": "English / Pidgin", "Pidgin": "English / Pidgin", "Yoruba": "Yoruba", "Hausa": "Hausa",
                "Igbo": "Igbo"}
-LANG_WORDS = {"english": "English", "pidgin": "Pidgin", "yoruba": "Yoruba", "hausa": "Hausa", "igbo": "Igbo",
+LANG_WORDS = {"english": "English", "pidgin": "English", "yoruba": "Yoruba", "hausa": "Hausa", "igbo": "Igbo",
               "yorùbá": "Yoruba"}
 
 SAY = {
@@ -84,7 +84,10 @@ def user(phone):
         if not r:
             c.execute("INSERT INTO wa_users (phone) VALUES (?)", (phone,))
             return {"phone": phone, "lang": None, "consent_at": None, "voice": 1}
-        return dict(r)
+        u = dict(r)
+        if u.get("lang") == "Pidgin":   # Pidgin dropped as a choice (2 Oct): those traders now get English
+            u["lang"] = "English"
+        return u
 
 
 def set_user(phone, **kw):
@@ -158,7 +161,7 @@ def send_list(to, body, button, rows):
 def voice_file(text, lang):
     """Speak `text` as an OGG/Opus file (what WhatsApp voice notes must be): Intron makes WAV, ffmpeg converts it.
     Returns the path, or None if there is no voice (off, or Intron failed: the trader gets the text)."""
-    lang = lang if lang in tts.REPLY_LANGS else "Pidgin"
+    lang = lang if lang in tts.REPLY_LANGS else "English"
     out = tts.speak(text, lang, fmt="wav")
     if not out:
         return None
@@ -222,7 +225,7 @@ def download(media_id, suffix):
 
 def _state(phone, lang):
     st = STATES.setdefault(phone, converse.new_state())
-    st.setdefault("lang", lang or "Pidgin")
+    st.setdefault("lang", ui_text.choose(lang))
     if lang:
         st["prefer"] = lang  # their chosen language: replies use it unless they clearly speak another
     return st
@@ -337,6 +340,7 @@ def handle(msg):
             lang = text.split(":", 1)[1] if text.startswith("lang:") else LANG_WORDS.get(fold(text))
             if not lang:
                 return _ask_language(phone)
+            lang = ui_text.choose(lang)   # an old "Pidgin" button -> English
             set_user(phone, lang=lang)
             _state(phone, lang)["lang"] = lang
             if not u["consent_at"]:
@@ -416,7 +420,7 @@ def handle(msg):
 
 def _ask_language(phone):
     return send_list(phone, SAY["pick"], "Choose language",
-                     [("lang:Pidgin", "Pidgin"), ("lang:English", "English"), ("lang:Yoruba", "Yorùbá"),
+                     [("lang:English", "English"), ("lang:Yoruba", "Yorùbá"),
                       ("lang:Hausa", "Hausa"), ("lang:Igbo", "Igbo")])
 
 

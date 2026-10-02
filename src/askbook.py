@@ -12,7 +12,7 @@ import re
 import ledger
 from extract import _parse_json, fold
 
-LANGS = ("English", "Pidgin", "Yoruba", "Hausa", "Igbo")
+LANGS = ("English", "Yoruba", "Hausa", "Igbo")   # Pidgin dropped as a reply language (2 Oct): -> English
 PERIODS = ("today", "yesterday", "this_week", "last_week", "this_month", "last_month", "this_year", "all")
 
 # item -> words people say for it (English, Pidgin, yo, ha, ig; no tone marks). First local word is used in answers.
@@ -115,7 +115,8 @@ def guess_language(question):
         if any(ch in raw or unicodedata.normalize("NFD", ch) in raw for ch in letters if not ch.isspace()):
             score[lang] += 2
     best = max(score, key=score.get)
-    return best if score[best] >= 2 else ("Pidgin" if score["Pidgin"] else "English")
+    best = best if score[best] >= 2 else "English"
+    return "English" if best == "Pidgin" else best   # Pidgin is understood, answered in English
 
 
 def parse_offline(question, vocab=None):
