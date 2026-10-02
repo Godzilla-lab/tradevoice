@@ -6,9 +6,10 @@
 
 A backup is one file: $BACKUP_DIR/tradevoice-YYYYMMDD-HHMMSS.tar.gz (accounts.db, tradevoice.db, books/<phone>.db).
 Kept: every backup from the last 48 hours, and the newest of each day for 30 days.
-BACKUP_UPLOAD_URL (optional, in .env): an Oracle Object Storage pre-authenticated request URL (ends in /o/). Each backup
-is also uploaded there, so a copy lives off the server. Backups hold traders' personal data: keep them private.
-On the live server the hourly timer runs this (deploy/oracle/setup.sh); restore there with deploy/oracle/restore.sh.
+BACKUP_UPLOAD_URL (optional, in .env): where each backup is also uploaded, so a copy lives off the server. Either an
+Azure Blob Storage container SAS URL (https://ACCOUNT.blob.core.windows.net/CONTAINER?sv=…&sig=…) or an Oracle Object
+Storage pre-authenticated request URL (ends in /o/). The file's name goes into the path, before any ?query. Backups hold traders' personal data: keep them private.
+On the live server the hourly timer runs this (deploy/server/setup.sh); restore there with deploy/server/restore.sh.
 """
 import argparse
 import datetime as dt
@@ -19,6 +20,7 @@ import sqlite3
 import sys
 import tarfile
 import tempfile
+import urllib.parse
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -107,9 +109,11 @@ def upload(path):
     url = os.getenv("BACKUP_UPLOAD_URL", "").strip()
     if not url:
         return False
+    u = urllib.parse.urlsplit(url)   # the name goes into the path; an Azure SAS keeps its ?sv=…&sig=… after it
+    target = urllib.parse.urlunsplit(u._replace(path=u.path.rstrip("/") + "/" + os.path.basename(path)))
     with open(path, "rb") as f:
-        req = urllib.request.Request(url.rstrip("/") + "/" + os.path.basename(path), data=f.read(), method="PUT",
-                                     headers={"Content-Type": "application/gzip"})
+        req = urllib.request.Request(target, data=f.read(), method="PUT",
+                                     headers={"Content-Type": "application/gzip", "x-ms-blob-type": "BlockBlob"})
     urllib.request.urlopen(req, timeout=120).close()
     print("uploaded off the server ✅")
     return True
@@ -128,7 +132,7 @@ def restore(source, force=False):
     to $BACKUP_DIR/before-restore-<time>/ first (never deleted)."""
     p = paths()
     if not force and _app_running():
-        raise SystemExit("The app is running. Stop it first (on the server: sudo bash deploy/oracle/restore.sh FILE).")
+        raise SystemExit("The app is running. Stop it first (on the server: sudo bash deploy/server/restore.sh FILE).")
     work = tempfile.mkdtemp(prefix="tv-restore-")
     try:
         if os.path.isdir(source):

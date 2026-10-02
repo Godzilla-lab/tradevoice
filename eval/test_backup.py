@@ -66,11 +66,12 @@ def main():
     # the copy off the server: one PUT of the file to BACKUP_UPLOAD_URL + its name
     import http.server
     import threading
-    got = {}
+    got, HEADERS = {}, {}
 
     class Put(http.server.BaseHTTPRequestHandler):
         def do_PUT(self):
             got[self.path] = self.rfile.read(int(self.headers["Content-Length"]))
+            HEADERS.update({k.lower(): v for k, v in self.headers.items()})
             self.send_response(200)
             self.end_headers()
 
@@ -82,6 +83,12 @@ def main():
     backup.upload(path)
     want = "/p/SECRET/n/ns/b/tradevoice-backups/o/" + os.path.basename(path)
     check("upload: the backup lands off the server, whole", got.get(want) == open(path, "rb").read(), list(got))
+    got.clear()
+    os.environ["BACKUP_UPLOAD_URL"] = f"http://127.0.0.1:{srv.server_port}/tradevoice-backups?sv=2026&sp=cw&sig=SECRET"
+    backup.upload(path)   # Azure Blob Storage: container SAS URL, the name goes before the ?query
+    want = "/tradevoice-backups/" + os.path.basename(path) + "?sv=2026&sp=cw&sig=SECRET"
+    check("upload: Azure-style link (SAS query kept after the name, blob type sent)",
+          got.get(want) == open(path, "rb").read() and HEADERS.get("x-ms-blob-type") == "BlockBlob", list(got))
     srv.shutdown()
     os.environ.pop("BACKUP_UPLOAD_URL")
 

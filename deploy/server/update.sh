@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Put the latest code from GitHub live on the Oracle server, safely:
-#   sudo bash /opt/tradevoice/app/deploy/oracle/update.sh            (another branch: sudo BRANCH=name bash …)
+# Put the latest code from GitHub live on the server, safely:
+#   sudo bash /opt/tradevoice/app/deploy/server/update.sh            (another branch: sudo BRANCH=name bash …)
 # Backs up first, installs, restarts, checks the app answers; if any step fails, goes back to the code that worked.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "Run it with sudo: sudo bash $0"; exit 1; }
@@ -26,8 +26,8 @@ new=$(git rev-parse "origin/$BRANCH")
 systemctl start tradevoice-backup.service && echo "backup before the update ✅"
 if go_live "$new"; then
   echo "✅ live: $(git log -1 --format='%h %s' | cut -c1-100)"
-  if ! git diff --quiet "$old" "$new" -- deploy/oracle/setup.sh; then
-    echo "ℹ️  The server setup changed too: run  sudo bash $APP/deploy/oracle/setup.sh"
+  if ! git diff --quiet "$old" "$new" -- deploy/server/setup.sh; then
+    echo "ℹ️  The server setup changed too: run  sudo bash $APP/deploy/server/setup.sh"
   fi
 else
   echo "❌ The new code didn't start. Going back to $(git rev-parse --short "$old")…"

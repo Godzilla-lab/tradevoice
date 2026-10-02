@@ -1,4 +1,4 @@
-# The live server (deploy/oracle/setup.sh): only what src/web.py needs. Same pinned versions as deploy/modal_web.py.
+# The live server (deploy/server/setup.sh): only what src/web.py needs. Same pinned versions as deploy/modal_web.py.
 # The AI, the speech models and the GPU stay on Modal; the server only calls them.
 fastapi==0.141.1
 uvicorn==0.53.0

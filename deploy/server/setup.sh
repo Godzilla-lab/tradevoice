@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# TradeVoice on an Oracle Cloud "Always Free" server (Ubuntu 24.04), with a free DuckDNS address and real HTTPS.
-# The whole guide (Oracle console clicks, DuckDNS, moving the data from Modal): docs/HOSTING.md
+# TradeVoice on one small Ubuntu 24.04 server (Azure for Students; any cloud works), with a free DuckDNS address and
+# real HTTPS. The whole guide (Azure portal clicks, DuckDNS, moving the data from Modal): docs/HOSTING.md
 #
 #   sudo git clone https://github.com/Godzilla-lab/tradevoice /opt/tradevoice/app
-#   sudo bash /opt/tradevoice/app/deploy/oracle/setup.sh
+#   sudo bash /opt/tradevoice/app/deploy/server/setup.sh
 #
 # Safe to run again (after an update that changed this file, or to change the DuckDNS name).
 # What it sets up:
@@ -176,7 +176,7 @@ WantedBy=timers.target
 EOF
 
 cat > /etc/caddy/Caddyfile <<EOF
-# TradeVoice (made by deploy/oracle/setup.sh). Caddy gets and renews the HTTPS certificate by itself.
+# TradeVoice (made by deploy/server/setup.sh). Caddy gets and renews the HTTPS certificate by itself.
 $DOMAIN {
 	encode gzip
 	request_body {
@@ -186,7 +186,7 @@ $DOMAIN {
 }
 EOF
 
-# ------------------------------------------------------------------ firewall: Oracle's Ubuntu blocks all but SSH
+# ------------------------------------------------------------------ firewall: some clouds' Ubuntu (Oracle) blocks all but SSH
 for p in 80 443; do
   if ! iptables -C INPUT -p tcp --dport "$p" -m conntrack --ctstate NEW -j ACCEPT 2>/dev/null; then
     n=$(iptables -L INPUT --line-numbers -n | awk '$2=="REJECT" {print $1; exit}')
@@ -211,7 +211,8 @@ echo -n "⏳ https://$DOMAIN (the certificate can take a minute) "
 for _ in $(seq 1 45); do curl -sf "https://$DOMAIN/api/status" >/dev/null && break; echo -n "."; sleep 2; done
 if curl -sf "https://$DOMAIN/api/status" >/dev/null; then echo " ✅"; else
   echo " ❌"
-  echo "   Most likely Oracle's own firewall: in the Oracle console open ports 80 and 443 (docs/HOSTING.md, step 3)."
+  echo "   Most likely the cloud's own firewall: open ports 80 and 443 (Azure: the VM → Networking → inbound port rules;"
+  echo "   docs/HOSTING.md, step 2). Or the DuckDNS name doesn't point here yet: wait 5 minutes and run this again."
   echo "   Then: sudo systemctl restart caddy   and check: sudo journalctl -u caddy -n 30"
 fi
 systemctl start tradevoice-backup.service && echo "first backup ✅" || echo "first backup ❌  see: sudo journalctl -u tradevoice-backup -n 20"
@@ -228,5 +229,5 @@ Next: put the keys in .env (never in the chat), then restart:
    sudo systemctl restart tradevoice
 Logs:     sudo journalctl -u tradevoice -f
 Backups:  sudo ls -lh $DATA/backups
-Update:   sudo bash $APP/deploy/oracle/update.sh
+Update:   sudo bash $APP/deploy/server/update.sh
 EOF
