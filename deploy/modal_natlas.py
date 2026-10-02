@@ -13,8 +13,11 @@ Benchmark:  python eval/run_eval.py --cases eval/cases_hard.jsonl --llm natlas
 
 Costs: an L4 bills only while a container runs. With NATLAS_WARM=0 it sleeps after SLEEP_AFTER minutes idle and
 the next message wakes it (about 1-3 minutes; the app answers with the backup models meanwhile).
-Benchmark the base model on the same GPU:  NATLAS_MODEL_ID=meta-llama/Meta-Llama-3-8B-Instruct modal deploy ...
-(needs Meta's licence accepted on Hugging Face; or use the NVIDIA API's meta/llama3-8b-instruct instead).
+Benchmark N-ATLaS's base model on the same GPU (a separate app, "tradevoice-natlas-base"; needs Meta's licence
+accepted on Hugging Face for the HF_TOKEN's account; NVIDIA's API retired its Llama-3 8B models):
+    NATLAS_MODEL_ID=meta-llama/Meta-Llama-3-8B-Instruct modal deploy deploy/modal_natlas.py
+    then: NATLAS_URL=<that app's url>/v1 python eval/run_eval.py ... --llm natlas --shots all --raw
+Stop it after: modal app stop tradevoice-natlas-base
 """
 import os
 import subprocess
@@ -36,7 +39,7 @@ image = (
 hf_cache = modal.Volume.from_name("tradevoice-hf-cache", create_if_missing=True)      # weights download once
 vllm_cache = modal.Volume.from_name("tradevoice-vllm-cache", create_if_missing=True)  # compiled kernels
 
-app = modal.App("tradevoice-natlas")
+app = modal.App("tradevoice-natlas" if MODEL_ID == "NCAIR1/N-ATLaS" else "tradevoice-natlas-base")
 
 
 @app.function(
