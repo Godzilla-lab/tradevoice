@@ -536,7 +536,7 @@ button.tvc-say{text-decoration:none}
     let stopAll = false, running = false;
     async function run() {
       if (running) return; running = true;
-      let quiet = 0, fails = 0, was = false, carry = null;
+      let quiet = 0, fails = 0, carry = null;
       caption(w("hello"));
       while (o.isConnected && !stopAll) {
         const h = await listen(carry); carry = null;
@@ -563,8 +563,7 @@ button.tvc-say{text-decoration:none}
         const d = r.data;
         line(d);
         loadBook();   // a yes saved it: the book behind the sheet is already up to date when it closes
-        if (was && !d.pending && /✅/.test(d.text || "")) toast(esc((d.text || "").replace(/\*/g, "").split("\n")[0]), async () => { await api("/api/v2/undo_last", { body: {} }); loadBook(); });
-        was = d.pending;
+        if (d.saved) toast(esc((d.text || "").replace(/\*/g, "").split("\n")[0]), async () => { await api("/api/v2/undo_last", { body: {} }); loadBook(); });
         if (next && next.spoke) { carry = next; continue; }   // you were talking: listen on, the reply stays on screen
         if (next) next.stop();
         await speak(d.speak);

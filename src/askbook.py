@@ -2,7 +2,7 @@
 
 The AI (or offline word lists) only turns the question into a SEARCH {what, item, customer, period, language};
 the numbers are added up here in plain Python, and the answer is built from templates, so nothing is invented.
-⚠️ Yoruba / Hausa / Igbo words and sentences need a native-speaker check.
+Yoruba / Hausa / Igbo words and sentences need a native-speaker check.
 """
 import datetime as dt
 import json

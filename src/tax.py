@@ -2,7 +2,7 @@
 
 Facts only, each with its source (docs/FINANCE_RESEARCH.md). We never say how much tax someone owes: that is for the
 state revenue service or a tax adviser. The rules are under review (Sep 2026), so every screen says "check first".
-⚠️ A Nigerian tax professional should check the facts, and native speakers the Yoruba / Hausa / Igbo / Pidgin.
+A Nigerian tax professional should check the facts, and native speakers the Yoruba / Hausa / Igbo / Pidgin.
 """
 import ui_text
 

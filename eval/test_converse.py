@@ -63,7 +63,7 @@ def main():
         ("Alhaji Musa reminder on Friday", any(x["customer"] == "Alhaji Musa" and x["remind_on"] == "2026-10-02"
                                                for x in ledger.reminders(TODAY))),
         ("due list in Yoruba", converse.due_today("Yoruba", TODAY + dt.timedelta(days=1))
-         == ["📌 Lónìí: gba ₦75,000 lọ́wọ́ Mama Tunde."]),
+         == ["Lónìí: gba ₦75,000 lọ́wọ́ Mama Tunde."]),
     ]
     # two different customers called Feranmi: never merged, the chat asks which one
     import ledger as L

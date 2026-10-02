@@ -2,8 +2,8 @@
 import ledger
 from extract import TYPES, extract_many
 
-LABEL = {"sale": "🛒 Sold", "credit_sale": "📝 Sold on credit", "payment_received": "💰 Paid me back",
-         "expense": "💸 Spent", "credit_purchase": "📦 Bought on credit", "payment_made": "↩️ I paid back"}
+LABEL = {"sale": "Sold", "credit_sale": "Sold on credit", "payment_received": "Paid me back",
+         "expense": "Spent", "credit_purchase": "Bought on credit", "payment_made": "↩️ I paid back"}
 
 
 def read(path):
@@ -72,13 +72,13 @@ def save(rows, engine="photo"):
 
 
 def as_text(rows):
-    """Numbered list for WhatsApp: '1. ✅ 📝 Sold on credit · Mama Tunde · ₦45,000'."""
+    """Numbered list for WhatsApp: '1. Sold on credit · Mama Tunde · ₦45,000' (a line it won't save says *Skip*)."""
     out = []
     for n, r in enumerate(rows, 1):
         amt = f"₦{float(r['amount']):,.0f}" if r.get("amount") not in (None, "") else "₦?"
         bits = [LABEL.get(r["type"], r["type"]), r.get("item"), r.get("customer"), amt]
-        line = f"{n}. {'✅' if r.get('save') else '⬜'} " + " · ".join(b for b in bits if b)
+        line = f"{n}. {'' if r.get('save') else '*Skip* '}" + " · ".join(b for b in bits if b)
         if r.get("checks"):
-            line += f"\n    ⚠️ {'; '.join(r['checks'])}"
+            line += f"\n    Check: {'; '.join(r['checks'])}"
         out.append(line)
     return "\n".join(out)

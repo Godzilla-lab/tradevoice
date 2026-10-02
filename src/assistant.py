@@ -1,9 +1,9 @@
-"""🎙️ Ask TradeVoice: a voice assistant on every screen. Opening it explains the screen out loud in simple words;
+"""Ask TradeVoice: a voice assistant on every screen. Opening it explains the screen out loud in simple words;
 then the trader asks anything by voice (Intron hears, the AI on our Brev GPU answers, Spitch speaks).
 
 Numbers are never invented: exact questions ("how much rice did I sell?") are added up from the book (askbook.py);
 explanations come from the AI but every number in them must be in the book's facts, else we say the plain
-screen summary (readaloud.py) instead. ⚠️ Yoruba / Hausa / Igbo wording needs a native-speaker check.
+screen summary (readaloud.py) instead. Yoruba / Hausa / Igbo wording needs a native-speaker check.
 """
 import json
 import re

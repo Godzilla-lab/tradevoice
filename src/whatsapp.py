@@ -7,7 +7,7 @@ Webhook URL for Meta:  https://<our public link>/whatsapp/webhook
 
 Flow: first message -> pick language -> "I agree" (nothing is processed before that) -> then voice notes, texts and
 notebook photos go through the same brain as the web chat (converse.py / photo.py); replies come as text + a voice
-note in the trader's language, with ✅/❌ buttons when something is waiting to be saved.
+note in the trader's language, with /buttons when something is waiting to be saved.
 Demo limits: one shared book for everyone (fine for the team's test phones); Meta's test number only talks to the
 phones added in "API Setup".
 """
@@ -51,22 +51,22 @@ LANG_WORDS = {"english": "English", "pidgin": "English", "yoruba": "Yoruba", "ha
               "yorùbá": "Yoruba"}
 
 SAY = {
-    "pick": "👋 Welcome to *TradeVoice*: your shop book on WhatsApp.\nWhich language do you want?",
-    "photo_read": {"English": "📸 I read {n} lines:", "Pidgin": "📸 I read {n} lines:",
-                   "Yoruba": "📸 Mo ka ìlà {n}:", "Hausa": "📸 Na karanta layi {n}:", "Igbo": "📸 Agụrụ m ahịrị {n}:"},
-    "photo_help": "Tap ✅ to save the ticked ones. To fix one, reply like *3 = 40k*. To skip one, reply *no 3*.",
+    "pick": "Welcome to *TradeVoice*: your shop book on WhatsApp.\nWhich language do you want?",
+    "photo_read": {"English": "I read {n} lines:", "Pidgin": "I read {n} lines:",
+                   "Yoruba": "Mo ka ìlà {n}:", "Hausa": "Na karanta layi {n}:", "Igbo": "Agụrụ m ahịrị {n}:"},
+    "photo_help": "Tap *Save* to save every line not marked *Skip*. To fix one, reply like *3 = 40k*. To skip one, reply *no 3*.",
     "photo_none": "I couldn't find money records in this photo. Try a flat page, good light, the whole page in view.",
-    "photo_saved": "✅ Saved {n} record{s} from your photo.",
+    "photo_saved": "Saved {n} record{s} from your photo.",
     "photo_cancel": "OK, I didn't save anything from the photo.",
-    "busy": "⏳ One moment…",
-    "cant_hear": "😕 I couldn't hear that voice note. Try again closer to the phone, or type it.",
-    "cant_read": "😕 I couldn't read that photo right now. Try again, or type the lines.",
-    "voice_off": "🔇 OK, text only. Send *voice on* to hear me again.",
-    "voice_on": "🔊 OK, I'll answer with voice notes too.",
-    "lang_set": "✅ {lang}. Send a voice note in {lang}, or type in any language.",
-    "dashboard": "📊 Your full book (charts, debts, statement): {url}",
-    "other": "Send me a *voice note* 🎤, a *photo* of your book 📸, or type what happened.",
-    "store_wait": ("✅ Noted. We'll message you here the day TradeVoice is on {store}.\n\nYou don't have to wait: "
+    "busy": "One moment…",
+    "cant_hear": "I couldn't hear that voice note. Try again closer to the phone, or type it.",
+    "cant_read": "I couldn't read that photo right now. Try again, or type the lines.",
+    "voice_off": "OK, text only. Send *voice on* to hear me again.",
+    "voice_on": "OK, I'll answer with voice notes too.",
+    "lang_set": "{lang}. Send a voice note in {lang}, or type in any language.",
+    "dashboard": "Your full book (charts, debts, statement): {url}",
+    "other": "Send me a *voice note*, a *photo* of your book, or type what happened.",
+    "store_wait": ("Noted. We'll message you here the day TradeVoice is on {store}.\n\nYou don't have to wait: "
                    "TradeVoice already works right here on WhatsApp. Send *hi* to start."),
 }
 
@@ -151,15 +151,24 @@ def bot_number():
     return _BOT.get("n", "")
 
 
+def _words(x):
+    """No emojis in anything the bot sends (the owner's rule): message text, button and list titles."""
+    from plain import no_emoji
+    if isinstance(x, dict):
+        return {k: (no_emoji(v) if k in ("body", "text", "title", "description") and isinstance(v, str) else _words(v))
+                for k, v in x.items()}
+    return [_words(v) for v in x] if isinstance(x, list) else x
+
+
 def send_text(to, body):
-    return graph_post({"to": to, "type": "text", "text": {"body": body[:4096], "preview_url": True}})
+    return graph_post(_words({"to": to, "type": "text", "text": {"body": body[:4096], "preview_url": True}}))
 
 
 def send_buttons(to, body, buttons):
     """buttons: [(id, title≤20)] (max 3)."""
-    return graph_post({"to": to, "type": "interactive", "interactive": {
+    return graph_post(_words({"to": to, "type": "interactive", "interactive": {
         "type": "button", "body": {"text": body[:1024]},
-        "action": {"buttons": [{"type": "reply", "reply": {"id": i, "title": t[:20]}} for i, t in buttons[:3]]}}})
+        "action": {"buttons": [{"type": "reply", "reply": {"id": i, "title": t[:20]}} for i, t in buttons[:3]]}}}))
 
 
 def send_list(to, body, button, rows):
@@ -170,9 +179,9 @@ def send_list(to, body, button, rows):
         if len(row) > 2 and row[2]:
             item["description"] = row[2][:72]
         items.append(item)
-    return graph_post({"to": to, "type": "interactive", "interactive": {
+    return graph_post(_words({"to": to, "type": "interactive", "interactive": {
         "type": "list", "body": {"text": body[:1024]},
-        "action": {"button": button[:20], "sections": [{"title": "TradeVoice", "rows": items}]}}})
+        "action": {"button": button[:20], "sections": [{"title": "TradeVoice", "rows": items}]}}}))
 
 
 def voice_file(text, lang):
@@ -261,7 +270,7 @@ def _speak_back(st, kind):
 
 def _reply(phone, r, u, kind="text"):
     """Send a converse reply: text (+ English line), the reminder to forward, a voice note, yes/no buttons."""
-    body = r["text"] + (f"\n\n_🇬🇧 {r['english']}_" if r.get("english") else "")
+    body = r["text"] + (f"\n\n_{r['english']}_" if r.get("english") else "")
     st = STATES.get(phone) or {}
     if r.get("choices"):  # "Which Feranmi?": each one with balance and last activity
         rows = []
@@ -277,7 +286,7 @@ def _reply(phone, r, u, kind="text"):
     else:
         send_text(phone, body)
     if r.get("message"):  # the reminder itself, as its own message: long-press → Forward to the customer
-        send_text(phone, "👇 Forward this to them:")
+        send_text(phone, "Forward this to them:")
         send_text(phone, r["message"])
     if u.get("voice") and _speak_back(st, kind):
         try:
@@ -298,7 +307,7 @@ def _photo_command(phone, text, st):
         st["photo_rows"] = None
         n = res["saved"]
         send_text(phone, SAY["photo_saved"].format(n=n, s="" if n == 1 else "s")
-                  + ("\n⚠️ " + "; ".join(res["problems"]) if res["problems"] else ""))
+                  + ("\n" + "; ".join(res["problems"]) if res["problems"] else ""))
         return True
     if converse.NO.match(t) or t in ("cancel", "p_cancel"):
         st["photo_rows"] = None
@@ -324,7 +333,7 @@ def _photo_command(phone, text, st):
 def _send_rows(phone, rows, lang):
     head = SAY["photo_read"].get(lang, SAY["photo_read"]["English"]).format(n=len(rows))
     send_buttons(phone, f"{head}\n\n{photo.as_text(rows)}\n\n{SAY['photo_help']}",
-                 [("p_save", "✅ Save ticked"), ("p_cancel", "❌ Cancel")])
+                 [("p_save", "Save"), ("p_cancel", "Cancel")])
 
 
 def handle(msg):
@@ -335,8 +344,8 @@ def handle(msg):
             import accounts
 
             ok = accounts.confirm_from_whatsapp(phone, msg["text"]["body"])
-            return send_text(phone, "✅ Done. You're logged in: go back to TradeVoice." if ok else
-                             "😕 That login code is old or not for this number. On the website, tap "
+            return send_text(phone, "Done. You're logged in: go back to TradeVoice." if ok else
+                             "That login code is old or not for this number. On the website, tap "
                              "'Verify with WhatsApp' again from this phone.")
         u = user(phone)
         events.CHANNEL.set("whatsapp")
@@ -397,7 +406,7 @@ def handle(msg):
 
         # 3) photo of the notebook
         if kind == "image":
-            send_text(phone, "📸 " + ui_text.t("reading_photo", u["lang"]))
+            send_text(phone, "" + ui_text.t("reading_photo", u["lang"]))
             path = download(msg["image"]["id"], ".jpg")
             try:
                 res = photo.read(path)
@@ -430,7 +439,7 @@ def handle(msg):
                 os.remove(path)  # the voice note is deleted as soon as it is read
             if not text:
                 return send_text(phone, SAY["cant_hear"])
-            send_text(phone, f"🎙️ _“{text}”_")
+            send_text(phone, f"_“{text}”_")
 
         if not text:
             return send_text(phone, SAY["other"])
@@ -451,7 +460,7 @@ def _ask_language(phone):
 
 
 def _due_once(phone, st, lang):
-    """Once a day, the first message also brings today's reminders ("📌 Today: collect ₦… from Mama Tunde")."""
+    """Once a day, the first message also brings today's reminders ("Today: collect ₦… from Mama Tunde")."""
     today = dt.date.today().isoformat()
     if st.get("due_shown") != today:
         st["due_shown"] = today
@@ -480,7 +489,7 @@ def _safe(msg):
         STATS["last_error"] = f"{type(e).__name__}: {e}"[:400]
         print(f"whatsapp message failed: {type(e).__name__}: {e}")
         try:  # only when something really failed
-            send_text(msg["from"], "😕 Something went wrong on my side. Please try again.")
+            send_text(msg["from"], "Something went wrong on my side. Please try again.")
         except Exception:  # noqa: BLE001
             pass
     finally:

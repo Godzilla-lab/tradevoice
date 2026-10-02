@@ -8,7 +8,7 @@ broken voice note). TTS_BACKEND=off turns voice off. Same sentence + language ag
 
 Amounts are always spoken as ENGLISH words ("forty-five thousand naira"): no engine reads digits reliably in
 Yoruba/Hausa/Igbo, and traders commonly say prices in English anyway.
-⚠️ The Yoruba/Hausa/Igbo sentences below were written by a non-native speaker: have native speakers check them.
+The Yoruba/Hausa/Igbo sentences below were written by a non-native speaker: have native speakers check them.
 """
 import os
 import re
@@ -268,7 +268,7 @@ def speakable(text):
 
     text = re.sub(r"https?://\S+", "", text or "")
     text = re.sub(r"₦\s?", "naira ", text)
-    text = re.sub(r"[*_~`#>|•👉👇]", " ", text)
+    text = re.sub(r"[*_~`#>|•]", " ", text)
     text = "".join(c for c in text if not (0x1F000 <= ord(c) <= 0x1FAFF or 0x2600 <= ord(c) <= 0x27BF or ord(c) in (0xFE0F, 0x200D)))
     return re.sub(r"\s+", " ", text).strip()
 

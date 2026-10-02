@@ -93,14 +93,14 @@ def step(send=_tell_team):
     ok = check()
     if ok:
         if STATE["alerted"]:
-            send("✅ TradeVoice: N-ATLaS is answering again.")
+            send("TradeVoice: N-ATLaS is answering again.")
         STATE.update(ok=True, fails=0, alerted=False)
         return
     STATE["fails"] += 1
     STATE["ok"] = False
     print(f"N-ATLaS health check failed ({STATE['fails']}x): {STATE['last_error']}")
     if STATE["fails"] >= 2 and not STATE["alerted"]:
-        send(f"⚠️ TradeVoice: N-ATLaS (text or speech) is not answering ({STATE['last_error']}). Traders are being served by the "
+        send(f"TradeVoice: N-ATLaS (text or speech) is not answering ({STATE['last_error']}). Traders are being served by the "
              "backup models. Check: modal app logs tradevoice-natlas, then python scripts/check_models.py --natlas")
         STATE["alerted"] = True
 

@@ -114,6 +114,9 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (!/manifest\+json/.test(m.type) || m.j.start_url !== "/app" || m.j.icons.length < 2) throw new Error(JSON.stringify(m));
       for (const i of m.j.icons) if ((await fetch(BASE + i.src)).status !== 200) throw new Error("missing " + i.src);
     });
+    await check("website: no dashes (the line before each small heading is gone) and no emojis", async () =>
+      page.evaluate(() => getComputedStyle(document.querySelector(".k"), "::before").display === "none"
+        && !/[\u2014\u2013]|\p{Extended_Pictographic}/u.test(document.body.innerText.replace(/[↑↓✓✕]/g, ""))));
     await check("website: no sideways scroll on a phone", async () =>
       page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     await check("website: shows the N-ATLaS attribution", async () => {

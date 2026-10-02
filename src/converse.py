@@ -9,7 +9,7 @@ Each message is routed (yes/no to a draft, reminder, question, new record) by si
 record or the question (extract.py / askbook.py); every number comes from the book. The language can change on
 every message: each reply follows the language of the message it answers. `reply()` does not depend on the web
 page, so the WhatsApp bot can use it as it is.
-⚠️ Yoruba / Hausa / Igbo sentences need a native-speaker check.
+Yoruba / Hausa / Igbo sentences need a native-speaker check.
 """
 import datetime as dt
 import os
@@ -38,11 +38,11 @@ QUESTION = re.compile(r"\?|\bhow (much|many)\b|\bwho\b|\bwhat\b|\bwetin\b|\babi\
 TAX = re.compile(r"\b(tax|taxes|owo ori|haraji|utu isi|nrs|firs|lirs|tax id|presumptive)\b")
 THANKS = re.compile(r"^\s*(thanks?( you)?|thank u|tnx|ese( gan)?|o ?se|na gode|daalu|good job|well done|ok thanks?)\W*$")
 HELP = re.compile(r"\b(what can you do|how (do|does) (this|it|you) work|help me|who are you|what are you)\b")
-SAY_THANKS = {"English": "You're welcome 🙏 Tell me anything you sell, spend or lend.",
-              "Pidgin": "No wahala 🙏 Tell me anything wey you sell, spend or give for credit.",
-              "Yoruba": "Kò tọ́pẹ́ 🙏 Sọ ohunkóhun tí o tà, tí o ná, tàbí tí o fi ṣe àwìn fún mi.",
-              "Hausa": "Ba komai 🙏 Faɗa min duk abin da ka sayar, ka kashe, ko ka bayar bashi.",
-              "Igbo": "Ọ dị mma 🙏 Gwa m ihe ọ bụla i rere, i mefuru, ma ọ bụ i nyere n'ụgwọ."}
+SAY_THANKS = {"English": "You're welcome. Tell me anything you sell, spend or lend.",
+              "Pidgin": "No wahala. Tell me anything wey you sell, spend or give for credit.",
+              "Yoruba": "Kò tọ́pẹ́ Sọ ohunkóhun tí o tà, tí o ná, tàbí tí o fi ṣe àwìn fún mi.",
+              "Hausa": "Ba komai. Faɗa min duk abin da ka sayar, ka kashe, ko ka bayar bashi.",
+              "Igbo": "Ọ dị mma. Gwa m ihe ọ bụla i rere, i mefuru, ma ọ bụ i nyere n'ụgwọ."}
 GREET = re.compile(r"^\s*(hi+|hello|hey|good (morning|afternoon|evening)|how far|bawo( ni)?|pele|e ?ka ?a?ro|e ?ka ?a?san|"
                    r"e ?ka ?a?le|sannu|ina kwana|ina wuni|ndewo|kedu|nnoo)\W*$")
 PRONOUN = re.compile(r"\b(she|he|her|him|am|them|dem|that person|ita|shi|ya)\b")
@@ -57,11 +57,11 @@ SAY = {
               "Yoruba": "Ohun tí mo gbọ́: {s} Sọ *bẹ́ẹ̀ni* kí n kọ ọ́ sílẹ̀, tàbí sọ ohun tí kò tọ̀nà.",
               "Hausa": "Abin da na ji: {s} Ka ce *eh* in adana, ko ka faɗi abin da za a gyara.",
               "Igbo": "Ihe m nụrụ: {s} Kwuo *ee* ka m chekwaa ya, ma ọ bụ gwa m ihe m ga-agbanwe."},
-    "over_limit": {"English": "⛔ {who} already owes {bal}. This sale takes it to {after}, above the limit of {lim}. Sell anyway?",
-                   "Pidgin": "⛔ {who} don already owe {bal}. This sale go make am {after}, e pass the limit wey be {lim}. You still wan sell?",
-                   "Yoruba": "⛔ {who} ti jẹ ọ́ {bal} tẹ́lẹ̀. Ọjà yìí yóò mú un dé {after}, ó ju òpin {lim} lọ. Ṣé o ṣì fẹ́ tà?",
-                   "Hausa": "⛔ {who} yana da bashinka {bal} tun da farko. Wannan sayarwar za ta kai {after}, ta wuce iyakar {lim}. Har yanzu ka sayar?",
-                   "Igbo": "⛔ {who} ji gị {bal} ugbu a. Ahịa a ga-eme ya {after}, karịa oke {lim}. Ị ka ga-ere?"},
+    "over_limit": {"English": "{who} already owes {bal}. This sale takes it to {after}, above the limit of {lim}. Sell anyway?",
+                   "Pidgin": "{who} don already owe {bal}. This sale go make am {after}, e pass the limit wey be {lim}. You still wan sell?",
+                   "Yoruba": "{who} ti jẹ ọ́ {bal} tẹ́lẹ̀. Ọjà yìí yóò mú un dé {after}, ó ju òpin {lim} lọ. Ṣé o ṣì fẹ́ tà?",
+                   "Hausa": "{who} yana da bashinka {bal} tun da farko. Wannan sayarwar za ta kai {after}, ta wuce iyakar {lim}. Har yanzu ka sayar?",
+                   "Igbo": "{who} ji gị {bal} ugbu a. Ahịa a ga-eme ya {after}, karịa oke {lim}. Ị ka ga-ere?"},
     "limit_set": {"English": "OK: {who} can owe you up to {lim}. I'll warn you before a sale goes over it.",
                   "Pidgin": "OK: {who} fit owe you reach {lim}. I go warn you before any sale pass am.",
                   "Yoruba": "Ó dáa: {who} lè jẹ ọ́ tó {lim}. Màá kìlọ̀ fún ọ kí ọjà tó kọjá rẹ̀.",
@@ -97,8 +97,8 @@ SAY = {
                  "Igbo": "Biko lelee ya tupu i chekwaa."},
     "how_much": {"English": "How much was it?", "Pidgin": "Na how much?", "Yoruba": "Èló ni?",
                  "Hausa": "Nawa ne?", "Igbo": "Ego ole?"},
-    "saved": {"English": "Saved ✅ {s}", "Pidgin": "I don save am ✅ {s}", "Yoruba": "Mo ti kọ ọ́ sílẹ̀ ✅ {s}",
-              "Hausa": "An adana ✅ {s}", "Igbo": "Echekwala m ya ✅ {s}"},
+    "saved": {"English": "Saved. {s}", "Pidgin": "I don save am. {s}", "Yoruba": "Mo ti kọ ọ́ sílẹ̀ {s}",
+              "Hausa": "An adana. {s}", "Igbo": "Echekwala m ya. {s}"},
     "balance": {"English": " Now {who} owes you {m} in total.", "Pidgin": " Now {who} dey owe you {m} total.",
                 "Yoruba": " Lápapọ̀, {who} jẹ ọ́ ní {m} báyìí.", "Hausa": " Yanzu jimlar bashin {who}: {m}.",
                 "Igbo": " Ugbu a {who} ji gị {m} n'ozuzu."},
@@ -110,20 +110,20 @@ SAY = {
     "nothing_pending": {"English": "There is nothing waiting to be saved.", "Pidgin": "Nothing dey wait to save.",
                         "Yoruba": "Kò sí nǹkan tó ń dúró de ìkọsílẹ̀.", "Hausa": "Babu abin da ke jiran adanawa.",
                         "Igbo": "Ọ dịghị ihe na-eche ka e chekwaa ya."},
-    "remind_set": {"English": "OK 👍 {when} I'll remind you to collect {m} from {who}.",
-                   "Pidgin": "No wahala 👍 {when} I go remind you to collect {m} from {who}.",
-                   "Yoruba": "Ó dáa 👍 {when} màá rán ọ létí láti gba {m} lọ́wọ́ {who}.",
-                   "Hausa": "To 👍 {when} zan tunatar da kai ka karɓi {m} daga {who}.",
-                   "Igbo": "Ọ dị mma 👍 {when} m ga-echetara gị ịnata {m} n'aka {who}."},
-    "remind_none": {"English": "{who} doesn't owe you anything now. 🎉", "Pidgin": "{who} no dey owe you anything now. 🎉",
-                    "Yoruba": "{who} kò jẹ ọ́ ní nǹkankan báyìí. 🎉", "Hausa": "{who} ba shi da bashinka yanzu. 🎉",
-                    "Igbo": "{who} ejighị gị ụgwọ ugbu a. 🎉"},
+    "remind_set": {"English": "OK. {when} I'll remind you to collect {m} from {who}.",
+                   "Pidgin": "No wahala. {when} I go remind you to collect {m} from {who}.",
+                   "Yoruba": "Ó dáa. {when} màá rán ọ létí láti gba {m} lọ́wọ́ {who}.",
+                   "Hausa": "To. {when} zan tunatar da kai ka karɓi {m} daga {who}.",
+                   "Igbo": "Ọ dị mma. {when} m ga-echetara gị ịnata {m} n'aka {who}."},
+    "remind_none": {"English": "{who} doesn't owe you anything now.", "Pidgin": "{who} no dey owe you anything now.",
+                    "Yoruba": "{who} kò jẹ ọ́ ní nǹkankan báyìí.", "Hausa": "{who} ba shi da bashinka yanzu.",
+                    "Igbo": "{who} ejighị gị ụgwọ ugbu a."},
     "remind_who": {"English": "Who should I remind you about?", "Pidgin": "Na who I go remind you about?",
                    "Yoruba": "Ta ni kí n rán ọ létí nípa rẹ̀?", "Hausa": "Wa zan tunatar da kai game da shi?",
                    "Igbo": "Onye ka m ga-echetara gị maka ya?"},
-    "due": {"English": "📌 Today: collect {m} from {who}.", "Pidgin": "📌 Today: collect {m} from {who}.",
-            "Yoruba": "📌 Lónìí: gba {m} lọ́wọ́ {who}.", "Hausa": "📌 Yau: karɓi {m} daga {who}.",
-            "Igbo": "📌 Taa: nata {m} n'aka {who}."},
+    "due": {"English": "Today: collect {m} from {who}.", "Pidgin": "Today: collect {m} from {who}.",
+            "Yoruba": "Lónìí: gba {m} lọ́wọ́ {who}.", "Hausa": "Yau: karɓi {m} daga {who}.",
+            "Igbo": "Taa: nata {m} n'aka {who}."},
     "not_sure": {"English": "Sorry, I didn't get that. Tell me a sale, a debt, or ask about your book.",
                  "Pidgin": "Abeg, I no understand. Tell me wetin you sell, who owe you, or ask me about your book.",
                  "Yoruba": "Má bínú, kò yé mi. Sọ ọjà tí o tà, gbèsè, tàbí béèrè nípa ìwé rẹ.",
@@ -284,9 +284,11 @@ def _confirm(state, today):
         extra = SAY["i_owe"][lang].format(who=rec["customer"], m=_money(mine))
         extra_en = SAY["i_owe"]["English"].format(who=rec["customer"], m=_money(mine))
     bal = theirs if rec["type"] in ("credit_sale", "payment_received") else mine
-    return _out(SAY["saved"][lang].format(s=sentence) + extra, lang,
-                spoken=tts.confirmation_text(rec, lang, balance=bal, saved=True),
-                english=SAY["saved"]["English"].format(s=tts.entry_sentence(rec, "English", money=_money)) + extra_en)
+    out = _out(SAY["saved"][lang].format(s=sentence) + extra, lang,
+               spoken=tts.confirmation_text(rec, lang, balance=bal, saved=True),
+               english=SAY["saved"]["English"].format(s=tts.entry_sentence(rec, "English", money=_money)) + extra_en)
+    out["saved"] = True   # the page shows "Saved" with Undo (it never guesses from the words)
+    return out
 
 
 # a message that fixes the draft waiting for "yes" (not a new record): "2000 no be 20000", "I mean 25k", "make am rice"
@@ -435,7 +437,7 @@ def _heard(rec, lang, note=None, updated=False, dropped=False):
         written = SAY["updated"][lang] + " " + written
     friendly = friendly_note(note, lang)
     if friendly:
-        written += "\n⚠️ " + friendly
+        written += "\n" + friendly
     if dropped:
         written += "\n" + SAY["dropped"][lang]
     spoken = tts.confirmation_text(rec, lang, saved=False)
@@ -443,7 +445,7 @@ def _heard(rec, lang, note=None, updated=False, dropped=False):
     if lim and lim["over"]:  # stop over-lending: said before anything is saved, in writing and out loud
         warn = over_limit_text(lim, lang)
         written += "\n" + warn
-        spoken = _say_amounts(warn.lstrip("⛔ ")) + " " + spoken
+        spoken = _say_amounts(warn) + " " + spoken
     english = SAY["heard"]["English"].format(s=tts.entry_sentence(rec, "English", money=_money))
     if updated:
         english = SAY["updated"]["English"] + " " + english
@@ -614,11 +616,11 @@ def reply(text, state=None, today=None, shop="your shop"):
 
 
 def due_today(lang="English", today=None):
-    """"📌 Today: collect ₦63,600 from Mama Tunde." for every reminder that is due, then today's usual orders."""
+    """"Today: collect ₦63,600 from Mama Tunde." for every reminder that is due, then today's usual orders."""
     lang = lang if lang in LANGS else "English"
     return [SAY["due"][lang].format(m=_money(r["balance"]), who=r["customer"])
             for r in ledger.reminders(today, due_only=True)] + [
-            "🔁 " + repeat_line(p, lang) + " " + {"English": "Say \"{who} usual\" to record it.",
+            "" + repeat_line(p, lang) + " " + {"English": "Say \"{who} usual\" to record it.",
                                                   "Pidgin": "Talk \"{who} usual\" make I write am."}.get(lang, "").format(who=p["customer"])
             for p in insights.repeat_orders(today)]
 
@@ -670,4 +672,4 @@ if __name__ == "__main__":
                  "Remind Mama Tunde tomorrow"):
         r = reply(line, s)
         print(f"> {line}\n  {r['text']}" + (f"\n  ({r['english']})" if r.get("english") else "")
-              + (f"\n  ✉️ {r['message']}" if r.get("message") else ""))
+              + (f"\n  {r['message']}" if r.get("message") else ""))

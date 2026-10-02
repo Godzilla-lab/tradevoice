@@ -43,7 +43,7 @@ LANGUAGES = {"English / Pidgin": ("whisper", "en"), "Yoruba": ("omni", "yor_Latn
 
 SPITCH_LANG = {"English / Pidgin": "en", "Yoruba": "yo", "Hausa": "ha", "Igbo": "ig"}
 # Intron: choosing a code-switched pair IS the model choice (docs.voice.intron.io, via github.com/OkeyAmy/volt-intron).
-# ⚠️ "pcm" vs "en" changed a number 100x on the same audio in that project's test: compare both on our voice notes.
+# "pcm" vs "en" changed a number 100x on the same audio in that project's test: compare both on our voice notes.
 INTRON_LANG = {"English / Pidgin": os.getenv("INTRON_EN_CODE", "pcm"), "Yoruba": "yo", "Hausa": "ha", "Igbo": "ig"}
 INTRON_URL = os.getenv("INTRON_URL", "https://infer.voice.intron.io/file/v1/upload/sync")
 
@@ -145,7 +145,7 @@ def _prompt(vocab):
 
 def _spitch_transcribe(path, language, vocab=None):
     """Spitch speech-to-text (model mansa_v1). special_words = this trader's names/items (format: comma-separated,
-    ⚠️ unverified against Spitch's docs)."""
+    unverified against Spitch's docs)."""
     from spitch import Spitch
 
     wav = to_wav16k(path) if shutil.which("ffmpeg") else None

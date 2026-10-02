@@ -37,10 +37,10 @@ VOICE_LANGS = {"English": "English / Pidgin", "Pidgin": "English / Pidgin", "Yor
                "Igbo": "Igbo"}
 
 app = FastAPI(title="TradeVoice")
-import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, same book)
+import whatsapp  # noqa: E402  (the WhatsApp bot: same server, same link, same book)
 
 app.include_router(whatsapp.router)
-import team  # noqa: E402  (📊 /team: the team's dashboard + anonymised CSV, ADMIN_TOKEN only)
+import team  # noqa: E402  (/team: the team's dashboard + anonymised CSV, ADMIN_TOKEN only)
 app.include_router(team.router)
 import v2  # noqa: E402  (the TradeVoice 2.0 design's accounts + book: design/tradevoice-2.0/)
 app.include_router(v2.router)
@@ -170,10 +170,11 @@ def _draft(state):
 
 
 def _reply_json(r, state, heard=None, live=False):
-    spoken = tts.live_ask(r.get("spoken"), r["lang"]) if live else r.get("spoken")
-    return {"text": r["text"], "english": r.get("english"), "lang": r["lang"], "heard": heard,
-            "message": r.get("message"), "link": r.get("link"), "choices": r.get("choices"),
-            "pending": bool(state.get("pending")), "draft": _draft(state),
+    from plain import no_emoji   # words only, whatever wrote them (the AI included)
+    spoken = no_emoji(tts.live_ask(r.get("spoken"), r["lang"]) if live else r.get("spoken"))
+    return {"text": no_emoji(r["text"]), "english": no_emoji(r.get("english")), "lang": r["lang"], "heard": heard,
+            "message": no_emoji(r.get("message")), "link": r.get("link"), "choices": r.get("choices"),
+            "pending": bool(state.get("pending")), "draft": _draft(state), "saved": bool(r.get("saved")),
             "speak": _speak_id(spoken, r["lang"])}
 
 
@@ -656,7 +657,7 @@ def read_audio(screen: str, lang: str = "English"):
     return FileResponse(out["path"], media_type="audio/wav")
 
 
-# ---------------------------------------------------------------- 🎙️ Ask TradeVoice (voice assistant on every screen)
+# ---------------------------------------------------------------- Ask TradeVoice (voice assistant on every screen)
 
 @app.get("/api/explain/{screen}")
 def explain(screen: str, lang: str = "English"):
@@ -750,7 +751,7 @@ def status():
                                                                or os.getenv("WHATSAPP_PHONE_NUMBER_ID")))}
 
 
-# ---------------------------------------------------------------- 🔐 log in with your phone number
+# ---------------------------------------------------------------- log in with your phone number
 
 class Start(BaseModel):
     phone: str
@@ -801,7 +802,7 @@ def auth_start(b: Start):
         try:
             words = {"Pidgin": "Your TradeVoice code na", "Yoruba": "Kóòdù TradeVoice rẹ ni",
                      "Hausa": "Lambar TradeVoice ɗinka ita ce", "Igbo": "Koodu TradeVoice gị bụ"}
-            whatsapp.send_text(phone, f"🔐 {words.get(b.lang, 'Your TradeVoice code is')} *{login['code']}*\n"
+            whatsapp.send_text(phone, f"{words.get(b.lang, 'Your TradeVoice code is')} *{login['code']}*\n"
                                       "Don't share it with anyone.")
             sent = True
         except Exception as e:  # noqa: BLE001 - expired token, or Meta's 24-hour rule

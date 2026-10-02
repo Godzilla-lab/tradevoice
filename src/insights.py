@@ -68,7 +68,7 @@ def forecast(today=None, days_ahead=7):
             "due_soon": due_soon, "overdue": overdue, "cash_share": cash_share}
 
 
-# ---------------------------------------------------------------- 🏷️ margin per item + 🏪 cheapest supplier
+# ---------------------------------------------------------------- margin per item + cheapest supplier
 # Only rows where the trader said HOW MANY (quantity) count: a price per unit is never guessed.
 
 _NOT_GOODS = {"transport", "rent", "levy", "market levy", "fuel", "diesel", "salary", "shop rent", "loan", "restock", "tax"}
@@ -147,7 +147,7 @@ def suppliers(days=120, today=None):
     return sorted(out, key=lambda x: (-len(x["offers"]), -x["saving"]))
 
 
-# ---------------------------------------------------------------- 🔁 repeat orders ("Mama Tunde buys 4 crates of egg every Friday")
+# ---------------------------------------------------------------- repeat orders ("Mama Tunde buys 4 crates of egg every Friday")
 
 def repeat_orders(today=None, weeks=8, min_times=3, only_today=True):
     """Same customer + same item, bought on the same weekday at least `min_times` times in the last `weeks` weeks,
@@ -204,12 +204,12 @@ def top_items(days=14, today=None, n=5):
 # ---------------------------------------------------------------- debt reminders
 
 TEMPLATES = {
-    "English": ("Good day {name} 🙏. A gentle reminder about the {amount} balance for {items} from {since}. "
+    "English": ("Good day {name} . A gentle reminder about the {amount} balance for {items} from {since}. "
                 "Please can you pay today or tell me when? Thank you, {shop}."),
-    "Pidgin": ("Good day {name} 🙏. Abeg no vex, na small reminder for the {amount} wey remain for {items} "
+    "Pidgin": ("Good day {name} . Abeg no vex, na small reminder for the {amount} wey remain for {items} "
                "since {since}. You fit pay today or tell me when you go pay? Thank you, {shop}."),
     # Yoruba: have a native speaker check this wording before the demo.
-    "Yoruba": ("Ẹ káàárọ̀ {name} 🙏. Ẹ jọ̀wọ́, mo fẹ́ rán yín létí owó {amount} tí ó kù fún {items} láti {since}. "
+    "Yoruba": ("Ẹ káàárọ̀ {name} . Ẹ jọ̀wọ́, mo fẹ́ rán yín létí owó {amount} tí ó kù fún {items} láti {since}. "
                "Ṣé ẹ lè san án lónìí, tàbí ẹ sọ ìgbà tí ẹ máa san? Ẹ ṣé o, {shop}."),
 }
 
@@ -346,7 +346,7 @@ def statement_html(business="My Shop", owner="", today=None):
         for w, t in sorted(weeks.items()))
     parts = "".join(f"<tr><td>{html.escape(k)}</td><td>{v[0]:.0f} / {v[1]}</td><td>{html.escape(v[2])}</td></tr>"
                     for k, v in p["parts"].items())
-    demo = ("<p class='warn'>⚠️ This statement contains SYNTHETIC DEMO DATA created for a hackathon "
+    demo = ("<p class='warn'>This statement contains SYNTHETIC DEMO DATA created for a hackathon "
             "presentation. It is not a real business record.</p>") if p["has_demo_data"] else ""
     e = html.escape
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Business Record Statement</title>

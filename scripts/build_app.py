@@ -12,6 +12,8 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "src"))
+from plain import no_emoji_keep_layout  # noqa: E402
 SRC = os.path.join(ROOT, "design", "tradevoice-2.0", "app.html")
 OUT = os.path.join(ROOT, "web", "app.html")
 LANDING_SRC = os.path.join(ROOT, "design", "tradevoice-2.0", "landing2.html")
@@ -26,7 +28,7 @@ LANDING_PATCHES = [
     ("logo", '<a class="logo" href="#top" aria-label="TradeVoice home"><svg viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="13" fill="var(--accent)" stroke="none"/><g stroke="var(--accent-fg)" stroke-width="3.2"><path d="M13 19v6M19 14v16M25 10v24M31 17v10"/></g></svg>TradeVoice</a>',
      '<a class="logo" href="#top" aria-label="TradeVoice home"><img src="/static/logo.svg" alt="" aria-hidden="true" width="30" height="30">TradeVoice</a>', 1),
     ("tab icon", '<title>TradeVoice: just talk am. Your book remembers.</title>',
-     '<title>TradeVoice: just talk am. Your book remembers.</title>\n<link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><link rel="manifest" href="/static/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="TradeVoice">', 1),
+     '<title>TradeVoice: just talk am. Your book remembers.</title>\n<link rel="stylesheet" href="/static/site.css"><link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><link rel="manifest" href="/static/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="TradeVoice">', 1),
     # --- the N-ATLaS licence requires this sentence wherever TradeVoice credits N-ATLaS
     ("N-ATLaS attribution", 'Nigeria’s own multilingual AI model.</div>',
      'Nigeria’s own multilingual AI model.<br>N-ATLaS is an initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri Technologies.</div>', 1),
@@ -144,6 +146,7 @@ def build():
         html = html.replace(old, new)
     if missing:
         sys.exit("The design changed; update these swaps in scripts/build_app.py:\n  " + "\n  ".join(missing))
+    html = no_emoji_keep_layout(html)   # words only, no emojis (the owner's rule): the design's 🎉 💸 go
     html = html.replace("</body>", '<script src="/static/live.js"></script>\n</body>', 1)
     html = html.replace("<!doctype html>", "<!doctype html>\n<!-- BUILT from design/tradevoice-2.0/app.html by "
                         "scripts/build_app.py: edit the design or the script, not this file -->", 1)
@@ -155,6 +158,7 @@ def build():
         if page.count(old) != times:
             sys.exit(f"The website design changed; update '{name}' in scripts/build_app.py")
         page = page.replace(old, new)
+    page = no_emoji_keep_layout(page)
     with open(LANDING_OUT, "w", encoding="utf-8") as f:
         f.write(page)
     print(f"built {os.path.relpath(LANDING_OUT, ROOT)} from the website design")

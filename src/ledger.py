@@ -459,12 +459,12 @@ def customer_risk(name, today=None, customer_id=None):
     days_late = max(((today - dt.date.fromisoformat(x["due"])).days for x in late_open), default=0)
     history = f"{on_time} of {len(closed)} past debts paid on time" if closed else "no finished debts yet"
     if late_open and (days_late > 7 or d["balance"] >= 50_000):
-        level, lead = "high", f"⛔ {d['customer']} already owes ₦{d['balance']:,.0f} and is {days_late} days late"
+        level, lead = "high", f"{d['customer']} already owes ₦{d['balance']:,.0f} and is {days_late} days late"
     elif late_open or (closed and on_time / len(closed) < 0.6):
-        level, lead = "medium", f"⚠️ {d['customer']} owes ₦{d['balance']:,.0f}" + (
+        level, lead = "medium", f"{d['customer']} owes ₦{d['balance']:,.0f}" + (
             f", {days_late} days late" if late_open else "") + ". Consider asking for part payment"
     else:
-        level, lead = "low", f"✅ {d['customer']} is reliable" + (
+        level, lead = "low", f"{d['customer']} is reliable" + (
             f", currently owes ₦{d['balance']:,.0f}" if d["balance"] > 0 else "")
     return {"level": level, "message": f"{lead} ({history}).", "balance": d["balance"], "days_late": days_late,
             "on_time": on_time, "finished": len(closed)}
@@ -515,7 +515,7 @@ def credit_profile(today=None):
 # ---------------------------------------------------------------- spending by type, month and year
 
 # First match wins (so "market levy" is a levy, not transport). Words are lower case, without tone marks.
-# ⚠️ Yoruba (yo) / Hausa (ha) / Igbo (ig) words need a native-speaker check.
+# Yoruba (yo) / Hausa (ha) / Igbo (ig) words need a native-speaker check.
 EXPENSE_TYPES = [
     ("Rent", ("rent", "stall", "shop fee", "owo ile", "haya", "ugwo ulo")),
     ("Levies & dues", ("levy", "levies", "ticket", "dues", "association", "tax", "local government", "lga",
