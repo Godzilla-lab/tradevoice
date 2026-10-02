@@ -209,7 +209,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", default=os.path.join(HERE, "cases.jsonl"))
     ap.add_argument("--audio", help="folder of recorded voice notes named by case id")
-    ap.add_argument("--asr", choices=["local", "spitch", "spitch-local", "intron", "intron-local"],
+    ap.add_argument("--asr", choices=["natlas", "local", "spitch", "spitch-local", "intron", "intron-local"],
                     help="speech-to-text engine for --audio (default: ASR_ENGINE in .env, else local)")
     ap.add_argument("--lang", help="only these languages, comma-separated (english,pidgin,yoruba,hausa,igbo)")
     ap.add_argument("--category", help="only these categories, comma-separated")
@@ -231,6 +231,7 @@ def main():
         return compare(*args.compare)
     if args.asr:
         os.environ["ASR_ENGINE"] = args.asr
+        os.environ["ASR_ONLY"] = "1"   # compare engines fairly: no silent fallback to another one
     if args.rules_only:
         os.environ.pop("NVIDIA_API_KEY", None)
         os.environ.pop("LOCAL_LLM_URL", None)

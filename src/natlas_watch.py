@@ -31,6 +31,11 @@ def check():
                          headers={"Authorization": f"Bearer {os.getenv('NATLAS_KEY', 'none')}"})
         ok = r.status_code == 200 and "natlas" in r.text
         STATE["last_error"] = None if ok else f"HTTP {r.status_code}"
+        if os.getenv("NATLAS_ASR_URL"):   # the speech models too (same warm-up, same alert)
+            a = requests.get(os.environ["NATLAS_ASR_URL"].rstrip("/") + "/health", timeout=300,
+                             headers={"Authorization": f"Bearer {os.getenv('NATLAS_KEY', 'none')}"})
+            if a.status_code != 200:
+                ok, STATE["last_error"] = False, f"speech server HTTP {a.status_code}"
     except Exception as e:  # noqa: BLE001
         ok, STATE["last_error"] = False, type(e).__name__
     STATE["last_check"], STATE["last_ms"] = time.time(), round((time.perf_counter() - t) * 1000)
@@ -58,7 +63,7 @@ def step(send=_tell_team):
     STATE["ok"] = False
     print(f"N-ATLaS health check failed ({STATE['fails']}x): {STATE['last_error']}")
     if STATE["fails"] >= 2 and not STATE["alerted"]:
-        send(f"⚠️ TradeVoice: N-ATLaS is not answering ({STATE['last_error']}). Traders are being served by the "
+        send(f"⚠️ TradeVoice: N-ATLaS (text or speech) is not answering ({STATE['last_error']}). Traders are being served by the "
              "backup models. Check: modal app logs tradevoice-natlas, then python scripts/check_models.py --natlas")
         STATE["alerted"] = True
 

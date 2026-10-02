@@ -1,4 +1,10 @@
-"""Speech-to-text: Whisper for English/Pidgin, Meta omniASR for Yoruba, Hausa and Igbo.
+"""Speech-to-text. N-ATLaS first when NATLAS_ASR_URL is set: the 4 NCAIR1 Whisper-Small models on Modal
+(deploy/modal_asr.py; Yoruba-ASR, Hausa-ASR, Igbo-ASR, NigerianAccentedEnglish for English and Pidgin).
+Intron and Spitch are NOT used by the app (team decision 2 Oct): they stay only to compare against
+(eval/run_eval.py --audio --asr natlas|intron|spitch). When N-ATLaS can't hear a note, the trader is asked to send
+it again or type it.
+
+Before N-ATLaS: Whisper for English/Pidgin, Meta omniASR for Yoruba, Hausa and Igbo.
 
 Whisper has no Igbo and is poor at Yoruba/Hausa, so voice notes in those languages go to Meta's Omnilingual ASR
 (Apache-2.0, 1,600+ languages), self-hosted on the same Brev GPU.
@@ -14,6 +20,7 @@ Any cloud engine with a key is also used as a fallback if the others fail.
 Which is more accurate is NOT known yet: compare on the team's voice notes (eval/run_eval.py --audio --asr ...).
 """
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -39,6 +46,9 @@ SPITCH_LANG = {"English / Pidgin": "en", "Yoruba": "yo", "Hausa": "ha", "Igbo": 
 # ⚠️ "pcm" vs "en" changed a number 100x on the same audio in that project's test: compare both on our voice notes.
 INTRON_LANG = {"English / Pidgin": os.getenv("INTRON_EN_CODE", "pcm"), "Yoruba": "yo", "Hausa": "ha", "Igbo": "ig"}
 INTRON_URL = os.getenv("INTRON_URL", "https://infer.voice.intron.io/file/v1/upload/sync")
+
+NATLAS_ASR_LANG = {"English / Pidgin": "english", "Yoruba": "yoruba", "Hausa": "hausa", "Igbo": "igbo",
+                   "en": "english", "yo": "yoruba", "ha": "hausa", "ig": "igbo"}
 
 _model = None
 _model_name = None
@@ -177,6 +187,41 @@ def _intron_transcribe(path, language, vocab=None):
             os.remove(wav)
 
 
+def looping(text, seconds=None):
+    """Whisper-Small fine-tunes can get stuck repeating themselves on hard audio (an independent test saw
+    whisper-tiny loop on 7 of 20 Hausa clips, worst on numbers). Never take an amount from such a transcript."""
+    words = re.findall(r"[\w'-]+", (text or "").lower())   # "kaka nan, kaka nan," -> same words, no commas
+    for n in (1, 2, 3):
+        run = 1
+        for i in range(n, len(words) - n + 1, n):
+            run = run + 1 if words[i:i + n] == words[i - n:i] else 1
+            if run >= 4:
+                return True
+    if seconds and len(text or "") > 40 + 30 * seconds:  # far more words than anyone says in that time
+        return True
+    return False
+
+
+def _natlas_transcribe(path, language, vocab=None):
+    """N-ATLaS speech model for the trader's language, on our Modal server."""
+    import requests
+
+    lang = NATLAS_ASR_LANG.get(language or "English / Pidgin", "english")
+    hints = ", ".join((vocab or {}).get("names", [])[:15] + (vocab or {}).get("items", [])[:8])
+    with open(path, "rb") as f:
+        r = requests.post(os.environ["NATLAS_ASR_URL"].rstrip("/") + "/transcribe",
+                          files={"file": (os.path.basename(path), f)}, data={"lang": lang, "prompt": hints},
+                          headers={"Authorization": f"Bearer {os.getenv('NATLAS_KEY', '')}"},
+                          timeout=float(os.getenv("NATLAS_ASR_TIMEOUT", "60")))
+    r.raise_for_status()
+    out = r.json()
+    if out.get("no_speech"):
+        raise RuntimeError("no speech heard (silence or too quiet)")
+    if looping(out.get("text"), out.get("seconds")):
+        raise RuntimeError("N-ATLaS speech model repeated itself (unclear audio)")
+    return {"text": (out.get("text") or "").strip(), "language": lang, "engine": f"natlas:{out.get('model')}"}
+
+
 def _local_transcribe(path, language, vocab):
     engine, code = LANGUAGES.get(language, ("whisper", language or None))
     if engine == "omni":
@@ -207,13 +252,23 @@ def transcribe(path, language=None, vocab=None):
         out["engine"] = f"remote:{out.get('engine', out.get('model', 'asr'))}"
     else:
         # default: Intron when its key is set (best for our 5 languages), else our own models
-        mode = (os.getenv("ASR_ENGINE") or ("intron" if os.getenv("INTRON_API_KEY") else "local")).lower()
-        clouds = {"spitch": (_spitch_transcribe, "SPITCH_API_KEY"), "intron": (_intron_transcribe, "INTRON_API_KEY")}
+        mode = (os.getenv("ASR_ENGINE") or ("natlas" if os.getenv("NATLAS_ASR_URL") else
+                                            "intron" if os.getenv("INTRON_API_KEY") else "local")).lower()
+        clouds = {"natlas": (_natlas_transcribe, "NATLAS_ASR_URL"),
+                  "spitch": (_spitch_transcribe, "SPITCH_API_KEY"), "intron": (_intron_transcribe, "INTRON_API_KEY")}
         chosen = mode.replace("-local", "")
         cloud_first = chosen in clouds and (not mode.endswith("-local") or engine == "omni")
         ready = [name for name, (_, key) in clouds.items() if os.getenv(key)]  # cloud engines with a key
         order = ([clouds[chosen][0]] if cloud_first and chosen in ready else []) + [_local_transcribe]
-        order += [clouds[name][0] for name in ready if clouds[name][0] not in order]  # the rest = fallbacks
+        if os.getenv("ASR_ONLY"):   # benchmarks: this engine alone, no fallback hiding its failures
+            order = order[:1]
+        elif os.getenv("NATLAS_ASR_URL") and mode == "natlas":
+            # the app hears with N-ATLaS only (team decision 2 Oct): Intron/Spitch are for comparison tests, not
+            # backups. Name them in ASR_BACKUPS (e.g. "intron") only if the team decides otherwise.
+            order = [_natlas_transcribe] + [clouds[n][0] for n in os.getenv("ASR_BACKUPS", "").split(",")
+                                            if n.strip() in ready and n.strip() != "natlas"]
+        else:
+            order += [clouds[name][0] for name in ready if clouds[name][0] not in order]  # the rest = fallbacks
         out, errors = None, []
         for fn in order:
             try:

@@ -167,5 +167,58 @@ check("health checks only in market hours (Nigeria time)",
       natlas_watch._market_hours(dt.datetime(2026, 10, 6, 9)) and not natlas_watch._market_hours(
           dt.datetime(2026, 10, 6, 22)) and not natlas_watch._market_hours(dt.datetime(2026, 10, 6, 3)))
 
+# 11. N-ATLaS speech: right model per language, loops and silence rejected, Intron/Spitch not used as backups
+import asr  # noqa: E402
+import tempfile  # noqa: E402
+
+POSTS = []
+
+
+class FakeResp:
+    def __init__(self, body):
+        self.body = body
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self.body
+
+
+HEARD = {}
+fake_requests = SimpleNamespace(post=lambda url, files, data, headers, timeout: (
+    POSTS.append((url, data)), FakeResp(HEARD))[1])
+sys.modules["requests"] = fake_requests
+os.environ.update({"NATLAS_ASR_URL": "http://asr", "INTRON_API_KEY": "x"})
+os.environ.pop("ASR_ENGINE", None)
+asr._intron_transcribe = lambda *a, **k: {"text": "intron heard it", "engine": "intron"}
+note = tempfile.NamedTemporaryFile(suffix=".ogg", delete=False)
+note.write(b"fake")
+note.close()
+HEARD.update(text="Mo ta àpò ìrẹsì méjì fún Iya Bisi", model="NCAIR1/Yoruba-ASR", seconds=4.0)
+out = asr.transcribe(note.name, "Yoruba", {"names": ["Iya Bisi"], "items": ["rice"]})
+check("Yoruba voice note -> NCAIR1/Yoruba-ASR, with the trader's names as hints",
+      POSTS[-1][1]["lang"] == "yoruba" and "Iya Bisi" in POSTS[-1][1]["prompt"] and out["engine"].startswith("natlas"))
+asr.transcribe(note.name, "English / Pidgin")
+check("English/Pidgin -> NigerianAccentedEnglish model", POSTS[-1][1]["lang"] == "english")
+HEARD.clear()
+HEARD.update(text="kaka nan, kaka nan, kaka nan, kaka nan.", model="NCAIR1/Hausa-ASR", seconds=2.0)
+try:
+    asr.transcribe(note.name, "Hausa")
+    check("a looping transcript is rejected (never read amounts from it)", False)
+except RuntimeError as e:
+    check("a looping transcript is rejected, and Intron is NOT used as a backup", "repeated" in str(e))
+HEARD.clear()
+HEARD.update(text="", no_speech=True, seconds=2.0)
+try:
+    asr.transcribe(note.name, "Igbo")
+    check("silence -> 'no speech', not invented words", False)
+except RuntimeError as e:
+    check("silence -> 'no speech', not invented words", "no speech" in str(e))
+os.environ["ASR_ENGINE"] = "intron"
+check("tests can still pick Intron to compare (ASR_ENGINE=intron)",
+      asr.transcribe(note.name, "Igbo")["engine"] == "intron")
+os.remove(note.name)
+
 print(f"\n{passed}/{total} N-ATLaS checks pass")
 sys.exit(0 if passed == total else 1)
