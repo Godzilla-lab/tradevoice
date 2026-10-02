@@ -23,6 +23,7 @@ import events  # noqa: E402
 STEPS = [("hearing", lambda r: r["kind"] == "hear" and r["ok"]),
          ("brain (N-ATLaS)", lambda r: r["kind"] == "llm" and r["ok"] and r["engine"] == "natlas"),
          ("brain (backup AI)", lambda r: r["kind"] == "llm" and r["ok"] and r["engine"] != "natlas"),
+         ("N-ATLaS didn't answer", lambda r: r["kind"] == "llm" and not r["ok"] and r["engine"] == "natlas"),
          ("understand", lambda r: r["kind"] == "understand"),
          ("voice (Intron)", lambda r: r["kind"] == "voice" and r["ok"] and (r["engine"] or "").startswith("intron"))]
 
@@ -55,6 +56,7 @@ def main(argv=None):
     for name, n, med, p90, mx in t:
         print(f"{name:<20}{n:>7}{med / 1000:>10.1f}{p90 / 1000:>16.1f}{mx / 1000:>10.1f}")
     print("\nA very slow 'slowest' (over 60 s) is a sleeping N-ATLaS waking up: NATLAS_WATCH=1 keeps it awake in market hours.")
+    print("'N-ATLaS didn't answer': the time spent waiting before the backup AI answered instead (asleep, or an error).")
     return 0
 
 

@@ -20,6 +20,9 @@
     return { ok: r.ok, status: r.status, data };
   }
   const lang = () => LANG[L] || "English";
+  // the design hides "Offline. Saved, will send later" with the hidden attribute, but its .chip rule (display:
+  // inline-flex) wins over hidden, so it showed online too. This puts hidden back in charge, for that banner only.
+  { const s = document.createElement("style"); s.textContent = "#off[hidden]{display:none}"; document.head.append(s); }
 
   /* spoken replies: after a voice note TradeVoice answers out loud (Me > Voice replies turns it off).
      Phones only let a page play sound it was allowed to during a tap, so the tap on the mic unlocks the player. */
@@ -347,9 +350,10 @@
 .tvc-stage{flex:1;display:grid;place-items:center;width:100%;min-height:260px;padding:var(--s6) 0;-webkit-tap-highlight-color:transparent;outline:0}
 .tvc-orb{--lv:0;position:relative;width:184px;height:184px;animation:tvc-breathe 5.6s ease-in-out infinite}
 .tvc-orb:before{content:"";position:absolute;inset:-22%;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 42%,transparent),transparent);opacity:calc(.5 + var(--lv) * .5);transform:scale(calc(.92 + var(--lv) * .32));transition:opacity var(--d1),transform var(--d1)}
-.tvc-orb b{position:absolute;inset:0;border-radius:50%;overflow:hidden;isolation:isolate;transform:scale(calc(1 + var(--lv) * .14));transition:transform .1s linear;
+.tvc-orb b{position:absolute;inset:0;border-radius:50%;transform:scale(calc(1 + var(--lv) * .14));transition:transform .1s linear;
  background:radial-gradient(circle at 34% 26%,color-mix(in srgb,var(--accent) 30%,#fff) 0%,color-mix(in srgb,var(--accent) 80%,#fff) 18%,var(--accent) 56%,color-mix(in srgb,var(--accent) 52%,#000) 100%);
  box-shadow:0 28px 72px -24px var(--accent),inset 0 -20px 44px color-mix(in srgb,var(--accent) 45%,#000),inset 0 12px 28px rgba(255,255,255,.32)}
+.tvc-orb u{position:absolute;inset:0;border-radius:50%;overflow:hidden;clip-path:circle(50%);-webkit-mask-image:radial-gradient(circle,#000 70%,#000 71%);isolation:isolate;transform:translateZ(0)}
 .tvc-orb b i{position:absolute;width:72%;height:72%;border-radius:50%;filter:blur(20px);mix-blend-mode:screen;opacity:.8;animation:tvc-swirl 12s linear infinite}
 .tvc-orb b i:nth-child(1){left:-12%;top:34%;background:color-mix(in srgb,var(--accent) 42%,#FF62A5);transform-origin:85% 15%}
 .tvc-orb b i:nth-child(2){right:-14%;top:-8%;background:color-mix(in srgb,var(--accent) 48%,#5AD8FF);transform-origin:15% 85%;animation-duration:15s;animation-direction:reverse}
@@ -376,7 +380,7 @@ button.tvc-say{text-decoration:none}
     try { voice.src = SILENT; const p = voice.play(); if (p) p.then(() => voice.pause()).catch(() => {}); } catch (e) {}
     if (!$("#tvc-css")) { const s = document.createElement("style"); s.id = "tvc-css"; s.textContent = ORB_CSS; document.head.append(s); }
     const o = sheet(`<div class="tvc" data-st="listen"><span class="tvc-pill"><i></i><span id="st">${t("listen")}</span></span>` +
-      `<button class="tvc-stage" id="orb" aria-label="${w("tap")}"><span class="tvc-orb"><b><i></i><i></i><i></i></b></span></button>` +
+      `<button class="tvc-stage" id="orb" aria-label="${w("tap")}"><span class="tvc-orb"><b><u><i></i><i></i><i></i></u></b></span></button>` +
       `<p class="tvc-say" id="cap" aria-live="polite">${w("hello")}</p><p class="tvc-hint" id="hint"></p>` +
       `<div class="btns"><button class="btn w" id="dn">${w("done")}</button></div></div>`);
     const box = $(".tvc", o), orb = $(".tvc-orb", o);

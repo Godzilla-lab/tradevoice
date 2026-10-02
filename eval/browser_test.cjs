@@ -272,6 +272,8 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (got !== 3000) throw new Error(`Mama Ngozi owes ${got}, not 3000`);
       if (live !== 3) throw new Error(`live=1 sent ${live} of 3 times`);
     });
+    await check("online: the design's 'Offline. Saved, will send later' banner is hidden", async () =>
+      page.evaluate(() => { const o = document.querySelector("#off"); return !o || getComputedStyle(o).display === "none"; }));
     await check("Me: Connect my WhatsApp says it's coming", async () => {
       await page.click('#me [data-a=wac]'); return /bot/.test(await toastText());
     });
