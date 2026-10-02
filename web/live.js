@@ -54,8 +54,11 @@
     const r = await api("/api/v2/book");
     if (!r.ok) return;
     const openId = C[cur] && C[cur].id, hist = {};
-    C.forEach(c => { if (c.id && c.h && c.h.length) hist[c.id] = c.h; });
-    C = r.data.customers.map(c => Object.assign(c, { h: hist[c.id] || [] })); inN = r.data.in; outN = r.data.out;
+    C.forEach(c => { if (c.id && c.full) hist[c.id] = c.h; });   // full histories already opened stay
+    // until a customer's full history is opened, their latest record stands in (the Customers filters read its age)
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);   // a new record since: the kept history is old
+    C = r.data.customers.map(c => Object.assign(c, hist[c.id] && same(hist[c.id][0], c.last) ? { h: hist[c.id], full: true } : { h: c.last ? [c.last] : [] }));
+    inN = r.data.in; outN = r.data.out;
     if (openId) { const i = C.findIndex(c => c.id === openId); if (i >= 0) cur = i; }   // the same customer stays open
     all();
     if ($("#det.on")) openDet(cur);
@@ -63,7 +66,7 @@
   async function openDet(i) {
     const c = C[i]; if (!c || !c.id) return;
     const r = await api(`/api/v2/customer/${c.id}`);
-    if (r.ok && C[i] === c) { c.h = r.data.h; det(); }
+    if (r.ok && C[i] === c) { c.h = r.data.h; c.full = true; det(); }
   }
 
   const TVL = window.TVL = {

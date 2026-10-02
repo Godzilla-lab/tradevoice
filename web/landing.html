@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>TradeVoice: just talk am. Your book remembers.</title>
-<link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><link rel="manifest" href="/static/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="TradeVoice">
 <meta name="description" content="Record sales and debts with a voice note in English, Pidgin, Yorùbá, Hausa or Igbo. Nothing is saved until you say yes.">
 <script>document.documentElement.classList.add("js")</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,7 +30,7 @@ svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-l
 @media(hover:hover){.btn.p:hover{opacity:.9}.btn:not(.p):hover{background:var(--fill)}}
 nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:color-mix(in srgb,var(--canvas) 78%,transparent);backdrop-filter:saturate(1.8) blur(22px);-webkit-backdrop-filter:saturate(1.8) blur(22px);border-bottom:1px solid var(--hair)}
 nav .w{display:flex;align-items:center;gap:var(--s5);min-height:64px}
-.logo{display:flex;align-items:center;gap:10px;font-weight:500;letter-spacing:-.02em;margin-right:auto}.logo svg{width:30px;height:30px}
+.logo{display:flex;align-items:center;gap:var(--s3);font-weight:500;letter-spacing:-.02em;margin-right:auto}.logo svg{width:30px;height:30px}
 .links{display:none;gap:var(--s5);font-size:.9375rem;color:var(--label2)}@media(min-width:980px){.links{display:flex}}.links a:hover{color:var(--label)}
 .th{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 0 1px var(--hair)}.th svg{width:18px;height:18px}
 .nav-cta{min-height:44px;padding:0 var(--s4);font-size:.9375rem}
@@ -60,7 +60,7 @@ section{padding-block:clamp(56px,9vw,128px);border-top:1px solid var(--hair)}
 .tr{font-size:clamp(1.4rem,3.4vw,2.1rem);line-height:1.35;font-weight:300;letter-spacing:-.03em;max-width:24em;margin-top:var(--s7)}
 mark{color:inherit;background:linear-gradient(var(--h),var(--h)) no-repeat 0 100%/0 100%;border-radius:6px;padding:0 4px;margin:0 -4px;transition:background-size .7s var(--ease)}
 .in mark{background-size:100% 100%}.m1{--h:color-mix(in srgb,var(--accent) 22%,transparent);transition-delay:.3s}.m2{--h:color-mix(in srgb,var(--pos) 24%,transparent);transition-delay:.9s}.m3{--h:color-mix(in srgb,var(--warn) 26%,transparent);transition-delay:1.5s}.m4{--h:color-mix(in srgb,var(--label) 12%,transparent);transition-delay:2.1s}
-.got{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s5)}.got span{font-size:.9375rem;padding:8px 14px;border-radius:var(--pill);background:var(--card);box-shadow:inset 0 0 0 1px var(--hair);opacity:0;transform:scale(.9);transition:all .6s var(--ease)}.got.in span{opacity:1;transform:none}.got span:nth-child(1){transition-delay:.9s}.got span:nth-child(2){transition-delay:1.5s}.got span:nth-child(3){transition-delay:2.1s}.got span:nth-child(4){transition-delay:2.7s}
+.got{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s5)}.got span{font-size:.9375rem;padding:var(--s2) var(--s4);border-radius:var(--pill);background:var(--card);box-shadow:inset 0 0 0 1px var(--hair);opacity:0;transform:scale(.9);transition:all .6s var(--ease)}.got.in span{opacity:1;transform:none}.got span:nth-child(1){transition-delay:.9s}.got span:nth-child(2){transition-delay:1.5s}.got span:nth-child(3){transition-delay:2.1s}.got span:nth-child(4){transition-delay:2.7s}
 .steps{display:grid;gap:var(--s6);margin-top:var(--s7);list-style:none;padding:0}@media(min-width:800px){.steps{grid-template-columns:repeat(3,1fr);gap:var(--s7)}}
 .steps li{border-top:1px solid var(--label);padding-top:var(--s5);display:grid;gap:var(--s2);align-content:start}
 .steps svg.ic{width:120px;height:96px;margin-bottom:var(--s3);overflow:visible}.steps b{font-size:1.625rem;font-weight:400;letter-spacing:-.03em}.steps p{color:var(--label2)}
@@ -70,14 +70,14 @@ mark{color:inherit;background:linear-gradient(var(--h),var(--h)) no-repeat 0 100
 .tile h3{font-size:1.25rem;font-weight:500;letter-spacing:-.02em}.tile p{color:var(--label2);font-size:.9375rem;line-height:1.55;max-width:30em}.tile .vis{margin-top:auto}
 .tile.dk{background:var(--label);color:var(--canvas)}.tile.dk p{color:color-mix(in srgb,var(--canvas) 65%,transparent)}
 .amt{font-size:clamp(2.4rem,6vw,3.6rem);font-weight:300;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums}
-.pillrow{display:flex;gap:var(--s2);flex-wrap:wrap}.pillrow span{font-size:.8125rem;padding:6px 12px;border-radius:var(--pill);background:var(--fill)}.dk .pillrow span{background:rgba(255,255,255,.12)}
-.tag{display:inline-flex;font-size:.75rem;font-weight:500;padding:2px 10px;border-radius:var(--pill);background:var(--warn-bg);color:var(--warn)}
+.pillrow{display:flex;gap:var(--s2);flex-wrap:wrap}.pillrow span{font-size:.8125rem;padding:var(--s2) var(--s3);border-radius:var(--pill);background:var(--fill)}.dk .pillrow span{background:rgba(255,255,255,.12)}
+.tag{display:inline-flex;font-size:.75rem;font-weight:500;padding:2px var(--s3);border-radius:var(--pill);background:var(--warn-bg);color:var(--warn)}
 .chat{background:var(--card);border-radius:var(--r4);padding:var(--s5);box-shadow:var(--lift);display:grid;gap:var(--s3);max-width:440px;margin-inline:auto;width:100%}
 .chat header{display:flex;align-items:center;gap:var(--s3);padding-bottom:var(--s3);border-bottom:1px solid var(--hair)}.chat header b{font-weight:500}.chat header small{display:block;color:var(--label2);font-size:.8125rem;line-height:1.2}
 .dot{width:36px;height:36px;border-radius:12px;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;flex:none}.dot svg{width:20px;height:20px}
 .bb{max-width:88%;padding:var(--s3) var(--s4);border-radius:20px 20px 20px 6px;background:var(--fill);font-size:.9375rem;line-height:1.45}
 .js .chat .bb{opacity:0;transform:translateY(10px) scale(.97);transition:all .7s var(--ease)}.js .chat.in .bb{opacity:1;transform:none}.chat.in .bb:nth-child(2){transition-delay:.2s}.chat.in .bb:nth-child(3){transition-delay:.9s}.chat.in .bb:nth-child(4){transition-delay:1.6s}.chat.in .bb:nth-child(5){transition-delay:2.3s}
-.opts{display:grid;gap:6px;margin-top:var(--s2)}.opts span{background:var(--card);border-radius:var(--pill);text-align:center;font-size:.8125rem;padding:8px 4px;box-shadow:inset 0 0 0 1px var(--hair)}.opts .y{background:var(--accent);color:var(--accent-fg);box-shadow:none}
+.opts{display:grid;gap:var(--s2);margin-top:var(--s2)}.opts span{background:var(--card);border-radius:var(--pill);text-align:center;font-size:.8125rem;padding:8px 4px;box-shadow:inset 0 0 0 1px var(--hair)}.opts .y{background:var(--accent);color:var(--accent-fg);box-shadow:none}
 .kv{display:flex;justify-content:space-between;gap:var(--s3);padding:var(--s2) 0;border-top:1px solid var(--hair);font-size:.9375rem}.kv span{color:var(--label2)}.kv b{font-weight:500}
 .day{margin-top:var(--s7);display:grid;position:relative}.day:before{content:"";position:absolute;left:5.5rem;top:8px;bottom:8px;width:1px;background:var(--hair)}
 .day div{display:grid;grid-template-columns:5rem 1fr;gap:var(--s6);padding-block:var(--s5);position:relative}.day div:after{content:"";position:absolute;left:calc(5.5rem - 4px);top:calc(var(--s5) + 9px);width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 5px var(--canvas)}
@@ -91,13 +91,21 @@ summary{list-style:none;cursor:pointer;min-height:64px;display:flex;align-items:
 summary:after{content:"+";font-weight:300;font-size:1.75rem;color:var(--label2);transition:transform .3s var(--ease);flex:none}details[open] summary:after{transform:rotate(45deg)}details p{color:var(--label2);padding-bottom:var(--s5);max-width:40em}.faq{margin-top:var(--s6)}
 .end{text-align:center;display:grid;justify-items:center;gap:var(--s5)}.end h2{max-width:13em}
 footer{border-top:1px solid var(--hair);padding-block:var(--s6) calc(var(--s6) + var(--s5));color:var(--label2);font-size:.9375rem}footer .w{display:grid;gap:var(--s4)}@media(min-width:800px){footer .w{grid-template-columns:1fr auto;align-items:end}}
+.stores{display:flex;flex-wrap:wrap;gap:var(--s3);margin-top:var(--s5)}
+.store{position:relative;display:inline-flex;align-items:center;gap:var(--s3);min-height:56px;padding:0 var(--s5) 0 var(--s4);border-radius:var(--r2);background:var(--label);color:var(--canvas);transition:transform .15s var(--ease),opacity .15s}
+.store:active{transform:scale(.97)}@media(hover:hover){.store:hover{opacity:.88}}
+.store svg{width:28px;height:28px;stroke-width:1.7;flex:none}.store span{display:grid;line-height:1.2;text-align:left}.store small{font-size:.6875rem;opacity:.75}.store b{font-size:1.1875rem;font-weight:500;letter-spacing:-.02em}
+.store .soon{position:absolute;top:calc(-1*var(--s2));right:calc(-1*var(--s1));font-style:normal;font-size:.6875rem;font-weight:500;padding:2px var(--s2);border-radius:var(--pill);background:var(--accent);color:var(--accent-fg)}
+.soonnote{font-size:.875rem;color:var(--label2);margin-top:var(--s3)}
+.dl{display:grid;gap:var(--s7);align-items:center}@media(min-width:900px){.dl{grid-template-columns:1.1fr .9fr}}
+.phone{width:min(100%,260px);margin-inline:auto;display:block;overflow:visible}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition-duration:.01ms!important;scroll-behavior:auto!important}.js .rv,.js .chat .bb{opacity:1;transform:none}mark{background-size:100% 100%}.got span{opacity:1;transform:none}.ck{stroke-dashoffset:0}}
 </style>
 </head>
 <body>
 <nav><div class="w">
  <a class="logo" href="#top" aria-label="TradeVoice home"><img src="/static/logo.svg" alt="" aria-hidden="true" width="30" height="30">TradeVoice</a>
- <div class="links"><a href="#how">How it works</a><a href="#day">A day with it</a><a href="#whatsapp">WhatsApp</a><a href="#languages">Languages</a><a href="#lenders">Lenders</a><a href="#faq">Questions</a></div>
+ <div class="links"><a href="#how">How it works</a><a href="#day">A day with it</a><a href="#whatsapp">WhatsApp</a><a href="#download">Get the app</a><a href="#languages">Languages</a><a href="#lenders">Lenders</a><a href="#faq">Questions</a></div>
  <button class="th" id="th" aria-label="Switch light or dark mode"><svg viewBox="0 0 24 24"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg></button>
  <a class="btn p nav-cta" href="/app">Open the app</a>
 </div></nav>
@@ -109,7 +117,7 @@ footer{border-top:1px solid var(--hair);padding-block:var(--s6) calc(var(--s6) +
   <h1 class="rv" style="--i:1">Just talk am. <b>Your book remembers.</b></h1>
   <p class="lead rv" style="--i:2">In Balogun, in Kurmi, in Onitsha, you already say it out loud: “Mama Tunde take two bags, she go pay Friday.” TradeVoice hears it, writes it down, and asks you one small thing. Na so?</p>
   <div class="cta rv" style="--i:3"><a class="btn p" href="https://wa.me/">Use on WhatsApp</a><a class="btn" href="/app">Try it on the web</a></div>
-  <p class="fine rv" style="--i:4">A phone number and a 6-digit code. No long forms. No card.</p>
+  <p class="fine rv" style="--i:4">A phone number and a 6-digit code. No long forms. No card.</p><div class="stores rv" style="--i:5"><a class="store" data-store="ios" href="#download"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg><span><small>Download on the</small><b>App Store</b></span><em class="soon">Soon</em></a><a class="store" data-store="android" href="#download"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg><span><small>Get it on</small><b>Google Play</b></span><em class="soon">Soon</em></a></div>
  </div>
  <svg class="ill rv" style="--i:2" viewBox="0 0 480 440" role="img" aria-label="A market stall with rice and tomatoes, and a phone that is listening">
   <circle cx="240" cy="236" r="200" fill="color-mix(in srgb,var(--accent) 9%,transparent)" stroke="none"/>
@@ -222,6 +230,18 @@ footer{border-top:1px solid var(--hair);padding-block:var(--s6) calc(var(--s6) +
  </div>
 </div></section>
 
+<section id="download"><div class="w dl">
+ <div><p class="k rv">Get the app</p><h2 class="rv">Put it in your pocket. <b>Keep it in your hand.</b></h2><p class="sub rv">One-tap recording, entries saved offline, and a buzz the moment a customer pays. Light on data, light on storage.</p>
+  <div class="stores rv"><a class="store" data-store="ios" href="#download"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg><span><small>Download on the</small><b>App Store</b></span><em class="soon">Soon</em></a><a class="store" data-store="android" href="#download"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg><span><small>Get it on</small><b>Google Play</b></span><em class="soon">Soon</em></a></div><p class="soonnote rv" id="soonnote" hidden>Not in the stores yet. Tap a button and we’ll message you on WhatsApp the day it is.</p>
+  <p class="fine rv">No space on your phone? Open TradeVoice in your browser and tap <b style="font-weight:500;color:var(--label)">Add to Home Screen</b>. Same book, no download.</p>
+  <div class="cta rv"><a class="btn" href="/app">Open in browser</a></div></div>
+ <svg class="phone fl rv" viewBox="0 0 260 440" role="img" aria-label="The TradeVoice app on a phone"><rect x="10" y="6" width="240" height="428" rx="40" fill="var(--label)" stroke="none"/><rect x="20" y="16" width="220" height="408" rx="32" fill="var(--canvas)" stroke="none"/>
+  <text x="40" y="66" font-size="24" font-weight="500" fill="var(--label)" stroke="none">Today</text><rect x="36" y="84" width="188" height="108" rx="20" fill="var(--card)" stroke="var(--hair)"/><text x="52" y="116" font-size="12" fill="var(--label2)" stroke="none">Net today</text><text x="52" y="160" font-size="34" font-weight="300" fill="var(--label)" stroke="none">₦88,500</text>
+  <rect x="36" y="208" width="188" height="52" rx="16" fill="var(--card)" stroke="var(--hair)"/><circle cx="62" cy="234" r="14" fill="var(--warn-bg)" stroke="none"/><text x="86" y="239" font-size="14" fill="var(--label)" stroke="none">Mama Tunde</text><text x="212" y="239" font-size="13" text-anchor="end" fill="var(--warn)" stroke="none">2 days late</text>
+  <rect x="36" y="272" width="188" height="52" rx="16" fill="var(--card)" stroke="var(--hair)"/><circle cx="62" cy="298" r="14" fill="var(--pos-bg)" stroke="none"/><text x="86" y="303" font-size="14" fill="var(--label)" stroke="none">Oga Emeka</text><text x="212" y="303" font-size="13" text-anchor="end" fill="var(--label2)" stroke="none">₦120,000</text>
+  <circle cx="130" cy="380" r="30" fill="var(--accent)" stroke="none"/><g stroke="var(--accent-fg)" stroke-width="2.4"><rect x="124" y="366" width="12" height="18" rx="6"/><path d="M118 379a12 12 0 0 0 24 0M130 391v4"/></g></svg>
+</div></section>
+
 <section id="faq"><div class="w">
  <p class="k rv">Questions</p><h2 class="rv">Straight answers.</h2>
  <div class="faq">
@@ -239,11 +259,16 @@ footer{border-top:1px solid var(--hair);padding-block:var(--s6) calc(var(--s6) +
  <div class="cta rv" style="justify-content:center;margin:0"><a class="btn p" href="https://wa.me/">Use on WhatsApp</a><a class="btn" href="/app">Try it on the web</a></div>
 </div></section>
 </main>
-<footer><div class="w"><div><b style="font-weight:500;color:var(--label)">Powered by N-ATLaS</b><br>Nigeria’s own multilingual AI model.</div><div>All names and numbers in examples are made up.</div></div></footer>
+<footer><div class="w"><div><b style="font-weight:500;color:var(--label)">Powered by N-ATLaS</b><br>Nigeria’s own multilingual AI model.<br>N-ATLaS is an initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri Technologies.</div><div>All names and numbers in examples are made up.</div></div></footer>
 <script>
 const r=document.documentElement;
 try{const v=localStorage.getItem("tv-l");if(v)r.dataset.theme=v}catch(e){}
 document.getElementById("th").onclick=()=>{const d=r.dataset.theme?r.dataset.theme=="dark":matchMedia("(prefers-color-scheme:dark)").matches,v=d?"light":"dark";r.dataset.theme=v;try{localStorage.setItem("tv-l",v)}catch(e){}};
+
+const STORES={ios:"",android:""}; /* paste your App Store and Google Play links here when live */
+document.querySelectorAll("[data-store]").forEach(a=>{const k=a.dataset.store,u=STORES[k];a.target="_blank";a.rel="noopener";if(u){a.href=u;const s=a.querySelector(".soon");s&&s.remove()}else a.href="https://wa.me/?text="+encodeURIComponent("Tell me when TradeVoice is on the "+(k=="ios"?"App Store":"Google Play"))});
+if(!STORES.ios||!STORES.android){const n=document.getElementById("soonnote");n&&(n.hidden=false)}
+if(/Android/.test(navigator.userAgent))document.querySelectorAll(".stores").forEach(s=>{const g=s.querySelector('[data-store="android"]');g&&s.prepend(g)});
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);const c=e.target.querySelector("[data-count]");if(c){const n=+c.dataset.count,t0=performance.now(),f=t=>{const p=Math.min(1,(t-t0)/1400),v=Math.round(n*(1-Math.pow(1-p,4)));c.textContent="₦"+v.toLocaleString("en-NG");if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)}}}),{threshold:.2,rootMargin:"0px 0px -6% 0px"});
 document.querySelectorAll(".rv,.tr,.got,.chat").forEach(e=>io.observe(e));
 const q=document.getElementById("trq"),g=document.getElementById("got");if(q&&g){const o=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){q.classList.add("in");g.classList.add("in");o.disconnect()}}),{threshold:.5});o.observe(q)}
@@ -261,7 +286,7 @@ const q=document.getElementById("trq"),g=document.getElementById("got");if(q&&g)
 </style>
 <script>window.TV_NO_FAB=!/[?&]demo=1\b/.test(location.search)</script>
 <script>
-(()=>{const K="tv-ed",root=document.documentElement;let S={v:{},t:{},fs:0,dw:0,off:0,rs:100,wd:0};
+(()=>{const K="tv-ed-site",root=document.documentElement;let S={v:{},t:{},fs:0,dw:0,off:0,rs:100,wd:0};
 try{S=Object.assign(S,JSON.parse(localStorage.getItem(K)||"{}"))}catch(e){}
 const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}},dyn=document.createElement("style");document.head.append(dyn);
 const css=()=>{dyn.textContent=(S.wd?`h1,h2,.big,.amt,.lt{font-weight:${S.dw}!important}`:"")+(S.off?`*,*:before,*:after{animation:none!important;transition:none!important}`:"")};

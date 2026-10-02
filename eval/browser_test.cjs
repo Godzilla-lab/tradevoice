@@ -103,12 +103,23 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
         .filter(h => h.length > 1 && !document.getElementById(h.slice(1))));
       if (miss.length) throw new Error("missing: " + miss.join(", "));
     });
+    await check("website: 'Get the app' has App Store / Google Play (Soon) and 'Open in browser' goes to the app", async () => {
+      const r = await page.evaluate(() => ({ stores: document.querySelectorAll("#download [data-store]").length,
+        soon: !document.getElementById("soonnote").hidden, open: document.querySelector('#download a.btn[href="/app"]') !== null }));
+      if (r.stores !== 2 || !r.soon || !r.open) throw new Error(JSON.stringify(r));
+    });
+    await check("website + app: installable ('Add to Home Screen' gets the TradeVoice name and icon)", async () => {
+      const m = await page.evaluate(async () => { const l = document.querySelector('link[rel=manifest]'); const r = await fetch(l.href);
+        return { type: r.headers.get("content-type"), j: await r.json() }; });
+      if (!/manifest\+json/.test(m.type) || m.j.start_url !== "/app" || m.j.icons.length < 2) throw new Error(JSON.stringify(m));
+      for (const i of m.j.icons) if ((await fetch(BASE + i.src)).status !== 200) throw new Error("missing " + i.src);
+    });
     await check("website: no sideways scroll on a phone", async () =>
       page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-    await todo("website: shows the N-ATLaS attribution", async () => {
+    await check("website: shows the N-ATLaS attribution", async () => {
       const txt = await page.evaluate(() => document.body.innerText);
       if (!/Federal Ministry of Communications, Innovation and Digital Economy/.test(txt) || !/Awarri/.test(txt))
-        throw new Error("the licence sentence isn't on the page (designer to-do)");
+        throw new Error("the licence sentence isn't on the page");
     });
     await check("website: 'Open the app' goes to /app", async () => {
       await Promise.all([page.waitForURL(/\/app$/), page.locator('a[href="/app"]').first().click()]);
@@ -116,9 +127,9 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
 
     /* ------------------------------------------------------------ sign-up */
     await page.waitForSelector("#gate [data-g=signup]");
-    await todo("welcome: the 4 languages, no Pidgin button", async () => {
+    await check("welcome: the 4 languages, no Pidgin button", async () => {
       const langs = await page.locator("#gate [data-a=lang]").allTextContents();
-      if (langs.some(l => /pidgin/i.test(l))) throw new Error("tiles: " + langs.join(", ") + " (designer to-do)");
+      if (langs.some(l => /pidgin/i.test(l))) throw new Error("tiles: " + langs.join(", "));
     });
     await page.click("#gate [data-g=signup]");
     await page.fill("#ph", PHONE);
@@ -271,6 +282,25 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       const got = ((await book()).customers.find(c => c.n === "Mama Ngozi") || {}).b;
       if (got !== 3000) throw new Error(`Mama Ngozi owes ${got}, not 3000`);
       if (live !== 3) throw new Error(`live=1 sent ${live} of 3 times`);
+    });
+    await check("Customers filter: '₦10,000 to ₦100,000' shows the right people, with a removable chip", async () => {
+      await tab("cust");
+      await page.click("#cust [data-a=filt]");
+      await page.click('.ov.on [data-fv="amt|1"]');
+      const label = await page.locator(".ov.on #fgo").textContent();
+      if (!/Show 2 customers/.test(label)) throw new Error("button: " + label);
+      await page.click(".ov.on #fgo"); await gone(".ov .fh");
+      const names = await page.locator("#cust .list").textContent();
+      if (!names.includes("Iya Bisi") || !names.includes("Oga Emeka") || names.includes("Mama Ngozi")) throw new Error(names);
+      await page.click("#cust .fx"); await page.waitForFunction(() => /Mama Ngozi/.test(document.querySelector("#cust .list")?.textContent || ""));
+    });
+    await check("Customers filter: 'Last activity: Today' knows when each customer was last active (from the server)", async () => {
+      await page.click("#cust [data-a=filt]");
+      await page.click('.ov.on [data-fv="act|today"]');
+      const label = await page.locator(".ov.on #fgo").textContent();
+      if (!/Show 3 customers/.test(label)) throw new Error("button: " + label);
+      await page.click('.ov.on [data-fv="reset"]'); await page.click(".ov.on #fgo"); await gone(".ov .fh");
+      await tab("me");
     });
     await check("online: the design's 'Offline. Saved, will send later' banner is hidden", async () =>
       page.evaluate(() => { const o = document.querySelector("#off"); return !o || getComputedStyle(o).display === "none"; }));

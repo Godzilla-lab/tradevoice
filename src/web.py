@@ -859,6 +859,9 @@ def demo_data():
 
 # ---------------------------------------------------------------- pages
 
+import mimetypes  # noqa: E402
+
+mimetypes.add_type("application/manifest+json", ".webmanifest")   # "Add to Home Screen": the app's install file
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "web")), name="static")
 
 
@@ -904,6 +907,7 @@ def _page(name):
     if bot:  # the website's "Use on WhatsApp" buttons open a chat with the bot
         html = html.replace('href="https://wa.me/"', f'href="https://wa.me/{bot}?text=Hi"')
         html = html.replace('window.open("https://wa.me/","_blank"', f'window.open("https://wa.me/{bot}?text=Hi","_blank"')
+        html = html.replace('"https://wa.me/?text="', f'"https://wa.me/{bot}?text="')   # "tell me when it's in the store"
     return HTMLResponse(html, headers=NO_CACHE)
 
 

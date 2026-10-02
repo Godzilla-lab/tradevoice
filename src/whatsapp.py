@@ -66,6 +66,8 @@ SAY = {
     "lang_set": "✅ {lang}. Send a voice note in {lang}, or type in any language.",
     "dashboard": "📊 Your full book (charts, debts, statement): {url}",
     "other": "Send me a *voice note* 🎤, a *photo* of your book 📸, or type what happened.",
+    "store_wait": ("✅ Noted. We'll message you here the day TradeVoice is on {store}.\n\nYou don't have to wait: "
+                   "TradeVoice already works right here on WhatsApp. Send *hi* to start."),
 }
 
 
@@ -76,6 +78,21 @@ def _db():
     c.execute("CREATE TABLE IF NOT EXISTS wa_users (phone TEXT PRIMARY KEY, lang TEXT, consent_at TEXT, "
               "voice INTEGER NOT NULL DEFAULT 1)")
     return c
+
+
+def store_wait(phone, store=None):
+    """The website's App Store / Google Play buttons ("Soon") send "Tell me when…": the number and the store go on one
+    list in accounts.db (scripts/store_waitlist.py reads it on launch day). store=None: just look it up."""
+    import sqlite3
+
+    import accounts
+    with sqlite3.connect(accounts.ACCOUNTS_DB, timeout=5) as c:
+        c.execute("CREATE TABLE IF NOT EXISTS store_wait (phone TEXT PRIMARY KEY, store TEXT NOT NULL, at TEXT NOT NULL)")
+        if store:
+            c.execute("INSERT INTO store_wait VALUES (?,?,?) ON CONFLICT(phone) DO UPDATE SET store=excluded.store, "
+                      "at=excluded.at", (phone, store, dt.datetime.now().isoformat(timespec="seconds")))
+        r = c.execute("SELECT store FROM store_wait WHERE phone=?", (phone,)).fetchone()
+    return r[0] if r else None
 
 
 def user(phone):
@@ -333,6 +350,15 @@ def handle(msg):
             text = (it.get("button_reply") or it.get("list_reply") or {}).get("id", "")
         elif kind == "button":
             text = msg.get("button", {}).get("payload") or msg.get("button", {}).get("text", "")
+
+        # 0) the website's App Store / Google Play buttons ("Soon"): they asked to be told, so the number is kept for
+        #    that one message, with the store they want (nothing else is done with it)
+        m = re.match(r"^tell me when tradevoice is on the (app store|google play)\W*$", fold(text))
+        if m:
+            store = "ios" if m.group(1) == "app store" else "android"
+            store_wait(phone, store)
+            events.log("store_wait", phone, "whatsapp", engine=store)
+            return send_text(phone, SAY["store_wait"].format(store="App Store" if store == "ios" else "Google Play"))
 
         # 1) sign-up: language, then consent (nothing is processed before "I agree")
         if text.startswith("lang:") or (u["lang"] and fold(text) in LANG_WORDS) or re.match(

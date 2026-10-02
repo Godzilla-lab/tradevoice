@@ -43,7 +43,7 @@ for src, built in (("app.html", "app.html"), ("landing2.html", "landing.html")):
               "AC[a.phone]=a" not in b and "!==A.pw" not in b and "!==r.acct.pw" not in b)
     else:
         check(f"{built}: 'Open the app' goes to /app, not a preview link", "claude.ai/artifact" not in b
-              and b.count('href="/app"') == 3)
+              and b.count('href="/app"') == 4)
 check("the design files themselves are untouched by the build",
       "TVL." not in open(os.path.join(DESIGN, "app.html"), encoding="utf-8").read())
 

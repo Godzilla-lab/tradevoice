@@ -80,6 +80,7 @@ def check(name, ok, out=""):
 
 
 def main():
+    global PHONE
     ledger.use_book(PHONE)  # the WhatsApp sender's own book (same one the web app opens after login)
     ledger.add_entry({"type": "credit_sale", "item": "rice", "amount": 30000, "customer": "Mama Tunde"},
                      created_at=dt.datetime(2026, 9, 20, 10))
@@ -143,6 +144,12 @@ def main():
     global n
     n -= 1  # same message id again (Meta retry)
     check("duplicate delivery is ignored", post(dup) == [])
+    keep, PHONE = PHONE, "2348000000009"   # someone new, from the website's "App Store (Soon)" button
+    out = text_of(post({"type": "text", "text": {"body": "Tell me when TradeVoice is on the App Store"}}))
+    wait = whatsapp.store_wait(PHONE)
+    check("website 'App Store (Soon)' → noted, told it works on WhatsApp now (not the sign-up questions)",
+          "App Store" in out and "Which language" not in out and wait == "ios", out)
+    PHONE = keep
     check("no 'Something went wrong' after normal messages", not any("went wrong" in json.dumps(x) for x in ALL),
           [x for x in ALL if "went wrong" in json.dumps(x)][:2])
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} WhatsApp checks pass")
