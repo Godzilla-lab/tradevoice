@@ -59,9 +59,12 @@ and prints the links. "https … ✅" means the certificate is in place; a ❌ t
 
 ## 6. Keys
 ```bash
-sudo nano /opt/tradevoice/app/.env      # fill in, save with Ctrl+O, Enter, Ctrl+X
-sudo systemctl restart tradevoice
+sudo bash /opt/tradevoice/app/deploy/server/keys.sh            # asks for each key by name; Enter = keep / skip
+sudo bash /opt/tradevoice/app/deploy/server/keys.sh NATLAS_KEY # just one
 ```
+It never shows what you paste, warns when a value looks wrong (a link without https://, a phone ID with spaces…),
+switches off laptop-only settings, restarts the app and shows what it now uses (brain, hearing, WhatsApp).
+(By hand instead: `sudo nano /opt/tradevoice/app/.env`, then `sudo systemctl restart tradevoice`.)
 Fill in: `NATLAS_URL`, `NATLAS_ASR_URL`, `NATLAS_KEY`, `ADMIN_TOKEN`, `TEAM_WHATSAPP`, `WHATSAPP_TOKEN`,
 `WHATSAPP_PHONE_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_BOT_NUMBER`, `INTRON_API_KEY`,
 `PAYSTACK_SECRET_KEY`, `PAYSTACK_EMAIL`, `BACKUP_UPLOAD_URL` (step 7). `PUBLIC_URL` is set by the setup.
@@ -70,6 +73,8 @@ Keys go only in this file: never in the repo, the chat, or a screenshot.
 **Sign-up needs WhatsApp.** The live server never shows codes on screen (`AUTH_DEMO` is forced off there: with it,
 anyone could open any trader's book). Until Meta verification is done, the WhatsApp test number sends codes to up to
 5 numbers registered in the Meta dashboard: the team and the 2 beta testers.
+While Meta verification is pending, either skip the WhatsApp questions (no sign-up yet) or use the test number's
+Phone number ID with a permanent **system user** token (the dashboard's temporary token stops working after 24 hours).
 
 ## 7. Backups off the server
 Oracle console → Storage → **Buckets** → Create bucket `tradevoice-backups` (private, the default). In the bucket:
