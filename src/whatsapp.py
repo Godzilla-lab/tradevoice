@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 
 import requests
@@ -223,7 +224,18 @@ def _state(phone, lang):
     return st
 
 
-def _reply(phone, r, u):
+def _speak_back(st, kind):
+    """Voice replies cost Intron credit: speak when the trader spoke (a voice note), and for the button tap that
+    follows a voice note (Yes/No within 10 minutes). Typed in -> text out. VOICE_REPLIES=always speaks every reply."""
+    if os.getenv("VOICE_REPLIES", "voice") == "always":
+        return True
+    if kind == "audio":
+        st["voice_at"] = time.time()
+        return True
+    return kind == "interactive" and time.time() - st.get("voice_at", 0) < 600
+
+
+def _reply(phone, r, u, kind="text"):
     """Send a converse reply: text (+ English line), the reminder to forward, a voice note, yes/no buttons."""
     body = r["text"] + (f"\n\n_🇬🇧 {r['english']}_" if r.get("english") else "")
     st = STATES.get(phone) or {}
@@ -243,7 +255,7 @@ def _reply(phone, r, u):
     if r.get("message"):  # the reminder itself, as its own message: long-press → Forward to the customer
         send_text(phone, "👇 Forward this to them:")
         send_text(phone, r["message"])
-    if u.get("voice"):
+    if u.get("voice") and _speak_back(st, kind):
         try:
             send_voice(phone, r["spoken"], r["lang"])
         except Exception as e:  # noqa: BLE001 - voice is a bonus, but say why it's missing (check_whatsapp.py shows it)
@@ -393,7 +405,7 @@ def handle(msg):
         r = converse.reply(text, st, shop=os.getenv("SHOP_NAME", "my shop"))
         if kind == "text" and r["lang"] in ("Yoruba", "Hausa", "Igbo") and r["lang"] != u["lang"]:
             set_user(phone, lang=r["lang"])  # they wrote in another of our languages: hear voice notes in it too
-        return _reply(phone, r, u)
+        return _reply(phone, r, u, kind)
 
 
 def _ask_language(phone):

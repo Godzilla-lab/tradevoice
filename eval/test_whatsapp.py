@@ -113,8 +113,12 @@ def main():
                                                                 "button_reply": {"id": "yes"}}}))
     check("✅ tapped → saved, new total ₦75,000", "₦75,000" in out, out)
     out = text_of(post({"type": "text", "text": {"body": "Ṣé mo ní gbèsè lọ́wọ́ Alhaji?"}}))
-    check("Yoruba question → Yoruba answer + Yoruba voice", "O jẹ Alhaji Sani ní ₦60,000" in out
-          and "[🔊 Yoruba]" in out, out)
+    check("typed Yoruba question → Yoruba answer as TEXT only (voice only after a voice note: saves Intron credit)",
+          "O jẹ Alhaji Sani ní ₦60,000" in out and "[🔊" not in out, out)
+    os.environ["VOICE_REPLIES"] = "always"
+    out = text_of(post({"type": "text", "text": {"body": "Ṣé mo ní gbèsè lọ́wọ́ Alhaji?"}}))
+    check("VOICE_REPLIES=always → Yoruba answer + Yoruba voice", "[🔊 Yoruba]" in out, out)
+    os.environ.pop("VOICE_REPLIES")
     out = text_of(post({"type": "text", "text": {"body": "Remind her tomorrow"}}))
     # they wrote Yoruba above, so the chat is now in Yoruba: the reminder comes in Yoruba too
     check("'Remind her' → Mama Tunde + message to forward (Yoruba)", "Mama Tunde" in out and "Forward this" in out
