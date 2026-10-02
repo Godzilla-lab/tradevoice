@@ -120,6 +120,15 @@ def main():
               calls[-1].endswith("Should I save it?") and "Press save" not in calls[-1], calls[-1])
         check("…and short, so it's said sooner (no 'Okay, I heard', no 'Is that correct?')",
               not re.search(r"I heard|Alright, so|Is that correct", calls[-1]) and calls[-1][0].isupper(), calls[-1])
+        n = len(calls)
+        h = c.post("/api/hear", files={"file": ("note.webm", b"0" * 200)}, data={"lang": "English", "consent": "yes"}).json()
+        st = web._state("live-split")
+        check("live talk step 1 (/api/hear): only the words; the chat and the voice are untouched (safe to throw away)",
+              h.get("heard") == "Mama Tunde took rice 20000" and not st.get("pending") and len(calls) == n, h)
+        r = c.post("/api/say", json={"session": "live-split", "text": h["heard"], "lang": "English"}).json()
+        c.get(f"/api/speak/{r.get('speak')}")
+        check("live talk step 2 (/api/say): the draft, read back with 'Should I save it?'",
+              r["pending"] and r["draft"]["amount"] == 20000 and calls[-1].endswith("Should I save it?"), r)
         r = c.post("/api/warm", json={})
         check("opening Talk can wake N-ATLaS (nothing to wake here: says so, no error)", r.status_code == 200, r.text)
         check("…in Yoruba too", tts.live_ask("Ó dáa, mo gbọ́ pé: … Ṣé bẹ́ẹ̀ ni? Tí ó bá tọ̀nà, tẹ save.", "Yoruba")

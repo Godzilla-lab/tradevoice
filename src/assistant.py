@@ -115,6 +115,8 @@ INTENTS = [
                  r"wo ni o din|mafi arha|kacha ọnụ ala|onye na-ere .{0,10}ọnụ ala"),
     ("margin", r"\bmargins?\b|profit (on|for|per|from)|most profit|gain (on|for|per)|wetin i dey gain|which item .{0,20}(profit|gain)|"
                r"ere lori|riba (a kan|daga)|uru (na|n')"),
+    ("owed_total", r"(how much|wetin|what)\b.{0,30}\b(owed|owe|owing|debts?|credit)\b.{0,25}\b(total|altogether|in all|all together|everything|everybody|everyone|all of them)\b|"
+                   r"\btotal\b.{0,20}\b(owed|owe|owing|debts?|credit)\b|\b(all|everybody|everyone).{0,10}\bowe(s|d)? me\b.{0,15}(how much|total)"),
     ("owe_most", r"owes? (me )?(the )?most|owe (me )?pass|biggest debt|highest debt|who (dey )?owe me pass|ju lo|fi yawa|kacha"),
     ("late", r"\b(who|which).{0,20}\b(late|overdue)\b|\blate (people|customers)|don pass (date|time)|ti pe|jinkiri|egbu oge"),
     ("i_owe", r"what do i (need to |have to )?pay|who do i owe|wetin i (go |dey )?pay|i owe who|my debts?\b|mo je|ana bina|a m ji"),
@@ -124,6 +126,14 @@ INTENTS = [
     ("score", r"(my|record|credit) score|score (be|am)|ami mi|makina|akara m"),
 ]
 SAYS = {
+    "owed_total": {"English": "People owe you {m} in total, {n}: {list}.",
+                   "Pidgin": "People dey owe you {m} for total, {n}: {list}.",
+                   "Yoruba": "Gbogbo gbèsè tí wọ́n jẹ ọ́ jẹ́ {m}, {n}: {list}.",
+                   "Hausa": "Jimlar bashin da ake binka {m} ne, {n}: {list}.",
+                   "Igbo": "Ngụkọta ụgwọ ndị mmadụ ji gị bụ {m}, {n}: {list}."},
+    "owed_none": {"English": "Nobody owes you money now.", "Pidgin": "Nobody dey owe you now.",
+                  "Yoruba": "Kò sí ẹni tó jẹ ọ́ lówó báyìí.", "Hausa": "Babu wanda ake binsa bashi yanzu.",
+                  "Igbo": "Ọ dịghị onye ji gị ụgwọ ugbu a."},
     "margin_one": {"English": "{item}: you sell at {sell} and buy at {buy} per {unit}, so {m} for you on each {unit} ({pct}%).",
                    "Pidgin": "{item}: you dey sell {sell}, you dey buy {buy} per {unit}, so {m} dey enter your pocket for each {unit} ({pct}%).",
                    "Yoruba": "{item}: o ń tà á ní {sell}, o ń rà á ní {buy} fún {unit} kan; èrè {m} lórí {unit} kọ̀ọ̀kan ({pct}%).",
@@ -185,6 +195,17 @@ def book_answer(question, lang="English", today=None):
         return None
     say = lambda k, **kw: SAYS[k].get(lang, SAYS[k]["English"]).format(**kw)  # noqa: E731
     money = lambda x: f"₦{x:,.0f}"  # noqa: E731
+    if intent == "owed_total":   # code adds it up; the three biggest named, "and N more" for the rest
+        d = sorted(ledger.debtors(today), key=lambda x: -x["balance"])
+        if not d:
+            return say("owed_none")
+        people = {"English": "{k} people", "Pidgin": "{k} people", "Yoruba": "ènìyàn {k}", "Hausa": "mutum {k}",
+                  "Igbo": "mmadụ {k}"}.get(lang, "{k} people").format(k=len(d)) if len(d) > 1 else \
+            {"English": "1 person", "Pidgin": "1 person", "Yoruba": "ènìyàn 1", "Hausa": "mutum 1", "Igbo": "mmadụ 1"}.get(lang, "1 person")
+        names = ", ".join(f"{x['customer']} {money(x['balance'])}" for x in d[:3])
+        more = {"English": " and {k} more", "Pidgin": " and {k} more", "Yoruba": " àti {k} mìíràn", "Hausa": " da {k} kuma",
+                "Igbo": " na {k} ọzọ"}.get(lang, " and {k} more").format(k=len(d) - 3) if len(d) > 3 else ""
+        return say("owed_total", m=money(sum(x["balance"] for x in d)), n=people, list=names + more)
     if intent == "owe_most":
         d = sorted(ledger.debtors(today), key=lambda x: -x["balance"])
         return say("owe_most", name=d[0]["customer"], m=money(d[0]["balance"])) if d else say("empty")

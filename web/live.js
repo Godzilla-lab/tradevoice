@@ -404,9 +404,13 @@ button.tvc-say{text-decoration:none}
       try { outAn = ac.createAnalyser(); outAn.fftSize = 1024; const src = ac.createMediaElementSource(voice); src.connect(outAn); outAn.connect(ac.destination); wired = true; } catch (e) { outAn = null; }
     }
     let lv = 0, floor = 0; const first = [];
+    // the mic, read once a frame by the orb loop. Speech flickers (loud, soft, loud…), so "talking" = enough loud
+    // moments in the last 0.4 s, and "quiet" is counted from the last loud moment
+    const V = { loud: false, hits: [], lastLoud: 0, talking: false };
     (function glow() {   // the orb's size follows whoever is talking
       if (!o.isConnected) return;
       const st = box.dataset.st; let target = 0;
+      if (st != "speak") hearMic();   // (not while it speaks: it would hear itself)
       if (!calm && st == "listen" && micAn && first.length >= 15) target = Math.min(1, Math.max(0, rms(micAn) - floor) / 22);
       else if (!calm && st == "speak") target = outAn ? Math.min(1, rms(outAn) / 26) : (Math.sin(Date.now() / 140) + 1) * .22;
       lv += (target - lv) * (target > lv ? .35 : .12);
@@ -422,42 +426,96 @@ button.tvc-say{text-decoration:none}
       clearInterval(end); if (cutIn) cutIn(); voice.pause(); stream.getTracks().forEach(x => x.stop()); ac && ac.close();
     }, 250);
 
-    // one turn of listening: until about a second of quiet after speech, a tap, or 20 s
-    function listen() {
-      set("listen");
-      const rec = new MediaRecorder(stream), parts = [];
+    // ---- turn-taking: when have you really finished talking?
+    // A short pause (0.6 s) starts the hearing early, in the background, while it keeps listening. It answers only
+    // after a real stop: 1.3 s of quiet AND your words back. Talk again before that: the early hearing is thrown
+    // away and the whole thing, old words and new, is heard again. Talk while it is preparing the reply: it doesn't
+    // talk over you; what you said is kept as your next turn. (Nothing is recorded while it speaks: it would hear itself.)
+    const PAUSE = 600, DONE = 1300, MAX = 40000, NOTHING = 8000;
+    function hearMic() {
+      if (!micAn) return;
+      const r = rms(micAn);
+      if (first.length < 15) {   // the background, learned once per conversation (same rule as the card flow)
+        if (r > 0.5) first.push(r);
+        floor = first.length ? first.slice().sort((a, b) => a - b)[first.length >> 1] : 0;
+        V.loud = false;
+      } else {
+        floor = r < floor ? r : floor + (r - floor) * 0.002;
+        V.loud = r > Math.max(6, floor * 1.8 + 3);
+      }
+      const now = Date.now();
+      if (V.loud) { V.hits.push(now); V.lastLoud = now; }
+      while (V.hits.length && now - V.hits[0] > 400) V.hits.shift();
+      V.talking = V.hits.length >= 6;
+    }
+    function record() {   // a recording you can read while it goes on (in 0.2 s pieces)
+      const rec = new MediaRecorder(stream), parts = [], R = { t0: Date.now(), spoke: false };
       rec.ondataavailable = e => e.data.size && parts.push(e.data);
-      const stopped = new Promise(r => (rec.onstop = r));
-      let spoke = false, tapped = false, quietSince = 0; const t0 = Date.now();
-      const stop = () => { if (rec.state == "recording") rec.stop(); };
-      cutIn = () => { tapped = true; stop(); };
-      rec.start();
-      (function watch() {
-        if (rec.state != "recording") return;
-        if (!o.isConnected) return stop();
-        if (!micAn) { if (Date.now() - t0 > 8000) { spoke = true; stop(); } return setTimeout(watch, 100); }   // no meter: 8 s, or a tap
-        const r = rms(micAn);
-        if (first.length < 15) {   // the background, learned once per conversation (same rule as the card flow)
-          if (r > 0.5) first.push(r);
-          floor = first.length ? first.slice().sort((a, b) => a - b)[first.length >> 1] : 0;
-        } else {
-          floor = r < floor ? r : floor + (r - floor) * 0.002;
-          if (r > Math.max(6, floor * 1.8 + 3)) { spoke = true; quietSince = 0; } else if (spoke && !quietSince) quietSince = Date.now();
-        }
-        if ((spoke && quietSince && Date.now() - quietSince > 800) || Date.now() - t0 > 20000 || (!spoke && Date.now() - t0 > 8000)) return stop();
-        requestAnimationFrame(watch);
-      })();
-      return stopped.then(() => { cutIn = null; return spoke || tapped ? new Blob(parts, { type: rec.mimeType || "audio/webm" }) : null; });
+      R.stopped = new Promise(r => (rec.onstop = r));
+      R.blob = () => new Blob(parts, { type: rec.mimeType || "audio/webm" });
+      R.stop = () => { if (rec.state == "recording") rec.stop(); return R.stopped; };
+      rec.start(200);
+      return R;
+    }
+    function hearNow(blob) {   // words only: nothing in the book or the chat changes, so it can be thrown away
+      const ctrl = new AbortController(), e = { ctrl, result: null };
+      const fd = new FormData();
+      fd.append("file", blob, "note.webm"); fd.append("lang", lang()); fd.append("consent", "yes");
+      e.promise = fetch("/api/hear", { method: "POST", body: fd, signal: ctrl.signal })
+        .then(async r => ({ ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) }))
+        .catch(x => ({ ok: false, status: 0, aborted: x.name == "AbortError", data: { error: w("off") } }))
+        .then(x => (e.result = x));
+      return e;
+    }
+    // one turn: returns what you said ({ok, data:{heard}}), or null if nothing was said
+    function listen(carry) {
+      set("listen");
+      const R = carry || record();
+      let spoke = !!(carry && carry.spoke), tapped = false, early = null;
+      cutIn = () => { tapped = true; };   // tap: "I'm done", answer now
+      return new Promise(done => {
+        const finish = async () => {
+          cutIn = null;
+          await R.stop();
+          if (!spoke && !tapped) return done(null);
+          // the early hearing missed nothing if you stayed quiet; otherwise (a tap mid-word) hear the whole recording
+          if (!early || early.result && !early.result.ok && early.result.status != 422) { if (early) early.ctrl.abort(); early = hearNow(R.blob()); }
+          done(await early.promise);
+        };
+        (function watch() {
+          if (!o.isConnected || stopAll) { R.stop(); cutIn = null; return done(null); }
+          const now = Date.now();
+          if (!micAn) { if (tapped || now - R.t0 > 10000) { spoke = true; return finish(); } return setTimeout(watch, 100); }
+          if (V.talking) {   // talking (again): not finished after all
+            spoke = true;
+            if (early) { early.ctrl.abort(); early = null; }
+          }
+          const quiet = spoke && !V.talking ? now - V.lastLoud : 0;
+          if (quiet >= PAUSE && !early) early = hearNow(R.blob());   // a pause: start hearing, keep listening
+          if (tapped || now - R.t0 > MAX) return finish();
+          if (early && early.result && quiet >= DONE) return finish();   // a real stop, and the words are back
+          if (!spoke && now - R.t0 > NOTHING) return finish();
+          requestAnimationFrame(watch);
+        })();
+      });
     }
     // TradeVoice's answer, out loud (made on the server while the words were being worked out)
-    function speak(sid) {
-      return new Promise(done => {
-        if (!sid || !o.isConnected) return done();
-        set("speak"); wire();
-        const fin = () => { voice.onended = voice.onerror = null; cutIn = null; done(); };
+    // The clip is fetched first: no voice (off, or Intron failed) moves on at once (a player left to find a missing
+    // clip by itself waits 5 to 10 s before giving up, while you wait in silence)
+    async function speak(sid) {
+      if (!sid || !o.isConnected) return;
+      set("speak"); wire();
+      let stop = false;
+      cutIn = () => { stop = true; voice.pause(); };
+      const r = await fetch(`/api/speak/${sid}`).catch(() => null);
+      const clip = r && r.ok ? await r.blob().catch(() => null) : null;
+      if (!clip || stop || !o.isConnected) { cutIn = null; return; }
+      const url = URL.createObjectURL(clip);
+      await new Promise(done => {
+        const fin = () => { voice.onended = voice.onerror = null; cutIn = null; URL.revokeObjectURL(url); done(); };
         voice.onended = voice.onerror = fin;
         cutIn = () => { voice.pause(); fin(); };
-        voice.src = `/api/speak/${sid}`;
+        voice.src = url;
         const p = voice.play(); if (p) p.catch(fin);
       });
     }
@@ -478,32 +536,37 @@ button.tvc-say{text-decoration:none}
     let stopAll = false, running = false;
     async function run() {
       if (running) return; running = true;
-      let quiet = 0, fails = 0, was = false;
+      let quiet = 0, fails = 0, was = false, carry = null;
       caption(w("hello"));
       while (o.isConnected && !stopAll) {
-        const blob = await listen();
+        const h = await listen(carry); carry = null;
         if (!o.isConnected || stopAll) break;
-        if (!blob) {   // nothing said: once, ask again; twice, rest (tap the orb to go on)
+        if (!h || h.status == 422) {   // nothing said: once, ask again; twice, rest (tap the orb to go on)
           if (++quiet >= 2) { caption(w("stop")); set("rest"); break; }
           if ($("#cap", o).tagName == "BUTTON") $("#hint", o).textContent = w("again"); else caption(w("again"));   // the facts stay
           continue;
         }
-        quiet = 0; set("think"); caption("&nbsp;");
-        const fd = new FormData();
-        fd.append("file", blob, "note.webm");
-        fd.append("session", SID); fd.append("lang", lang()); fd.append("consent", "yes"); fd.append("shop", A ? A.biz : ""); fd.append("live", "1");
-        const slow = setTimeout(() => caption(w("slow")), 12000);
-        const r = await api("/api/voice", { form: fd });
-        clearTimeout(slow);
-        if (!o.isConnected || stopAll) break;
-        if (!r.ok) { if (++fails >= 3) { caption(esc(r.data.error || w("off"))); set("rest"); break; } caption(esc(r.data.error || w("off"))); continue; }
+        quiet = 0;
+        if (!h.ok) { if (++fails >= 3) { caption(esc(h.data.error || w("off"))); set("rest"); break; } caption(esc(h.data.error || w("off"))); continue; }
         fails = 0;
-        const d = r.data, heard = plain(d.heard);
+        const said = h.data.heard || "", heard = plain(said);
         if (BYE.test(heard) && heard.split(/\s+/).length <= 5) { caption(w("bye")); set("rest"); setTimeout(() => shut(o), 900); break; }
+        // the reply. The mic stays open meanwhile: if you go on talking, that's kept for your next turn
+        set("think"); caption(`“${esc(said.length > 120 ? said.slice(0, 117) + "…" : said)}”`);
+        const next = micAn ? record() : null;
+        const minding = setInterval(() => { if (next && V.talking) next.spoke = true; }, 50);
+        const slow = setTimeout(() => $("#hint", o).textContent = w("slow"), 12000);
+        const r = await api("/api/say", { body: { session: SID, text: said, lang: lang(), shop: A ? A.biz : "" } });
+        clearTimeout(slow); clearInterval(minding); $("#hint", o).textContent = "";
+        if (!o.isConnected || stopAll) { if (next) next.stop(); break; }
+        if (!r.ok) { if (next) next.stop(); caption(esc(r.data.error || w("off"))); continue; }
+        const d = r.data;
         line(d);
         loadBook();   // a yes saved it: the book behind the sheet is already up to date when it closes
         if (was && !d.pending && /✅/.test(d.text || "")) toast(esc((d.text || "").replace(/\*/g, "").split("\n")[0]), async () => { await api("/api/v2/undo_last", { body: {} }); loadBook(); });
         was = d.pending;
+        if (next && next.spoke) { carry = next; continue; }   // you were talking: listen on, the reply stays on screen
+        if (next) next.stop();
         await speak(d.speak);
       }
       running = false;

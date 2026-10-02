@@ -240,8 +240,9 @@ def _safe_reply(text, state, shop, lang):
         print(f"chat reply failed for {text!r}: {type(e).__name__}: {e}")
         import ui_text
 
-        lang = lang if lang in ui_text.LANGS else "English"
-        return {"text": ui_text.t("hello", lang), "spoken": ui_text.t("hello", lang), "lang": lang}
+        lang = lang if lang in ui_text.LANGS else "English"   # honest: never a "Hello" that ignores the question
+        said = converse.SAY["not_sure"].get(lang, converse.SAY["not_sure"]["English"])
+        return {"text": said, "spoken": said, "lang": lang}
 
 
 @app.post("/api/voice")
@@ -249,6 +250,16 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
           consent: str = Form(""), shop: str = Form(""), live: str = Form("")):
     """A voice note in, the reply out (its spoken voice is made at once in the background). live=1: the live
     conversation (no buttons), so the read-back asks "Should I save it?" instead of "Press save"."""
+    heard = _hear(file, lang, consent)
+    if isinstance(heard, JSONResponse):
+        return heard
+    out = _say(heard["text"], session, lang, shop, live == "1")
+    out["engine"], out["detected"] = heard.get("engine"), heard.get("detected")
+    return out
+
+
+def _hear(file, lang, consent):
+    """Voice note -> words (nothing else changes: safe to run early and to throw away)."""
     if consent != "yes":
         raise HTTPException(400, "consent needed")
     path = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm")
@@ -261,17 +272,45 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
         return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
     finally:
         os.remove(path)  # the voice note is deleted as soon as it is read
-    text = heard["text"].strip()
-    if not text:
+    heard["text"] = (heard.get("text") or "").strip()
+    if not heard["text"]:
         return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
+    return heard
+
+
+def _say(text, session, lang, shop, live):
+    """Words -> the reply (the conversation moves on: a draft, a question, or a save), its voice started at once."""
     state = _state(session, lang)
     t0 = time.perf_counter()
-    out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text, live=live == "1")
+    out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text, live=live)
     events.log("understand", channel="web", lang=lang, ms=(time.perf_counter() - t0) * 1000)   # speed check (E6)
-    out["engine"] = heard.get("engine")
-    out["detected"] = heard.get("detected")
     _start_voice(out.get("speak"))
     return out
+
+
+@app.post("/api/hear")
+def hear(file: UploadFile = File(...), lang: str = Form("English"), consent: str = Form("")):
+    """Live talk, step 1: only the words. The page sends this at a short pause while it keeps listening; if the trader
+    goes on talking, it throws this away and sends the whole thing again. Nothing in the book or the chat changes."""
+    heard = _hear(file, lang, consent)
+    if isinstance(heard, JSONResponse):
+        return heard
+    return {"heard": heard["text"], "engine": heard.get("engine"), "detected": heard.get("detected")}
+
+
+class Said(BaseModel):
+    session: str = "anon"
+    text: str
+    lang: str = "English"
+    shop: str = ""
+
+
+@app.post("/api/say")
+def say(b: Said):
+    """Live talk, step 2: the trader has really finished; the words heard in step 1 get their (spoken) reply."""
+    if not b.text.strip():
+        raise HTTPException(400, "nothing was said")
+    return _say(b.text.strip(), b.session, b.lang, b.shop, live=True)
 
 
 @app.post("/api/warm")

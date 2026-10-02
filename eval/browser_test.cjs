@@ -257,18 +257,14 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       await sw().click();
       if (await sw().getAttribute("aria-checked") !== "true") throw new Error("didn't turn back on");
     });
-    await check("Talk (live): listen, answer, 'yes' saves, 'that's all' closes; asks the server for the spoken question", async () => {
+    await check("Talk (live): listen, answer, 'yes' saves, 'that's all' closes", async () => {
       // N-ATLaS isn't here: what it "heard" is fed in, the rest is the real server (session, draft, save, book)
-      const said = ["Mama Ngozi took beans 3000 on credit", "yes please", "that's all"]; let n = 0, live = 0;
-      await page.route("**/api/voice", async route => {
-        const form = route.request().postDataBuffer().toString("latin1");
-        if (/name="live"\r\n\r\n1/.test(form)) live++;
-        const sid = (form.match(/name="session"\r\n\r\n(\S+)/) || [])[1], text = said[n++] || "";
-        const r = await page.evaluate(async b => (await fetch("/api/message", { method: "POST",
-          headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) })).json(), { session: sid, text, lang: "English" });
-        r.heard = text; r.speak = null;
-        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(r) });
-      });
+      // (the fake microphone beeps, so the page may hear "early" more than once: what was heard only moves on when the
+      // page really replies, through the real /api/say)
+      const said = ["Mama Ngozi took beans 3000 on credit", "yes please", "that's all"]; let replies = 0;
+      await page.route("**/api/hear", route => route.fulfill({ status: 200, contentType: "application/json",
+        body: JSON.stringify({ heard: said[replies] || "" }) }));
+      await page.route("**/api/say", route => { replies++; route.continue(); });
       await page.click("#tabs [data-a=talk]");
       await page.waitForSelector(".ov.on .tvc[data-st=listen]");
       const turn = async () => { await page.waitForSelector(".ov.on .tvc[data-st=listen]"); await sleep(600); await page.click(".ov.on #orb"); };
@@ -278,10 +274,10 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       await page.waitForFunction(() => /Saved/.test(document.querySelector(".ov.on #cap")?.textContent || ""), null, { timeout: 8000 });
       await turn();
       await gone(".ov .tvc");
-      await page.unroute("**/api/voice");
+      await page.unroute("**/api/hear"); await page.unroute("**/api/say");
       const got = ((await book()).customers.find(c => c.n === "Mama Ngozi") || {}).b;
       if (got !== 3000) throw new Error(`Mama Ngozi owes ${got}, not 3000`);
-      if (live !== 3) throw new Error(`live=1 sent ${live} of 3 times`);
+      if (replies !== 2) throw new Error(`${replies} replies ("that's all" ends it without one)`);
     });
     await check("Customers filter: '₦10,000 to ₦100,000' shows the right people, with a removable chip", async () => {
       await tab("cust");
