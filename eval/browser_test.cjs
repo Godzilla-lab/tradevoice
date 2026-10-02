@@ -277,6 +277,23 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       return true;
     });
 
+    /* ------------------------------------------------------------ a team-created account (no WhatsApp code) */
+    const made = require("child_process").spawnSync(process.env.PYTHON || "python",
+      ["scripts/add_account.py", "08030000533", "Kemi Testtrader", "Kemi Test Stores"],
+      { cwd: ROOT, encoding: "utf8", env: Object.assign({}, process.env, { TV_NO_DOTENV: "1",
+        ACCOUNTS_DB: path.join(TMP, "accounts.db"), BOOKS_DIR: path.join(TMP, "books"), DB_PATH: path.join(TMP, "tradevoice.db") }) });
+    const temp = ((made.stdout || "").match(/^\s{4}(\S+)$/m) || [])[1];
+    await check("team account: made with a temporary password", async () => { if (!temp) throw new Error(made.stdout + made.stderr); });
+    await page.click('#tabs [data-k=me]'); await page.click('#me [data-a=logout]'); await page.click(".ov.on #y");
+    await page.waitForSelector("#gate #lp");
+    await page.fill("#id", "08030000533"); await page.fill("#lp", temp || "x"); await page.click("#go");
+    await check("team account: logs in through the real login page", async () => {
+      await gone("#gate");
+      await tab("me");
+      const t = await page.locator("#me .pcard").textContent();
+      if (!t.includes("Kemi Test Stores")) throw new Error(t);
+    });
+
     /* ------------------------------------------------------------ the whole run */
     await check("no page errors", async () => { if (errors.length) throw new Error(errors.slice(0, 3).join(" | ")); });
     await check("no server errors (5xx)", async () => { if (bad.length) throw new Error(bad.slice(0, 3).join(" | ")); });

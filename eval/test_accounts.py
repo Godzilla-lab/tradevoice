@@ -115,6 +115,26 @@ def main():
     check("…and the number can sign up fresh", c.post("/api/auth/v2/code/start",
                                                       json={"phone": PHONE, "purpose": "signup"}).status_code == 200)
 
+    # team-created accounts (scripts/add_account.py), while WhatsApp codes can't be sent
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    import add_account
+    phone, temp = add_account.create("08030000531", "Bola Testtrader", "Bola Test Stores", "Provisions")
+    check("add_account: makes the account with a temporary password", phone == "2348030000531" and len(temp) >= 12, temp)
+    t = TestClient(web.app)
+    r = t.post("/api/auth/v2/login", json={"phone": "08030000531", "pw": add_account.page_hash(temp)})
+    check("add_account: the tester logs in with phone + that password",
+          r.status_code == 200 and r.json()["me"]["biz"] == "Bola Test Stores" and r.json()["me"]["type"] == "Provisions", r.text)
+    try:
+        add_account.create("08030000531", "X Y", "Z W")
+        check("add_account: refuses a number that already has an account", False)
+    except SystemExit:
+        check("add_account: refuses a number that already has an account", True)
+    _, temp2 = add_account.reset("08030000531")
+    check("add_account --reset: the old password stops working, the new one works, other phones logged out",
+          t.get("/api/v2/me").status_code == 401
+          and t.post("/api/auth/v2/login", json={"phone": "08030000531", "pw": add_account.page_hash(temp)}).status_code == 401
+          and t.post("/api/auth/v2/login", json={"phone": "08030000531", "pw": add_account.page_hash(temp2)}).status_code == 200)
+
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} account checks pass")
     return all(CHECKS)
 

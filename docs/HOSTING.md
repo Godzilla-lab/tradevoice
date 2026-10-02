@@ -75,6 +75,12 @@ anyone could open any trader's book). Until Meta verification is done, the Whats
 5 numbers registered in the Meta dashboard: the team and the 2 beta testers.
 While Meta verification is pending, either skip the WhatsApp questions (no sign-up yet) or use the test number's
 Phone number ID with a permanent **system user** token (the dashboard's temporary token stops working after 24 hours).
+Or the team creates accounts for people it knows (no WhatsApp code needed):
+```bash
+sudo bash /opt/tradevoice/app/deploy/server/add_account.sh 08031234567 "Ada" "Ada Stores"   # prints a temporary password
+sudo bash /opt/tradevoice/app/deploy/server/add_account.sh 08031234567 --reset              # forgot it: a new one
+```
+Give the password to the person directly (never in a group); they log in with phone + password, then Me → Password.
 
 ## 7. Backups off the server
 Oracle console → Storage → **Buckets** → Create bucket `tradevoice-backups` (private, the default). In the bucket:
