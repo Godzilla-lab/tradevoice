@@ -92,6 +92,20 @@ def main():
     srv.shutdown()
     os.environ.pop("BACKUP_UPLOAD_URL")
 
+    # BACKUP_COPY_DIR: each backup also lands in a folder (the Mac: Google Drive)
+    copy_dir = os.path.join(D, "drive", "TradeVoice backups")
+    os.environ["BACKUP_COPY_DIR"] = copy_dir
+    rc = backup.main([])
+    copied = os.listdir(copy_dir) if os.path.isdir(copy_dir) else []
+    check("BACKUP_COPY_DIR gets a whole copy of the new backup",
+          rc == 0 and len(copied) == 1 and backup.NAME_RE.match(copied[0])
+          and open(os.path.join(copy_dir, copied[0]), "rb").read()
+          == open(os.path.join(os.environ["BACKUP_DIR"], copied[0]), "rb").read(), copied)
+    os.environ.pop("BACKUP_COPY_DIR")
+    for f in os.listdir(os.environ["BACKUP_DIR"]):
+        if f != os.path.basename(path) and backup.NAME_RE.match(f):
+            os.remove(os.path.join(os.environ["BACKUP_DIR"], f))
+
     # pruning: everything for 48 h, then the newest of each day for 30 days (a pretend "today" 18 days on)
     folder = os.environ["BACKUP_DIR"]
     path = shutil.copy(path, os.path.join(D, "saved.tar.gz"))

@@ -9,6 +9,8 @@ Kept: every backup from the last 48 hours, and the newest of each day for 30 day
 BACKUP_UPLOAD_URL (optional, in .env): where each backup is also uploaded, so a copy lives off the server. Either an
 Azure Blob Storage container SAS URL (https://ACCOUNT.blob.core.windows.net/CONTAINER?sv=…&sig=…) or an Oracle Object
 Storage pre-authenticated request URL (ends in /o/). The file's name goes into the path, before any ?query. Backups hold traders' personal data: keep them private.
+BACKUP_COPY_DIR (optional): a folder that also gets each backup, pruned the same way. On the Mac: a Google Drive
+folder (Google Drive for desktop), so a copy lives off the Mac.
 On the live server the hourly timer runs this (deploy/server/setup.sh); restore there with deploy/server/restore.sh.
 """
 import argparse
@@ -201,12 +203,24 @@ def main(argv=None):
     path = backup()
     for f in prune(p["backups"]):
         print(f"pruned {f}")
+    ok = True
+    copy_dir = os.getenv("BACKUP_COPY_DIR", "").strip()
+    if copy_dir:
+        try:
+            os.makedirs(copy_dir, exist_ok=True)
+            shutil.copyfile(path, os.path.join(copy_dir, "." + os.path.basename(path)))
+            os.replace(os.path.join(copy_dir, "." + os.path.basename(path)), os.path.join(copy_dir, os.path.basename(path)))
+            prune(copy_dir)
+            print("copied to the backup folder ✅")
+        except Exception as e:  # noqa: BLE001
+            print(f"⚠️ copy to BACKUP_COPY_DIR failed ({type(e).__name__}: {e}); the backup is still here")
+            ok = False
     try:
         upload(path)
     except Exception as e:  # noqa: BLE001
         print(f"⚠️ upload off the server failed ({type(e).__name__}); the backup is still on this server")
-        return 1
-    return 0
+        ok = False
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
