@@ -5,4 +5,4 @@ pandas>=2.0
 pillow>=10.0
 # Speech-to-text (needed where the audio is transcribed, i.e. on the Brev GPU box)
 faster-whisper>=1.1.0
-spitch
+spitch            # only for the speech comparison tests (eval/run_eval.py --asr spitch)

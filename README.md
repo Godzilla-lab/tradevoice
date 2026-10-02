@@ -53,7 +53,7 @@ of, and saves **only when the trader taps Save**. Corrections like *"no be 20k, 
  The trader's own SQLite book ──► answers, reminders, insights, lender report (plain Python maths)
         │
         ▼
- Intron voices speak the reply (Spitch, then Meta MMS, as backups)
+ Intron voices speak the reply our code wrote (text only if Intron is unavailable)
 ```
 **Design rule: the AI reads and phrases; plain code does the maths.** Totals, balances and every answer about money
 come from the book, so the AI can never invent a number. If the GPU or network is down, NVIDIA's cloud models answer,
@@ -74,10 +74,10 @@ Full setup and every setting: [`docs/TECHNICAL.md`](docs/TECHNICAL.md) · WhatsA
 
 ## Tests
 ```bash
-python eval/run_all.py                                              # 291 checks in 12 suites, no keys needed
+python eval/run_all.py                                              # 292 checks in 12 suites, no keys needed
 python eval/run_eval.py --rules-only --cases eval/cases_hard.jsonl  # trap phrases in 5 languages
 ```
-- **291 / 291** automated checks: the full demo flow, corrections, the WhatsApp bot, wholesale tools, lender and
+- **292 / 292** automated checks: the full demo flow, corrections, the WhatsApp bot, wholesale tools, lender and
   pay links, voice
 - **464 / 464** test sentences in 5 languages (including 208 trap phrases) turned into the right record by the
   offline rules alone
@@ -94,7 +94,7 @@ tradevoice/
 │   ├── whatsapp.py     WhatsApp bot (Meta Cloud API): voice notes, photos, Yes/No buttons, voice replies
 │   ├── converse.py     one conversation over one book: record, confirm, correct, ask, remind
 │   ├── extract.py      words → transaction (LLM first, rules as fallback and amount check); llm.py
-│   ├── asr.py, tts.py  hearing (Intron) and speaking (Intron, Spitch, MMS)
+│   ├── asr.py, tts.py  hearing (N-ATLaS) and speaking (Intron)
 │   ├── vision.py, photo.py              notebook photo → lines to check and save
 │   ├── ledger.py, insights.py, assistant.py   the book, the maths, exact answers to questions
 │   ├── extras.py       lender link, pay links (Paystack), reminders, receipts, PIN, CSV

@@ -15,6 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import requests  # noqa: E402
 
 import tts  # noqa: E402
+import tempfile  # noqa: E402
+tts._CACHE_DIR = tempfile.mkdtemp()  # a fresh voice cache per run
 
 CHECKS = []
 
@@ -101,11 +103,13 @@ def main():
     check("503 with text_id -> polls the status until ready", tts.speak("Daalụ", "Igbo")["path"].endswith(".wav"))
     MODE["busy"] = False
 
+    n = len(SENT)
+    again = tts.speak("Mama Tunde don pay you forty-five thousand naira.", "Yoruba")
+    check("same sentence again -> cached audio, no new Intron credit", again and len(SENT) == n, again)
     MODE["refuse"] = True
     os.environ["SPITCH_API_KEY"] = "x"
-    tts._spitch_safe = lambda text, language, fmt, v, speed: "/tmp/spitch.wav"
     out = tts.speak("Hello", "English")
-    check("Intron out of credits -> Spitch speaks instead", out["engine"].startswith("spitch"), out)
+    check("Intron out of credits -> no voice (text reply), never Spitch or MMS", out is None, out)
     n = len(SENT)
     tts.speak("Hello again", "English")
     check("…and Intron rests for 10 minutes (not asked again)", len(SENT) == n)

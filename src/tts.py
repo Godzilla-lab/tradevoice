@@ -1,11 +1,10 @@
 """Voice replies for traders who can't read: turn a saved entry into a short spoken confirmation.
 
-Engines (first one available wins, or force with TTS_BACKEND=intron|spitch|mms|off):
-- intron : Intron Sahara TTS (infer.voice.intron.io/tts/v1/generate), native Yoruba/Hausa/Igbo voices and Nigerian
-           English (also used for Pidgin). Same INTRON_API_KEY as the hearing. If it fails, Spitch, then MMS, take over.
-- spitch : Spitch (Nigerian) API, voices for English, Pidgin, Yoruba, Hausa, Igbo. `pip install spitch`, SPITCH_API_KEY.
-- mms    : Meta MMS-TTS on our own CPU/GPU (Yoruba, Hausa, English; no Igbo). `pip install -r requirements-tts.txt`.
-           Licence CC-BY-NC: fine for the hackathon demo, NOT for a commercial product.
+ONE engine (team decision 2 Oct): Intron Sahara TTS (infer.voice.intron.io/tts/v1/generate), native Yoruba, Hausa
+and Igbo voices and Nigerian English (also used for Pidgin), INTRON_API_KEY. N-ATLaS has no voice model (its terms:
+"four ASR models and one Text LLM"), so Intron only SPEAKS the reply our code wrote; N-ATLaS hears and understands.
+Spitch and Meta MMS were removed. If Intron fails or runs out of credit, the trader gets the reply as text (never a
+broken voice note). TTS_BACKEND=off turns voice off. Same sentence + language again = cached audio, no new credit.
 
 Amounts are always spoken as ENGLISH words ("forty-five thousand naira"): no engine reads digits reliably in
 Yoruba/Hausa/Igbo, and traders commonly say prices in English anyway.
@@ -18,16 +17,11 @@ import tempfile
 
 REPLY_LANGS = ["Pidgin", "English", "Yoruba", "Hausa", "Igbo"]
 
-# Spitch voice names (from Spitch's SDK/docs, via research; check in their dashboard). Pidgin is chosen by voice.
-SPITCH_VOICES = {"English": ("en", "lucy"), "Pidgin": (None, "ufoma"), "Yoruba": ("yo", "sade"),
-                 "Hausa": ("ha", "amina"), "Igbo": ("ig", "ngozi")}
 # Intron: spoken language + accent are two fields. Accents are overridable (INTRON_ACCENT_YORUBA=...) because Intron's
 # accent list isn't public; a rejected accent is retried without one.
 INTRON_VOICES = {"English": ("en", "nigerian"), "Pidgin": ("en", "nigerian"), "Yoruba": ("yo", "yoruba"),
                  "Hausa": ("ha", "hausa"), "Igbo": ("ig", "igbo")}
 INTRON_URL = os.getenv("INTRON_TTS_URL", "https://infer.voice.intron.io").rstrip("/")
-MMS_MODELS = {"English": "facebook/mms-tts-eng", "Pidgin": "facebook/mms-tts-eng",
-              "Yoruba": "facebook/mms-tts-yor", "Hausa": "facebook/mms-tts-hau"}
 
 # ------------------------------------------------------------------ amounts in English words
 
@@ -232,61 +226,16 @@ def confirmation_text(rec, language="Pidgin", balance=None, saved=True, rng=None
 
 # ------------------------------------------------------------------ engines
 
-_mms = {}
-
-
 def backend():
     forced = os.getenv("TTS_BACKEND", "").lower()
     if forced in ("off", "none", "0"):
         return None
-    if forced in ("intron", "") and os.getenv("INTRON_API_KEY"):
-        return "intron"
-    if forced in ("spitch", "") and os.getenv("SPITCH_API_KEY"):
-        try:
-            import spitch  # noqa: F401
-
-            return "spitch"
-        except ImportError:
-            if forced == "spitch":
-                raise
-    if forced in ("mms", ""):
-        try:
-            import transformers  # noqa: F401
-            import torch  # noqa: F401
-
-            return "mms"
-        except ImportError:
-            if forced == "mms":
-                raise
-    return None
+    return "intron" if os.getenv("INTRON_API_KEY") else None
 
 
 def _tmp(suffix):
     fd, path = tempfile.mkstemp(suffix=suffix)
     os.close(fd)
-    return path
-
-
-def _spitch(text, language, fmt, voice_override=None, speed=None, with_code=True):
-    from spitch import Spitch
-
-    lang, voice = SPITCH_VOICES.get(language, SPITCH_VOICES["English"])
-    voice = voice_override or os.getenv(f"TTS_VOICE_{language.upper()}", voice)  # e.g. TTS_VOICE_YORUBA=funmi
-    client = Spitch()  # reads SPITCH_API_KEY
-    kwargs = {"text": text, "voice": voice, "format": fmt}
-    speed = speed or float(os.getenv("TTS_SPEED", "0") or 0)  # 1.0 = Spitch default; try 0.9-1.1
-    if speed:
-        kwargs["speed"] = speed
-    if lang and with_code:
-        kwargs["language"] = lang
-    resp = client.speech.generate(**kwargs)
-    path = _tmp({"ogg_opus": ".ogg", "mp3": ".mp3"}.get(fmt, ".wav"))
-    if hasattr(resp, "write_to_file"):
-        resp.write_to_file(path)
-    else:  # older/newer SDKs: raw bytes or .read()
-        data = resp.read() if hasattr(resp, "read") else (resp.content if hasattr(resp, "content") else resp)
-        with open(path, "wb") as f:
-            f.write(data)
     return path
 
 
@@ -330,49 +279,10 @@ def _join_wavs(paths):
     return out
 
 
-def _spitch_safe(text, language, fmt, voice, speed):
-    """Spitch, made sturdy: clean text, short pieces, and one retry without the language code. Errors are printed
-    (the web app otherwise just stays silent)."""
-    text = speakable(text)
-    if not text:
-        raise RuntimeError("nothing to say")
-    parts = _chunks(text) if fmt == "wav" else [text]
-    paths = []
-    for part in parts:
-        try:
-            paths.append(_spitch(part, language, fmt, voice, speed))
-        except Exception as e:  # noqa: BLE001
-            print(f"voice failed ({language}, {voice}, {len(part)} chars): {type(e).__name__}: {e}")
-            try:  # some voices reject the language code; the voice already fixes the language
-                paths.append(_spitch(part, language, fmt, voice, speed, with_code=False))
-            except Exception as e2:  # noqa: BLE001
-                print(f"voice failed again without language code: {type(e2).__name__}: {e2}")
-                raise
-    return paths[0] if len(paths) == 1 else _join_wavs(paths)
 
 
-def _mms_speak(text, language):
-    import numpy as np
-    import torch
-    import wave
-    from transformers import AutoTokenizer, VitsModel
 
-    name = MMS_MODELS.get(language)
-    if not name:
-        raise RuntimeError(f"MMS has no {language} voice; use Spitch for {language}")
-    if name not in _mms:
-        _mms[name] = (VitsModel.from_pretrained(name), AutoTokenizer.from_pretrained(name))
-    model, tok = _mms[name]
-    with torch.no_grad():
-        audio = model(**tok(text, return_tensors="pt")).waveform[0].numpy()
-    pcm = (np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes()
-    path = _tmp(".wav")
-    with wave.open(path, "w") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(model.config.sampling_rate)
-        w.writeframes(pcm)
-    return path
+
 
 
 _INTRON_MAX = {"chars": 240}   # Intron's per-request text limit is learned from its own error message
@@ -464,45 +374,34 @@ def _intron_speak(text, language):
     raise RuntimeError("Intron sent a long reply in pieces that can't be joined (not WAV)")
 
 
+_CACHE_DIR = os.path.join(tempfile.gettempdir(), "tradevoice-voice-cache")
+
+
 def speak(text, language="Pidgin", fmt="wav", voice=None, speed=None):
-    """Return {path, engine} for an audio file of `text`, or None if no voice engine is set up.
-    Order: Intron -> Spitch -> free MMS voices; an engine that fails for credit/key reasons rests for 10 minutes.
-    fmt: 'wav'/'mp3' for the web app, 'ogg_opus' for WhatsApp voice notes (Spitch only; others give wav -> convert)."""
-    engine = backend()
-    if not engine:
+    """Return {path, engine} for an Intron audio file of `text`, or None (voice off, no key, or Intron failed:
+    the caller then sends text only). The path is a fresh copy the caller may delete.
+    An Intron refusal for credit/key reasons rests it for 10 minutes. voice/speed/fmt are kept for old callers."""
+    import hashlib
+    import shutil
+
+    if backend() != "intron" or language not in INTRON_VOICES or time.time() < _INTRON_DOWN["until"]:
         return None
-    errors = []
-    if engine == "intron" and time.time() >= _INTRON_DOWN["until"]:
-        try:
-            return {"path": _intron_speak(text, language), "engine": f"intron:{INTRON_VOICES[language][0]}"}
-        except Exception as e:  # noqa: BLE001
-            print(f"Intron voice failed ({language}): {type(e).__name__}: {e}")
-            LAST_ERROR["intron"] = f"{language}: {type(e).__name__}: {e}"[:300]
-            errors.append(f"Intron: {e}")
-            if any(w in str(e).lower() for w in ("401", "402", "403", "credit", "quota", "unauthori", "forbidden")):
-                _INTRON_DOWN["until"], _INTRON_DOWN["why"] = time.time() + 600, str(e)[:200]
-    spitch_ok = bool(os.getenv("SPITCH_API_KEY")) and os.getenv("TTS_BACKEND", "").lower() in ("", "spitch", "intron")
-    if spitch_ok and time.time() >= _SPITCH_DOWN["until"]:
-        v = voice or os.getenv(f"TTS_VOICE_{language.upper()}") or SPITCH_VOICES.get(language, ("", ""))[1]
-        try:
-            return {"path": _spitch_safe(text, language, fmt, v, speed),
-                    "engine": f"spitch:{v}" + (f"@{speed}" if speed else "")}
-        except Exception as e:  # noqa: BLE001
-            msg = str(e).lower()
-            errors.append(f"Spitch: {e}"[:200])
-            if any(w in msg for w in ("402", "credit", "quota", "401", "unauthori", "forbidden", "403")):
-                # out of credits / key refused: stop asking Spitch for 10 minutes
-                _SPITCH_DOWN["until"], _SPITCH_DOWN["why"] = time.time() + 600, str(e)[:200]
-                print(f"Spitch unavailable ({str(e)[:120]}); trying the free MMS voices for 10 minutes")
-            elif not errors[:-1] and engine == "spitch":
-                raise
-    if language in MMS_MODELS and _mms_ok():
-        return {"path": _mms_speak(speakable(text), language), "engine": f"mms:{MMS_MODELS.get(language)}"}
-    if engine == "mms":
+    key = hashlib.sha256(f"{language}|{speakable(text)}".encode()).hexdigest()[:32]
+    cached = os.path.join(_CACHE_DIR, key + ".wav")
+    try:
+        if not os.path.exists(cached):
+            made = _intron_speak(text, language)
+            os.makedirs(_CACHE_DIR, exist_ok=True)
+            shutil.move(made, cached)
+        out = _tmp(".wav")
+        shutil.copyfile(cached, out)
+        return {"path": out, "engine": f"intron:{INTRON_VOICES[language][0]}"}
+    except Exception as e:  # noqa: BLE001
+        print(f"Intron voice failed ({language}): {type(e).__name__}: {e}")
+        LAST_ERROR["intron"] = f"{language}: {type(e).__name__}: {e}"[:300]
+        if any(w in str(e).lower() for w in ("401", "402", "403", "credit", "quota", "unauthori", "forbidden")):
+            _INTRON_DOWN["until"], _INTRON_DOWN["why"] = time.time() + 600, str(e)[:200]
         return None
-    why = "; ".join(errors) or _INTRON_DOWN["why"] or _SPITCH_DOWN["why"] or "error"
-    raise RuntimeError(f"No voice worked for {language} ({why})"
-                       + ("" if _mms_ok() else " (pip install transformers torch for the free MMS backup voices)"))
 
 
 _INTRON_DOWN = {"until": 0.0, "why": ""}
@@ -519,14 +418,3 @@ def why_not_intron():
     if time.time() < _INTRON_DOWN["until"]:
         return f"Intron refused (key/credits), resting 10 minutes: {_INTRON_DOWN['why']}"
     return LAST_ERROR.get("intron")
-_SPITCH_DOWN = {"until": 0.0, "why": ""}
-
-
-def _mms_ok():
-    try:
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-
-        return True
-    except ImportError:
-        return False

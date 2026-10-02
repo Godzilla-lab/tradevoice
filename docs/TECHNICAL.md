@@ -20,7 +20,7 @@ the book by voice. The same brain (`converse.py`) runs the WhatsApp bot, on the 
 | 💬 **Talk to TradeVoice** | One conversation, switching language whenever they like: *"Mama Tunde dey owe me forty-five thousand"* → *"yes"* → *"Ṣé mo ní gbèsè lọ́wọ́ Alhaji?"* → *"Remind her tomorrow"* | Each message is routed (record / yes-no / question / reminder) and answered **in the language it was said in**, from the same book. It remembers who "her/him/am" is, fills a missing amount from the next message ("How much?" → "50k"), matches "Alhaji" to the right Alhaji (the one you owe vs the one who owes you), and sets reminders that show up on the day with the WhatsApp message ready. Works offline. `converse.py`, `eval/test_converse.py` (18/18). Typed messages switch language freely; for voice notes the trader taps the language once (the speech engine needs it) |
 | 🎙️ **Speak** | Sends a voice note: *"I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday"* (or in Yoruba, Hausa, Igbo) | **Intron Sahara** speech-to-text (built for Nigerian languages and mixed sentences) → text → **AI brain on our NVIDIA Brev GPU** → entry: *credit sale, ₦45,000, Mama Tunde, due Fri* → trader confirms |
 | 📸 **Snap your book** | Takes a photo of a notebook page or receipt | Vision AI reads every line → editable table → trader ticks and saves all |
-| 🔊 **Voice replies** | Can't read? Just listen | The app reads the entry back aloud in Pidgin, English, Yoruba, Hausa or Igbo before and after saving (Intron Sahara voices; Spitch, then free MMS voices as backup) |
+| 🔊 **Voice replies** | Can't read? Just listen | The app reads the entry back aloud in Pidgin, English, Yoruba, Hausa or Igbo before and after saving (Intron Sahara voices; text only if Intron is unavailable) |
 | 🏷️ **Credit check** | Records a credit sale | Warning if that customer is already late: *"⛔ Oga Emeka already owes ₦30,600 and is 18 days late"* |
 | 📒 **Who owes me** | Opens the tab | Everyone who owes, how much, how late. Payments clear the oldest debt first |
 | 📲 **WhatsApp reminder** | Picks a debtor + Pidgin / English / Yoruba | Polite reminder opens in WhatsApp; the trader presses send themselves |
@@ -113,10 +113,10 @@ python src/app.py
 **Who does what (decided 25 Sep):**
 | Job | Where | Why |
 |---|---|---|
-| **Hear** the voice note (speech → text) | **Intron Sahara API** (Spitch as backup) | Best we found for English, Pidgin, Yoruba, Hausa, Igbo, incl. mixed-language sentences |
+| **Hear** the voice note (speech → text) | **N-ATLaS ASR** (NCAIR1 Yoruba-ASR, Hausa-ASR, Igbo-ASR, NigerianAccentedEnglish for English/Pidgin), on Modal | Required by NAIC PS2 ("voice input must use the official N-ATLAS ASR"); Intron/Spitch kept only to compare against |
 | **Understand** the note (AI brain, LLM) | **Our Brev GPU** (vLLM), NVIDIA cloud models as backup, offline rules last | No cloud queue/timeouts; our own model |
 | **Read** notebook photos (vision model) | **Our Brev GPU** (vLLM), NVIDIA cloud as backup | Same |
-| **Speak** replies (voice notes) | **Intron Sahara TTS** (Spitch, then MMS as backup) | Native Yoruba, Hausa, Igbo voices + Nigerian English (for English/Pidgin) |
+| **Speak** replies (voice notes) | **Intron Sahara TTS** (no backup voice; text reply instead) | Native Yoruba, Hausa, Igbo voices + Nigerian English (for English/Pidgin) |
 | App + WhatsApp webhook | Our Brev GPU instance | Public link |
 
 1. Activate the voucher → create a GPU instance. **Two models share the GPU**: with 4-bit (AWQ) models a 24 GB L4 should
@@ -137,7 +137,6 @@ python src/app.py
    LLM_MODELS=local,nvidia/nemotron-3-ultra-550b-a55b,nvidia/nemotron-3-super-120b-a12b
    VISION_MODELS=local,meta/llama-3.2-11b-vision-instruct
    INTRON_API_KEY=...        # hearing AND voice replies (defaults to Intron for both when this is set)
-   SPITCH_API_KEY=...        # optional backup voice + backup hearing
    NVIDIA_API_KEY=...        # cloud backup
    ```
    (`LOCAL_LLM_MODEL` / `LOCAL_VISION_MODEL` if you serve different models.)

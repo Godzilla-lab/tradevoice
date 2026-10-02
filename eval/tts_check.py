@@ -76,7 +76,7 @@ if __name__ == "__main__":
         raise SystemExit
     engine = tts.backend()
     if not engine:
-        raise SystemExit("No voice engine: add SPITCH_API_KEY to .env (pip install spitch), or pip install -r requirements-tts.txt")
+        raise SystemExit("No voice engine: add INTRON_API_KEY to .env")
     os.makedirs(OUT, exist_ok=True)
     script = []
     for lang in tts.REPLY_LANGS:

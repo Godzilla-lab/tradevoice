@@ -119,7 +119,7 @@ try:
 
     import tts  # noqa: E402
 
-    print(f"   Voice engine: {tts.backend() or 'none'} (order: Intron -> Spitch -> free MMS voices)")
+    print(f"   Voice engine: {tts.backend() or 'none'} (Intron only; if it fails, replies are text)")
     for lg, txt in (("Yoruba", "Ẹ n lẹ́ o."), ("Hausa", "Sannu."), ("Igbo", "Ndewo.")):
         try:
             o = tts.speak(txt, lg)
@@ -136,9 +136,8 @@ try:
         say(False, "No voice set up", "INTRON_API_KEY in .env (the same key as the hearing)")
 except Exception as e:  # noqa: BLE001
     m = str(e).lower()
-    fix = ("Spitch has no credits left: top up at spitch.app. Meanwhile the app speaks with the free MMS voices "
-           "(English, Pidgin, Yoruba, Hausa) if this works: .venv/bin/pip install transformers torch; and for WhatsApp "
-           "voice notes: sudo apt-get install -y ffmpeg" if ("credit" in m or "402" in m) else
+    fix = ("Intron has no credits left: top up at voice.intron.io (replies are text until then)"
+           if ("credit" in m or "402" in m) else
            "sudo apt-get install -y ffmpeg" if "ffmpeg" in m else "Check INTRON_API_KEY in .env")
     say(False, f"Making a voice note failed: {type(e).__name__}: {e}"[:220], fix)
 import shutil  # noqa: E402

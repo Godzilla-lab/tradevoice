@@ -151,14 +151,10 @@ def send_list(to, body, button, rows):
 
 
 def voice_file(text, lang):
-    """Speak `text` as an OGG/Opus file (what WhatsApp voice notes must be). Spitch makes OGG directly; if that
-    fails, make WAV and convert it with ffmpeg. Returns the path, or None if voice is off."""
+    """Speak `text` as an OGG/Opus file (what WhatsApp voice notes must be): Intron makes WAV, ffmpeg converts it.
+    Returns the path, or None if there is no voice (off, or Intron failed: the trader gets the text)."""
     lang = lang if lang in tts.REPLY_LANGS else "Pidgin"
-    try:
-        out = tts.speak(text, lang, fmt="ogg_opus")
-    except Exception as e:  # noqa: BLE001 - some voices refuse ogg: try wav + convert
-        print(f"whatsapp voice: ogg failed ({type(e).__name__}: {e}); trying wav + ffmpeg")
-        out = tts.speak(text, lang, fmt="wav")
+    out = tts.speak(text, lang, fmt="wav")
     if not out:
         return None
     path = out["path"]
