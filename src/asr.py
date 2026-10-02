@@ -277,11 +277,21 @@ def transcribe(path, language=None, vocab=None):
             except Exception as e:  # noqa: BLE001 - try the other engine
                 errors.append(f"{fn.__name__.strip('_').split('_')[0]}: {type(e).__name__}: {str(e)[:80]}")
         if out is None:
+            _event("natlas" if mode == "natlas" else mode, False, (time.perf_counter() - start) * 1000, language)
             raise RuntimeError("Speech-to-text failed: " + " | ".join(errors))
         if errors:
             out["note"] = ((out.get("note") or "") + f" (first engine failed: {errors[0]})").strip()
     out["latency_ms"] = round((time.perf_counter() - start) * 1000)
+    _event(out.get("engine"), True, out["latency_ms"], language)
     return out
+
+
+def _event(engine, ok, ms, language):
+    try:
+        import events
+        events.log("hear", engine=engine, ok=ok, ms=ms, lang=language)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def omni_languages_ok():

@@ -374,6 +374,14 @@ def _intron_speak(text, language):
     raise RuntimeError("Intron sent a long reply in pieces that can't be joined (not WAV)")
 
 
+def _event(engine, ok, language):
+    try:
+        import events
+        events.log("voice", engine=engine, ok=ok, lang=language)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 _CACHE_DIR = os.path.join(tempfile.gettempdir(), "tradevoice-voice-cache")
 
 
@@ -389,15 +397,18 @@ def speak(text, language="Pidgin", fmt="wav", voice=None, speed=None):
     key = hashlib.sha256(f"{language}|{speakable(text)}".encode()).hexdigest()[:32]
     cached = os.path.join(_CACHE_DIR, key + ".wav")
     try:
-        if not os.path.exists(cached):
+        fresh = not os.path.exists(cached)
+        if fresh:
             made = _intron_speak(text, language)
             os.makedirs(_CACHE_DIR, exist_ok=True)
             shutil.move(made, cached)
         out = _tmp(".wav")
         shutil.copyfile(cached, out)
+        _event("intron" if fresh else "cache", True, language)   # /team: Intron calls vs free cached replays
         return {"path": out, "engine": f"intron:{INTRON_VOICES[language][0]}"}
     except Exception as e:  # noqa: BLE001
         print(f"Intron voice failed ({language}): {type(e).__name__}: {e}")
+        _event("intron", False, language)
         LAST_ERROR["intron"] = f"{language}: {type(e).__name__}: {e}"[:300]
         if any(w in str(e).lower() for w in ("401", "402", "403", "credit", "quota", "unauthori", "forbidden")):
             _INTRON_DOWN["until"], _INTRON_DOWN["why"] = time.time() + 600, str(e)[:200]

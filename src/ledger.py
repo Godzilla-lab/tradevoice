@@ -154,7 +154,14 @@ def add_entry(rec, raw_text="", engine="", created_at=None, demo=False):
              rec.get("quantity"), rec.get("unit"), float(rec["amount"]), name,
              rec.get("due_date") or None, raw_text, engine, int(demo), cid),
         )
-        return cur.lastrowid
+        rid = cur.lastrowid
+    if not demo:
+        try:
+            import events
+            events.log("record_saved", engine=engine)   # no amount, no name: just that a record was saved
+        except Exception:  # noqa: BLE001
+            pass
+    return rid
 
 
 # ---------------------------------------------------------------- customers (stable ids)

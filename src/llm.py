@@ -115,6 +115,16 @@ def clean(text):
     return text.strip()
 
 
+def _event(kind, engine, ok, start):
+    """Which model answered (for /team and the NAIC 'N-ATLaS share'). Never raises."""
+    try:
+        import events
+        events.log("llm" if kind == "llm" else "photo_read", engine=engine, ok=ok,
+                   ms=(time.perf_counter() - start) * 1000)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _with_shots(messages, shots):
     """Insert worked examples (user, assistant) pairs right after the system message."""
     if not shots:
@@ -176,9 +186,12 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
             if not pinned:
                 _working[kind] = model
                 _resting.pop(model, None)
+            _event(kind, _label(kind, model), True, start)
             return clean(resp.choices[0].message.content), _label(kind, model)
         except Exception as e:  # noqa: BLE001
             last = e
+            if model == "natlas":
+                _event(kind, "natlas", False, start)
             if not _model_gone(e) and model != "natlas":   # N-ATLaS down for ANY reason -> the backups
                 raise  # network / auth / rate-limit after retries: let the caller fall back to rules
             if not pinned:

@@ -29,6 +29,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 
 import converse
+import events
 import ledger
 import photo
 import tts
@@ -90,6 +91,9 @@ def set_user(phone, **kw):
     with _db() as c:
         for k, v in kw.items():
             c.execute(f"UPDATE wa_users SET {k}=? WHERE phone=?", (v, phone))
+    for k in ("lang", "consent_at"):   # /team funnel (no message text is logged)
+        if kw.get(k):
+            events.log("lang_set" if k == "lang" else "consent", phone, "whatsapp", lang=kw.get("lang"))
 
 
 # ---------------------------------------------------------------- Meta Graph API
@@ -315,6 +319,8 @@ def handle(msg):
                              "😕 That login code is old or not for this number. On the website, tap "
                              "'Verify with WhatsApp' again from this phone.")
         u = user(phone)
+        events.CHANNEL.set("whatsapp")
+        events.log("message", phone, "whatsapp", lang=u.get("lang"), engine=kind)   # type only, never the text
         mark_read(msg.get("id"))
         text = ""
         if kind == "text":

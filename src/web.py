@@ -37,6 +37,8 @@ app = FastAPI(title="TradeVoice")
 import whatsapp  # noqa: E402  (📲 the WhatsApp bot: same server, same link, same book)
 
 app.include_router(whatsapp.router)
+import team  # noqa: E402  (📊 /team: the team's dashboard + anonymised CSV, ADMIN_TOKEN only)
+app.include_router(team.router)
 import extras  # noqa: E402  (lender link, pay links, automatic reminders, receipts, PIN, CSV)
 
 app.include_router(extras.router)
@@ -688,6 +690,8 @@ def _logged_in(request: Request, phone):
 
 def _me(phone):
     p = accounts.profile(phone)
+    import events
+    events.log("web_visit", phone, "web", lang=p.get("lang"))
     token = ledger.use_book(phone)
     try:
         empty = ledger.is_empty()
@@ -823,8 +827,10 @@ def service_worker():
 @app.on_event("startup")
 def _auto_reminders():
     extras.start_scheduler()
+    import events
     import llm
     import natlas_watch
+    events.ENABLED = True  # the real server records the interaction log (tests and benchmarks don't)
     llm.wake_natlas()     # start the N-ATLaS GPU loading now, not on the first trader's message
     natlas_watch.start()  # market hours: keep it warm + WhatsApp the team if it stops answering
 
