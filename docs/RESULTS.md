@@ -1,7 +1,55 @@
 # 📊 Test results log
 
-Record every real run here (date, who, command, numbers). These numbers go into `docs/hackathon/SUBMISSION.md` and the video.
+Record every real run here (date, who, command, numbers). These numbers go into the NAIC PDFs (`docs/naic/`) and the video; all runs, old and new, are submitted together.
 ⚠️ Test phrases in `eval/cases*.jsonl` were written by our team/Claude, not native speakers yet. Say so when quoting them.
+
+## 2 Oct 2026: N-ATLaS benchmark (NCAIR1/N-ATLaS on Modal L4, vLLM 0.10.2; for the NAIC integration PDF)
+**Question:** what does N-ATLaS add for Nigerian market bookkeeping, compared with the model it was built from
+(Meta-Llama-3-8B-Instruct, same size and design)?
+**How:** same sentences, same prompt, one model at a time, no backups. **"Raw" = the model's own answer, before
+our rules correct it.** "Full app" = N-ATLaS + our rules/guards, as traders use it. Both models get the same 6 worked
+examples. Score = type, amount and customer all right (95% range in brackets).
+
+**1,000 sentences** (`eval/cases_1000.jsonl`, 200 per language, 972 scored + 28 "should ask" cases):
+
+| | N-ATLaS raw | Llama-3-8B raw | **Full app (N-ATLaS + guards)** |
+|---|---|---|---|
+| **All** | **69%** (66-71) | 51% (47-54) | **100%** (100-100) |
+| English | 85% | 59% | 100% |
+| Pidgin | 62% | 57% | 100% |
+| Yorùbá | 69% | 60% | 100% |
+| Hausa | 67% | **27%** | 100% |
+| Igbo | 62% | 52% | 100% |
+| Amounts said in local number words | 62% | 12% | 100% |
+| Wrong amount written | 68 | 170 | **0** |
+| Invented an amount (none said) | 3 / 71 | 0 / 71 | **0 / 71** |
+| Asked when unclear | 3 / 28 | 17 / 28 | 28 / 28 |
+| Median time (warm GPU) | 5.0 s | 5.3 s | 5.1 s |
+
+Command: `python eval/run_eval.py --cases eval/cases_1000.jsonl --llm natlas --raw --workers 8`
+(base: `--url <base app>/v1 --shots all`; full app: no `--raw`). Results: `eval/results/cases_1000-*-1002-*.json`.
+
+**210 sentences** (`cases_fresh.jsonl`), the same comparison, and what today's fixes did:
+
+| N-ATLaS, raw | Score | Invented amount |
+|---|---|---|
+| no worked examples | 57% | 3 / 14 |
+| first examples (every one had an amount) | 60% | **12 / 14** (copied an example's price) |
+| **after fixes**: an example with no amount; model reports the price as said + "each", **code multiplies** | **71%** | 0 / 14 |
+| Llama-3-8B, same prompt and examples | 62% | 0 / 14 |
+
+**What we learnt (say this honestly in the PDF):**
+1. N-ATLaS beats its base model by 18 points on 1,000 sentences, most in **Hausa (67% vs 27%)** and in amounts said
+   in Yorùbá/Hausa/Igbo number words (62% vs 12%). On 210 sentences the base model was ahead in Yorùbá and Pidgin,
+   so the language gap is not settled: real traders' sentences will decide.
+2. **Alone, neither model is safe for money** (N-ATLaS wrote a wrong amount 68 times in 972). The app is safe because
+   code does the maths and our rules check every record: 0 wrong amounts in 972.
+3. N-ATLaS mistakes found and now guarded (tests in `eval/test_guards.py`): copying an example's price; multiplying
+   when it shouldn't; taking the balance instead of the part paid ("paid 20k out of 60k" -> 60k); re-spelling names
+   ("Mallam Sani" -> "Mr. Sani", "Hajiya" -> "Hajia"), which would split one customer in two.
+4. **Limits of this test:** template sentences written by the team and Claude, not by native speakers; the rules were
+   built on the same templates (rules alone also score 100% here). Next: ~100 sentences from the team
+   (`cases_team.jsonl`) and real pilot voice notes, scored the same way.
 
 ## 25 Sep 2026: first real NVIDIA API runs (MacBook, build.nvidia.com free tier)
 

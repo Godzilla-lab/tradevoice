@@ -13,6 +13,15 @@ import extract  # noqa: E402
 TODAY = dt.date(2026, 9, 27)  # a Sunday
 # (text, what the AI wrongly answered, what we must end up with)
 CASES = [
+    # N-ATLaS on the 1,000-sentence run (2 Oct): balance/total instead of the part paid; re-spelt names
+    ("Aunty Kemi brought 20k today, balance is 40k",
+     {"type": "payment_received", "amount": 40000, "customer": "Aunty Kemi"}, {"amount": 20000}),
+    ("Oga Emeka paid 20k out of the 60k he owes, 40k remaining",
+     {"type": "payment_received", "amount": 60000, "customer": "Oga Emeka"}, {"amount": 20000}),
+    ("Mallam Sani don pay 60000 na bashin sa",
+     {"type": "payment_received", "amount": 60000, "customer": "Mr. Sani"}, {"customer": "Mallam Sani"}),
+    ("to na sayar da buhun shinkafa 3 ga hajiya amina 18500 to bashi ne za ta biya ranar juma'a",
+     {"type": "credit_sale", "amount": 18500, "customer": "Hajia Amina"}, {"customer": "Hajiya Amina"}),
     ("Gave Aunty Kemi 3 crates of eggs worth 60000, she has not paid me yet",
      {"type": "payment_received", "amount": 60000, "customer": "Aunty Kemi"}, {"type": "credit_sale"}),
     ("Mo ta àpò ẹ̀wà 4 fún Baba Sola ní 2500, kò tíì san owó náà",

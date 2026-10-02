@@ -542,11 +542,23 @@ def _check_guard(rec, rules, text, today):
     ai_name, rule_name = rec.get("customer"), rules.get("customer")
     if ai_name and rule_name and fold(rule_name) != fold(ai_name) and fold(rule_name).endswith(" " + fold(ai_name)):
         rec["customer"] = rule_name
+    # the AI re-spelt a name that was said ("Mallam Sani" -> "Mr. Sani", "Hajiya" -> "Hajia"): the name as said wins,
+    # else one customer becomes two in the book (seen with N-ATLaS on the 1,000-sentence run, 2 Oct)
+    ai_name = rec.get("customer")
+    if (ai_name and rule_name and fold(ai_name) != fold(rule_name)
+            and re.search(rf"\b{re.escape(fold(rule_name))}\b", fold(text))
+            and not re.search(rf"\b{re.escape(fold(ai_name))}\b", fold(text))):
+        rec["customer"] = rule_name
     if (_NEG_PAY_RE.search(t) and rec.get("type") in ("payment_received", "sale")
             and rules["type"] != "credit_purchase"):
         _fix(rec, "type", "credit_sale", "Type corrected to credit: the words say 'not paid yet'.")
     if rec.get("type") == "sale" and part_payment_amount(text) is not None:
         _fix(rec, "type", "payment_received", "Type corrected to payment: part of a debt was paid.")
+    # part of a debt paid: the amount is the part paid, never the total owed or the balance left (N-ATLaS took the
+    # balance/total on 2 Oct); the rules find the first amount after the pay word
+    part = part_payment_amount(text)
+    if rec.get("type") == "payment_received" and part is not None and rec.get("amount") != part:
+        _fix(rec, "amount", part, "Amount corrected to the part paid.")
     # weekday arithmetic: rules are exact, the AI sometimes picks the wrong date
     if rec.get("type") in ("credit_sale", "credit_purchase"):
         due = parse_due(text, today)
