@@ -29,6 +29,9 @@ LANDING_PATCHES = [
      '<a class="logo" href="#top" aria-label="TradeVoice home"><img src="/static/logo.svg" alt="" aria-hidden="true" width="30" height="30">TradeVoice</a>', 1),
     ("tab icon", '<title>TradeVoice: just talk am. Your book remembers.</title>',
      '<title>TradeVoice: just talk am. Your book remembers.</title>\n<link rel="stylesheet" href="/static/site.css"><link rel="icon" href="/static/logo.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><link rel="manifest" href="/static/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="TradeVoice">', 1),
+    # --- the example's sum: owed ₦45,000, paid ₦12,000 -> ₦33,000 left (not ₦0)
+    ("example sum", 'Mama Tunde just paid ₦12,000 online. Still owes you ₦0.',
+     'Mama Tunde paid ₦12,000. She still owes you ₦33,000.', 1),
     # --- the N-ATLaS licence requires this sentence wherever TradeVoice credits N-ATLaS
     ("N-ATLaS attribution", 'Nigeria’s own multilingual AI model.</div>',
      'Nigeria’s own multilingual AI model.<br>N-ATLaS is an initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri Technologies.</div>', 1),
