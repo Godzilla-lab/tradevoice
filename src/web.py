@@ -282,8 +282,8 @@ def voice_check(lang: str = "Yoruba", fmt: str = "wav"):
             os.remove(path)
             return {"lang": lang, "ok": True, "format": "ogg (WhatsApp voice note)", "bytes": size}
         out = tts.speak(text, lang if lang in tts.REPLY_LANGS else "English")
-        if not out:
-            return {"lang": lang, "ok": False, "error": "no voice set up: add INTRON_API_KEY (or SPITCH_API_KEY) to .env"}
+        if not out:   # the real reason (no key, Intron refused the key / credit, or Intron's own error)
+            return {"lang": lang, "ok": False, "error": tts.why_not_intron() or "Intron gave no audio (see the server log)"}
         return {"lang": lang, "ok": True, "engine": out["engine"], "bytes": os.path.getsize(out["path"]),
                 "why_not_intron": None if out["engine"].startswith("intron") else tts.why_not_intron()}
     except Exception as e:  # noqa: BLE001
