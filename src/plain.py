@@ -15,7 +15,7 @@ _UPPER = "A-ZÀ-ÝẸỌṢỊỤƊƘƁ{"
 def no_emoji(text):
     if not text or not EMOJI.search(text):
         return text
-    t = re.sub(rf"(?<=[^\W_)\]])[ \t]?{E}[ \t]+(?=[{_UPPER}])", ". ", text)   # "Saved ✅ Mama" -> "Saved. Mama"
+    t = re.sub(rf"(?<=[^\W_]|[\u0300-\u036f])[ \t]?{E}[ \t]+(?=[{_UPPER}])", ". ", text)   # "Saved ✅ Mama" -> "Saved. Mama"
     t = re.sub(rf"[ \t]?{E}(?=[ \t]*($|\n))", "", t)                         # at the end of a line
     t = re.sub(rf"{E}[ \t]?", "", t)                                         # anywhere else
     return re.sub(r"(?<=\S)[ \t]{2,}(?=\S)", " ", t)
@@ -23,6 +23,6 @@ def no_emoji(text):
 
 def no_emoji_keep_layout(text):
     """The same rules for a whole file (a built page, source code): spacing elsewhere is left exactly as it is."""
-    t = re.sub(rf"(?<=[^\W_)\]])[ \t]?{E}[ \t]+(?=[{_UPPER}])", ". ", text)
+    t = re.sub(rf"(?<=[^\W_]|[\u0300-\u036f])[ \t]?{E}[ \t]+(?=[{_UPPER}])", ". ", text)
     t = re.sub(rf"[ \t]{E}(?=[\"'`<]|[ \t]*\n)", "", t)
     return re.sub(rf"{E}[ \t]?", "", t)

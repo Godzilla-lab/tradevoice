@@ -27,10 +27,23 @@ except ₦. Answer ONLY in __LANG__ (Nigerian Pidgin if __LANG__ is Pidgin). Use
 invent a number, a name or a date. If the facts don't have the answer, say you don't have that record yet.
 No investment or legal advice; for loans say a lender decides. For tax, you may repeat TAX_FACTS in simple words,
 but never say how much tax they owe or whether they must pay: say their state revenue service decides. At most __N__ sentences.
+No emojis. __TRADER__
 The trader is looking at: __SCREEN__.
 FACTS (from their own book): __FACTS__"""
 
 _cache, _lock = {}, threading.Lock()
+
+
+def who_line():
+    """For the AI: who it is talking to (their own profile), so answers fit this trader, not a generic one."""
+    import accounts
+    t = accounts.trader()
+    if not t:
+        return ""
+    biz = t.get("biz") and (f"who runs {t['biz']}" + (f", a {t['type'].lower()} business" if t.get("type") else "")
+                            + (f" at {t['market']}" if t.get("market") else ""))
+    return (f"You are talking with {t.get('name') or 'the trader'}" + (f", {biz}" if biz else "") + ". "
+            + ("Use their name now and then, never in every sentence. " if t.get("name") else ""))
 
 
 def _facts(screen, lang, today=None):
@@ -62,7 +75,8 @@ def _ask_ai(question, screen, lang, facts, sentences=4):
     import llm
 
     prompt = (PROMPT.replace("__LANG__", lang).replace("__N__", str(sentences))
-              .replace("__SCREEN__", SCREENS.get(screen, screen)).replace("__FACTS__", json.dumps(facts, default=str)))
+              .replace("__SCREEN__", SCREENS.get(screen, screen)).replace("__FACTS__", json.dumps(facts, default=str))
+              .replace("__TRADER__", who_line()))
     text, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": question}],
                            max_tokens=350, temperature=0.2, timeout=25)
     return text.strip(), model

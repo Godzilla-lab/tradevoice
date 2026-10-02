@@ -181,6 +181,28 @@ def profile(phone):
     return dict(r) if r else {"phone": phone}
 
 
+TITLES = {"mama", "iya", "baba", "papa", "alhaji", "alhaja", "hajia", "hajiya", "madam", "oga", "chief", "mr", "mrs",
+          "aunty", "auntie", "uncle", "dr", "mallam", "malam", "sister", "brother", "nne", "nna", "ogbeni", "iyawo"}
+
+
+def trader(phone=None):
+    """Who TradeVoice is talking to right now (the owner of the open book): {"name": what to call them, "biz",
+    "type", "market"}, only what they told us. "Ada Okafor" -> "Ada"; "Mama Ngozi" stays "Mama Ngozi"."""
+    import events
+    phone = phone or events._current_phone()
+    if not phone:
+        return {}
+    try:
+        p = profile(phone)
+    except Exception:  # noqa: BLE001
+        return {}
+    words = (p.get("name") or "").split()
+    name = " ".join(words[:2]) if len(words) > 1 and words[0].lower().rstrip(".") in TITLES else (words[0] if words else "")
+    out = {"name": name.title() if name.islower() else name, "biz": p.get("shop"), "type": p.get("biz_type"),
+           "market": p.get("market")}
+    return {k: v.strip() for k, v in out.items() if isinstance(v, str) and v.strip()}
+
+
 def update_profile(phone, **fields):
     fields = {k: v for k, v in fields.items() if k in ("name", "shop", "lang") and v is not None}
     if not fields:

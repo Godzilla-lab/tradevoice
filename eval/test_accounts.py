@@ -67,6 +67,16 @@ def main():
     check("the same number can't sign up twice",
           c.post("/api/auth/v2/code/start", json={"phone": PHONE, "purpose": "signup"}).status_code == 409)
 
+    r = c.post("/api/message", json={"session": "hi", "text": "hello", "lang": "English"}).json()
+    check("personal: 'hello' greets the trader by name", r["text"].startswith("Hello, Ada."), r["text"])
+    import accounts
+    import assistant
+    import ledger as L
+    tok = L.use_book(FULL)
+    who = assistant.who_line()
+    L.done_with_book(tok)
+    check("personal: the AI is told who it is talking to (name, business, market)",
+          "Ada" in who and "Ada Test Stores" in who and "Test Market" in who, who)
     c.post("/api/customers", json={"name": "Iya Bisi"})
     ledger_file = ledger.book_file(FULL)
     check("the trader has their own book file", os.path.exists(ledger_file), ledger_file)
@@ -129,6 +139,9 @@ def main():
         check("add_account: refuses a number that already has an account", False)
     except SystemExit:
         check("add_account: refuses a number that already has an account", True)
+    p2, _ = add_account.create("08030000599", "mama ngozi testtrader", "Ngozi Test Foods")
+    check("personal: titles keep the name after them ('Mama Ngozi', not 'Mama'), and a lowercase name is tidied",
+          accounts.trader(p2).get("name") == "Mama Ngozi", accounts.trader(p2))
     _, temp2 = add_account.reset("08030000531")
     check("add_account --reset: the old password stops working, the new one works, other phones logged out",
           t.get("/api/v2/me").status_code == 401

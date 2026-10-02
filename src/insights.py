@@ -270,8 +270,7 @@ ASK_PROMPT = """You are TradeVoice, a friendly bookkeeping helper for a Nigerian
 Answer the trader's question using ONLY the facts in the JSON below. Use naira with commas (₦45,000).
 Reply in the same style the trader used (English or Nigerian Pidgin), in 1-4 short sentences.
 If the facts do not contain the answer, say you don't have that record yet. Never invent numbers.
-Never give investment, tax or legal advice; for loans, remind them a lender makes the decision.
-FACTS:
+Never give investment, tax or legal advice; for loans, remind them a lender makes the decision. No emojis.
 """
 
 
@@ -319,7 +318,9 @@ def ask(question, today=None):
     if not llm.available():
         return ask_offline(question, facts), "rules"
     try:
-        answer, model = llm.chat([{"role": "system", "content": ASK_PROMPT + json.dumps(facts, default=str)},
+        import assistant
+        answer, model = llm.chat([{"role": "system", "content": ASK_PROMPT + assistant.who_line() + "\nFACTS:\n"
+                                   + json.dumps(facts, default=str)},
                                   {"role": "user", "content": question}], max_tokens=400, temperature=0.2, timeout=30)
         return answer, f"llm:{model}"
     except Exception as e:

@@ -40,7 +40,7 @@ THANKS = re.compile(r"^\s*(thanks?( you)?|thank u|tnx|ese( gan)?|o ?se|na gode|d
 HELP = re.compile(r"\b(what can you do|how (do|does) (this|it|you) work|help me|who are you|what are you)\b")
 SAY_THANKS = {"English": "You're welcome. Tell me anything you sell, spend or lend.",
               "Pidgin": "No wahala. Tell me anything wey you sell, spend or give for credit.",
-              "Yoruba": "Kò tọ́pẹ́ Sọ ohunkóhun tí o tà, tí o ná, tàbí tí o fi ṣe àwìn fún mi.",
+              "Yoruba": "Kò tọ́pẹ́. Sọ ohunkóhun tí o tà, tí o ná, tàbí tí o fi ṣe àwìn fún mi.",
               "Hausa": "Ba komai. Faɗa min duk abin da ka sayar, ka kashe, ko ka bayar bashi.",
               "Igbo": "Ọ dị mma. Gwa m ihe ọ bụla i rere, i mefuru, ma ọ bụ i nyere n'ụgwọ."}
 GREET = re.compile(r"^\s*(hi+|hello|hey|good (morning|afternoon|evening)|how far|bawo( ni)?|pele|e ?ka ?a?ro|e ?ka ?a?san|"
@@ -97,7 +97,7 @@ SAY = {
                  "Igbo": "Biko lelee ya tupu i chekwaa."},
     "how_much": {"English": "How much was it?", "Pidgin": "Na how much?", "Yoruba": "Èló ni?",
                  "Hausa": "Nawa ne?", "Igbo": "Ego ole?"},
-    "saved": {"English": "Saved. {s}", "Pidgin": "I don save am. {s}", "Yoruba": "Mo ti kọ ọ́ sílẹ̀ {s}",
+    "saved": {"English": "Saved. {s}", "Pidgin": "I don save am. {s}", "Yoruba": "Mo ti kọ ọ́ sílẹ̀. {s}",
               "Hausa": "An adana. {s}", "Igbo": "Echekwala m ya. {s}"},
     "balance": {"English": " Now {who} owes you {m} in total.", "Pidgin": " Now {who} dey owe you {m} total.",
                 "Yoruba": " Lápapọ̀, {who} jẹ ọ́ ní {m} báyìí.", "Hausa": " Yanzu jimlar bashin {who}: {m}.",
@@ -203,6 +203,16 @@ def _full_name(asked, people):
     """"Alhaji" -> "Alhaji Sani" when only one person in `people` fits."""
     fits = [p["customer"] for p in people if askbook.same_person(asked, p["customer"])]
     return fits[0] if len(fits) == 1 else asked
+
+
+def _named(text):
+    """Greetings and thanks use the trader's name: "Hello. I'm your book…" -> "Hello, Ada. I'm your book…"."""
+    import accounts
+    name = accounts.trader().get("name")
+    if not name or "." not in text:
+        return text
+    head, rest = text.split(".", 1)
+    return f"{head}, {name}.{rest}"
 
 
 def _out(text, lang, spoken=None, english=None):
@@ -577,7 +587,7 @@ def reply(text, state=None, today=None, shop="your shop"):
         return _statement(text, lang, state, vocab, shop)
     amount = parse_amount(text)
     if THANKS.match(t):
-        return _out(SAY_THANKS.get(lang, SAY_THANKS["English"]), lang, english=SAY_THANKS["English"])
+        return _out(_named(SAY_THANKS.get(lang, SAY_THANKS["English"])), lang, english=_named(SAY_THANKS["English"]))
     if HELP.search(t) or GREET.match(t):
         import ui_text
 
@@ -585,7 +595,7 @@ def reply(text, state=None, today=None, shop="your shop"):
                                     ("Igbo", r"ndewo|kedu|nnoo")) if re.search(w, t)), None)
         lang = state["lang"] = said or lang  # "Bawo ni" = Yoruba, whatever was picked
 
-        return _out(ui_text.t("hello", lang), lang, english=ui_text.t("hello", "English"))
+        return _out(_named(ui_text.t("hello", lang)), lang, english=_named(ui_text.t("hello", "English")))
     if TAX.search(t) and amount is None:  # "do I pay tax?": the plain facts + their own year, never "you owe ₦X"
         import tax
 

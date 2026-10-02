@@ -340,6 +340,8 @@
     ig: { speak: "Ana m ekwu", rest: "Akwụsịrị m", hello: "Kwuo, ana m ege ntị.", tap: "Metụ ya aka ka m kwụsị", again: "Anụghị m ya. Kwughachi ya?",
       slow: "Ana m arụ ya…", bye: "Ka ọ dị.", stop: "Aga m akwụsị ebe a. Metụ m aka mgbe ịchọrọ m.", check: "Pịa ka i lelee ya", done: "Ọ zuola", off: "Ndo, anụghị m nke ọma." },
   };
+  // what to call the trader (same rule as the server's accounts.trader): "Ada Okafor" -> "Ada", "Mama Ngozi" stays
+  const callName = n => { const w = (n || "").trim().split(/\s+/); return w.length > 1 && /^(mama|iya|baba|papa|alhaji|alhaja|hajia|hajiya|madam|oga|chief|mr|mrs|aunty|auntie|uncle|dr|mallam|malam|sister|brother|nne|nna|ogbeni)\.?$/i.test(w[0]) ? w[0] + " " + w[1] : w[0] || ""; };
   const BYE = /\b(that'?s all|that is all|bye( bye)?|goodbye|good bye|na im be that|o da ?bo|sai an ?jima|ka o di)\b/;
   const plain = x => (x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -537,7 +539,8 @@ button.tvc-say{text-decoration:none}
     async function run() {
       if (running) return; running = true;
       let quiet = 0, fails = 0, carry = null;
-      caption(w("hello"));
+      const nm = A && callName(A.name), hi = w("hello");
+      caption(nm ? `${esc(nm)}, ${hi[0].toLowerCase()}${hi.slice(1)}` : hi);   // "Ada, go ahead, I'm listening."
       while (o.isConnected && !stopAll) {
         const h = await listen(carry); carry = null;
         if (!o.isConnected || stopAll) break;
