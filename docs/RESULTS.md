@@ -3,6 +3,32 @@
 Record every real run here (date, who, command, numbers). These numbers go into the NAIC PDFs (`docs/naic/`) and the video; all runs, old and new, are submitted together.
 ⚠️ Test phrases in `eval/cases*.jsonl` were written by our team/Claude, not native speakers yet. Say so when quoting them.
 
+## 2 Oct 2026: 100 NEW research-written sentences (`eval/cases_research.jsonl`): the honest score
+Written from research on how Nigerian traders talk (transfers and "alerts", POS, agbero/market ticket, keke, NEPA
+bill, loaders, mudu/kongo/derica/paint measures, supplier credit, loans, part payments), 20 per language, made-up
+names. **Not built from our templates, and the rules were never tuned on them.** ⚠️ Yorùbá/Hausa/Igbo still need a
+native speaker's check (`"check": "native"`).
+
+| | Rules alone | N-ATLaS alone | **Full app (N-ATLaS + rules)** |
+|---|---|---|---|
+| All | 54% | 63% | **69%** |
+| English / Pidgin | 56% / 65% | 83% / 75% | 83% / 75% |
+| Yorùbá / Hausa / Igbo | 42% / 58% / 47% | 47% / 63% / 47% | 58% / 68% / 63% |
+| Wrong amount written | 8 | 4 | 7 |
+| Asked when unclear (5) | 0 | 4 | 5 |
+
+**What this means:** the 100% on the template sets was the rules memorising our own templates. On new phrasing,
+N-ATLaS adds 15 points over the rules, but the app is far from safe yet. Main failures, to fix next:
+1. **Buying stock is an expense** ("bought…", "mo ra", "na sayi", "azụrụ m") -> read as a sale.
+2. **Paying a supplier back / taking goods on credit from a supplier** (payment_made / credit_purchase), in all
+   5 languages.
+3. **Per-unit prices in local words** (ọ̀kọ̀ọ̀kan, kowanne, otu ọ bụla) not multiplied; self-corrections in
+   Yorùbá/Hausa/Igbo ("8,000 ni, kì í ṣe 9,000", "a'a 14,000 ne", "mba, ọ bụ 8,000").
+4. **Everyday expenses** the rules don't know (agbero/ticket, keke, NEPA bill, loader); **transfers/alerts** as
+   payments; loans to and from people.
+5. Our rules sometimes OVERRULE a right N-ATLaS answer (full app wrote more wrong amounts than N-ATLaS alone: 7 vs 4).
+After fixing, these 100 become "seen": the next honest score must come from new sentences (team, natives, pilot).
+
 ## 2 Oct 2026: N-ATLaS benchmark (NCAIR1/N-ATLaS on Modal L4, vLLM 0.10.2; for the NAIC integration PDF)
 **Question:** what does N-ATLaS add for Nigerian market bookkeeping, compared with the model it was built from
 (Meta-Llama-3-8B-Instruct, same size and design)?
