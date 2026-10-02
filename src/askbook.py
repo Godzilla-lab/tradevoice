@@ -180,7 +180,10 @@ def parse(question, vocab=None):
         out, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": question}],
                               max_tokens=300, timeout=int(os.getenv("LLM_TIMEOUT", "20")))
         q = _parse_json(out)
-        q = {"kind": q.get("kind") if q.get("kind") in ("query", "other") else offline["kind"],
+        # the word lists know a book question when they see one ("Who owes me?"): N-ATLaS sometimes labels it
+        # "other" (live test 2 Oct), which sent it down the record path ("How much was it?")
+        kind = "query" if offline["kind"] == "query" else q.get("kind")
+        q = {"kind": kind if kind in ("query", "other") else offline["kind"],
              "what": q.get("what") if q.get("what") in dict(WHAT_WORDS) else offline["what"],
              "item": q.get("item") or offline["item"], "customer": q.get("customer") or offline["customer"],
              "period": q.get("period") if q.get("period") in PERIODS else offline["period"],

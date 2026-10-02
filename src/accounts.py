@@ -63,7 +63,9 @@ def masked(phone):
 
 
 def demo_mode():
-    return os.getenv("AUTH_DEMO") == "1" or not (os.getenv("WHATSAPP_TOKEN") and os.getenv("WHATSAPP_PHONE_ID"))
+    """Code shown on screen: ONLY when AUTH_DEMO=1 is set on purpose (local demos). Never on a public server:
+    anyone could then open any phone number's book. (Before 2 Oct it also switched on when WhatsApp was missing.)"""
+    return os.getenv("AUTH_DEMO") == "1"
 
 
 # ---------------------------------------------------------------- one login attempt

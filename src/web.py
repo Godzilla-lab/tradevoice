@@ -653,13 +653,15 @@ def ui(lang: str = "English"):
 def status():
     import llm
 
-    hearing = os.getenv("ASR_ENGINE") or ("intron" if os.getenv("INTRON_API_KEY") else "local")
-    return {"hearing": hearing, "voice": tts.backend(),
-            "brain": "brev" if os.getenv("LOCAL_LLM_URL") else ("nvidia" if os.getenv("NVIDIA_API_KEY") else "offline"),
+    hearing = os.getenv("ASR_ENGINE") or ("natlas" if os.getenv("NATLAS_ASR_URL") else
+                                          "intron" if os.getenv("INTRON_API_KEY") else "local")
+    brain = ("natlas" if llm.natlas_on() else "brev" if os.getenv("LOCAL_LLM_URL") else
+             "nvidia" if os.getenv("NVIDIA_API_KEY") else "offline")
+    # counts only: no error text or tokens on this public page (details are on /team)
+    return {"hearing": hearing, "voice": tts.backend(), "brain": brain,
             "photos": "brev" if os.getenv("LOCAL_VISION_URL") else ("nvidia" if llm.available("vision") else "off"),
             "shop": SHOP_NAME, "whatsapp": bool(os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID")
-                                                               or os.getenv("WHATSAPP_PHONE_NUMBER_ID"))),
-            "whatsapp_seen": whatsapp.STATS}
+                                                               or os.getenv("WHATSAPP_PHONE_NUMBER_ID")))}
 
 
 # ---------------------------------------------------------------- 🔐 log in with your phone number
@@ -719,8 +721,9 @@ def auth_start(b: Start):
         except Exception as e:  # noqa: BLE001 - expired token, or Meta's 24-hour rule
             print(f"login code not sent by WhatsApp: {e}")
     bot = whatsapp.bot_number()
-    # never a dead end: if WhatsApp couldn't deliver the code, show it on screen (AUTH_STRICT=1 turns this off)
-    fallback = not sent and not accounts.demo_mode() and os.getenv("AUTH_STRICT") != "1"
+    # the code is NEVER shown on screen when sending fails (that let anyone open any number's book); they can still
+    # verify by sending LOGIN <word> to the bot from that phone. AUTH_STRICT=0 restores the old fallback (demos only)
+    fallback = not sent and not accounts.demo_mode() and os.getenv("AUTH_STRICT", "1") == "0"
     return {"login_id": login["id"], "phone": accounts.masked(phone), "sent": sent,
             "word": login["word"], "verify_link": f"https://wa.me/{bot}?text=LOGIN%20{login['word']}" if bot else None,
             "demo_code": login["code"] if accounts.demo_mode() or fallback else None,

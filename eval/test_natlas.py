@@ -167,6 +167,15 @@ check("health checks only in market hours (Nigeria time)",
       natlas_watch._market_hours(dt.datetime(2026, 10, 6, 9)) and not natlas_watch._market_hours(
           dt.datetime(2026, 10, 6, 22)) and not natlas_watch._market_hours(dt.datetime(2026, 10, 6, 3)))
 
+# 10b. N-ATLaS calls a book question "other": the word lists still route it as a question (live bug, 2 Oct)
+import askbook  # noqa: E402
+
+reset({"NATLAS_URL": "http://natlas/v1"})
+REPLY["natlas"] = json.dumps({"kind": "other", "what": "owed_to_me", "customer": None, "period": "all"})
+q, _ = askbook.parse("Who owes me?")
+check("'Who owes me?' stays a book question even when N-ATLaS says 'other'", q["kind"] == "query"
+      and q["what"] == "owed_to_me")
+
 # 11. N-ATLaS speech: right model per language, loops and silence rejected, Intron/Spitch not used as backups
 import asr  # noqa: E402
 import tempfile  # noqa: E402
