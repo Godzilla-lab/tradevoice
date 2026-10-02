@@ -168,16 +168,23 @@ PREFIX = {
 }
 
 # in a live voice conversation there is no Save button to press: the question is asked out loud, answered with yes/no
-ASK_LIVE = {"English": " Is that correct? Should I save it?", "Pidgin": " Na so? Make I save am?",
-            "Yoruba": " Ṣé bẹ́ẹ̀ ni? Ṣé kí n kọ ọ́ sílẹ̀?", "Hausa": " Haka ne? In rubuta?",
-            "Igbo": " Ọ bụ otu a? Ka m dee ya?"}
+ASK_LIVE = {"English": " Should I save it?", "Pidgin": " Make I save am?", "Yoruba": " Ṣé kí n kọ ọ́ sílẹ̀?",
+            "Hausa": " In rubuta?", "Igbo": " Ka m dee ya?"}
 
 
 def live_ask(spoken, language="English"):
-    """The read-back for the live conversation: "… Press save." becomes "… Should I save it?"."""
-    for ask in PREFIX.get(language, PREFIX["English"])["ask"]:
+    """The read-back for the live conversation, short so it is said sooner: "Okay, I heard: <record>. Is that
+    correct? Press save." becomes "<record>. Should I save it?" (the trader just said it; a warning stays first)."""
+    pre = PREFIX.get(language, PREFIX["English"])
+    for ask in pre["ask"]:
         if spoken and spoken.endswith(ask):
-            return spoken[: -len(ask)] + ASK_LIVE.get(language, ASK_LIVE["English"])
+            body = spoken[: -len(ask)]
+            for opener in pre["heard"]:
+                if opener in body:
+                    head, tail = body.split(opener, 1)
+                    body = head + tail[:1].upper() + tail[1:]
+                    break
+            return body + ASK_LIVE.get(language, ASK_LIVE["English"])
     return spoken
 
 
@@ -348,7 +355,7 @@ def _intron_try(text, language, lang, accent):
         tid, end = data.get("text_id") or j.get("text_id"), time.time() + 40
         while time.time() < end and data.get("processing_status") not in ("TTS_TEXT_AUDIO_GENERATED",
                                                                           "TTS_TEXT_AUDIO_PROCESSING_FAILED"):
-            time.sleep(1)
+            time.sleep(0.4)   # short replies are usually ready in well under a second
             data = (requests.get(f"{INTRON_URL}/tts/v1/status/{tid}", headers=head, timeout=20).json() or {}).get("data") or {}
     elif r.status_code != 200:
         msg = str(j.get("message") or r.text)[:200]
@@ -393,16 +400,30 @@ def _intron_speak(text, language):
     text = speakable(text)
     if not text:
         raise RuntimeError("nothing to say")
+    from concurrent.futures import ThreadPoolExecutor
+
     for _ in range(2):
+        parts, paths = _pieces(text, _INTRON_MAX["chars"]), []
         try:
-            paths = []
-            for part in _pieces(text, _INTRON_MAX["chars"]):
-                paths.append(_intron_one(part, language))
+            if len(parts) == 1:
+                paths = [_intron_one(parts[0], language)]
+            else:   # a long reply: every piece is made at the same time (in order), not one after the other
+                with ThreadPoolExecutor(max_workers=min(4, len(parts))) as pool:
+                    jobs = [pool.submit(_intron_one, part, language) for part in parts]
+                    errors = [j.exception() for j in jobs]
+                    paths = [j.result() for j, e in zip(jobs, errors) if e is None]
+                    bad = next((e for e in errors if e is not None), None)
+                    if bad:
+                        raise bad
             break
         except _TooLong as e:
             for p in paths:
                 os.remove(p)
             _INTRON_MAX["chars"] = max(40, e.n - 5)
+        except Exception:
+            for p in paths:
+                os.remove(p)
+            raise
     else:
         raise RuntimeError("Intron kept refusing the text as too long")
     if len(paths) == 1:
@@ -412,10 +433,10 @@ def _intron_speak(text, language):
     raise RuntimeError("Intron sent a long reply in pieces that can't be joined (not WAV)")
 
 
-def _event(engine, ok, language):
+def _event(engine, ok, language, ms=None):
     try:
         import events
-        events.log("voice", engine=engine, ok=ok, lang=language)
+        events.log("voice", engine=engine, ok=ok, lang=language, ms=ms)
     except Exception:  # noqa: BLE001
         pass
 
@@ -435,14 +456,15 @@ def speak(text, language="English", fmt="wav", voice=None, speed=None):
     key = hashlib.sha256(f"{INTRON_VOICES[language]}|{language}|{speakable(text)}".encode()).hexdigest()[:32]
     cached = os.path.join(_CACHE_DIR, key + ".wav")
     try:
-        fresh = not os.path.exists(cached)
+        fresh, t0 = not os.path.exists(cached), time.perf_counter()
         if fresh:
             made = _intron_speak(text, language)
             os.makedirs(_CACHE_DIR, exist_ok=True)
             shutil.move(made, cached)
         out = _tmp(".wav")
         shutil.copyfile(cached, out)
-        _event("intron" if fresh else "cache", True, language)   # /team: Intron calls vs free cached replays
+        _event("intron" if fresh else "cache", True, language,   # /team: Intron calls vs free cached replays
+               ms=(time.perf_counter() - t0) * 1000 if fresh else None)
         return {"path": out, "engine": f"intron:{INTRON_VOICES[language][0]}"}
     except Exception as e:  # noqa: BLE001
         print(f"Intron voice failed ({language}): {type(e).__name__}: {e}")

@@ -11,6 +11,7 @@ import re
 import shutil
 import tempfile
 import threading
+import time
 import urllib.parse
 import uuid
 
@@ -22,6 +23,7 @@ from pydantic import BaseModel
 
 import accounts
 import converse
+import events
 import insights
 import ledger
 import photo
@@ -263,11 +265,21 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
     if not text:
         return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
     state = _state(session, lang)
+    t0 = time.perf_counter()
     out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text, live=live == "1")
+    events.log("understand", channel="web", lang=lang, ms=(time.perf_counter() - t0) * 1000)   # speed check (E6)
     out["engine"] = heard.get("engine")
     out["detected"] = heard.get("detected")
     _start_voice(out.get("speak"))
     return out
+
+
+@app.post("/api/warm")
+def warm():
+    """Talk was opened: wake the N-ATLaS servers now, so they are up by the time the voice note arrives."""
+    import natlas_watch
+
+    return {"waking": natlas_watch.wake()}
 
 
 @app.get("/api/voice_check")

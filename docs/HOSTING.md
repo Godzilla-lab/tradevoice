@@ -124,6 +124,7 @@ The old `natlas` secret in the paused workspace still holds the Hugging Face tok
 | Is it up? | `systemctl status tradevoice` · or open `https://NAME.duckdns.org/api/status` |
 | Logs (live) | `sudo journalctl -u tradevoice -f` (Ctrl+C to leave) |
 | Put new code live | `sudo bash /opt/tradevoice/app/deploy/server/update.sh` (backs up, restarts, rolls back by itself if the new code doesn't start) |
+| How fast are voice replies? | `sudo bash /opt/tradevoice/app/deploy/server/speed.sh` (hearing, brain, voice: typical and slowest, last 7 days) |
 | Backups | `sudo ls -lh /var/lib/tradevoice/backups` |
 | Restore a backup | `sudo bash /opt/tradevoice/app/deploy/server/restore.sh /var/lib/tradevoice/backups/tradevoice-….tar.gz` (the replaced files are kept in `before-restore-…`) |
 | A backup onto the Mac | `ssh -i KEY ubuntu@PUBLIC_IP "sudo cat /var/lib/tradevoice/backups/FILE" > FILE` |

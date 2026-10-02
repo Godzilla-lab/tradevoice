@@ -201,6 +201,7 @@
     unlock();   // during the tap: lets the spoken reply play later on phones
     const o = sheet(""), box = $(".in", o);
     if (pre && pre.draft) return pre.draft.amount == null ? re(1, pre.draft) : card(pre.draft);   // from the live talk: check it on screen
+    api("/api/warm", { body: {} });
     const live = s => `<div class="wave">${"<i></i>".repeat(24)}</div><ol class="steps">${["listen", "hear", "think"].map((k, i) => `<li class="${i < s ? "done" : i == s ? "on" : ""}">${t(k)}</li>`).join("")}</ol><div class="quote" id="qt">&nbsp;</div>`;
     const err = (h, p) => { box.innerHTML = `<h3>${h}</h3><p class="s">${p}</p><div class="btns"><button class="btn p w" id="re">Try again</button></div>`; $("#re", o).onclick = () => { shut(o); setTimeout(talk, 300); }; };
     let stream;
@@ -368,6 +369,7 @@ button.tvc-say{text-decoration:none}
 
   const chat = async function () {
     const w = k => (LW[L] || LW.en)[k];
+    api("/api/warm", { body: {} });   // a sleeping N-ATLaS starts now, while you talk, not after
     // during the tap (phones allow sound and audio meters only from a tap): the reply's player and the meters
     let ac = null; try { ac = new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch (e) {}
     const voice = new Audio();
@@ -435,7 +437,7 @@ button.tvc-say{text-decoration:none}
           floor = r < floor ? r : floor + (r - floor) * 0.002;
           if (r > Math.max(6, floor * 1.8 + 3)) { spoke = true; quietSince = 0; } else if (spoke && !quietSince) quietSince = Date.now();
         }
-        if ((spoke && quietSince && Date.now() - quietSince > 1000) || Date.now() - t0 > 20000 || (!spoke && Date.now() - t0 > 8000)) return stop();
+        if ((spoke && quietSince && Date.now() - quietSince > 800) || Date.now() - t0 > 20000 || (!spoke && Date.now() - t0 > 8000)) return stop();
         requestAnimationFrame(watch);
       })();
       return stopped.then(() => { cutIn = null; return spoke || tapped ? new Blob(parts, { type: rec.mimeType || "audio/webm" }) : null; });

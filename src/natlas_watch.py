@@ -42,6 +42,43 @@ def check():
     return ok
 
 
+_WOKEN = {"at": 0.0}
+
+
+def wake():
+    """Someone opened Talk: make sure both N-ATLaS servers are up BEFORE the voice note arrives (a sleeping server
+    takes minutes to start; this way it starts while the trader is still talking). At most once a minute; never
+    waits, never raises. Needs nothing in .env beyond the N-ATLaS links."""
+    if not (os.getenv("NATLAS_URL") or os.getenv("NATLAS_ASR_URL")) or time.time() - _WOKEN["at"] < 60:
+        return False
+    _WOKEN["at"] = time.time()
+
+    def ping(env, path):
+        import requests
+
+        import llm
+        answered, ok = threading.Event(), False
+        if env == "NATLAS_URL":   # no answer in 3 s = it is starting up: the backups answer until it is up, so
+            def asleep():         # nobody waits 20 s for a brain that needs minutes (a warm one answers in ~0.2 s)
+                if not answered.wait(3):
+                    llm._resting["natlas"] = time.time() + 600
+            threading.Thread(target=asleep, daemon=True).start()
+        try:
+            r = requests.get(os.environ[env].rstrip("/") + path, timeout=300,
+                             headers={"Authorization": f"Bearer {os.getenv('NATLAS_KEY', 'none')}"})
+            ok = r.status_code == 200
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            answered.set()
+        if env == "NATLAS_URL" and ok:
+            llm._resting.pop("natlas", None)   # up: N-ATLaS answers again from the next message
+    for env, path in (("NATLAS_URL", "/models"), ("NATLAS_ASR_URL", "/health")):
+        if os.getenv(env):
+            threading.Thread(target=ping, args=(env, path), daemon=True).start()
+    return True
+
+
 def _tell_team(text):
     import whatsapp
     for to in filter(None, (n.strip() for n in os.getenv("TEAM_WHATSAPP", "").split(","))):

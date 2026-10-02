@@ -30,6 +30,9 @@ MODEL_ID = os.getenv("NATLAS_MODEL_ID", "NCAIR1/N-ATLaS")
 SERVED_NAME = "natlas"            # = NATLAS_MODEL in the app's .env
 GPU = os.getenv("NATLAS_GPU", "L4")  # 24 GB: the 16-bit model (~16 GB) + KV cache for 8K context
 WARM = int(os.getenv("NATLAS_WARM", "0"))
+# NATLAS_QUANT=fp8: the weights in 8 bits on the same L4, about 1.5-2x faster answers (an L4 answers at the speed it
+# can read the weights). Check the record accuracy before keeping it: python eval/run_eval.py (N-ATLaS on).
+QUANT = os.getenv("NATLAS_QUANT", "")
 SLEEP_AFTER = int(os.getenv("NATLAS_SLEEP_MIN", "60"))  # idle minutes before the GPU sleeps
 PORT = 8000
 
@@ -40,7 +43,7 @@ image = (
     .pip_install("vllm==0.10.2", "transformers==4.57.6", "tokenizers==0.22.2", "huggingface_hub==0.36.2",
                  "hf_transfer==0.1.9", "torch==2.8.0")
     # bake the model id into the image: the container doesn't see the env of the machine that ran `modal deploy`
-    .env({"HF_HUB_ENABLE_HF_TRANSFER": "1", "NATLAS_MODEL_ID": MODEL_ID})
+    .env({"HF_HUB_ENABLE_HF_TRANSFER": "1", "NATLAS_MODEL_ID": MODEL_ID, "NATLAS_QUANT": QUANT})
 )
 hf_cache = modal.Volume.from_name("tradevoice-hf-cache", create_if_missing=True)      # weights download once
 vllm_cache = modal.Volume.from_name("tradevoice-vllm-cache", create_if_missing=True)  # compiled kernels
@@ -68,6 +71,6 @@ def serve():
         "--max-model-len", "8192",            # the card: best within 8,092 tokens
         "--gpu-memory-utilization", "0.92",
         "--uvicorn-log-level", "warning",
-    ]
+    ] + (["--quantization", QUANT] if QUANT else [])
     # only our app can call it. Passed as VLLM_API_KEY, not --api-key: vLLM prints its command-line args to the logs
     subprocess.Popen(cmd, env={**os.environ, "VLLM_API_KEY": os.environ["NATLAS_KEY"]})

@@ -51,6 +51,9 @@ SENT, MODE = [], {"limit": None, "accent_bad": False, "busy": False, "refuse": F
 
 def fake_post(url, json=None, headers=None, timeout=None):
     SENT.append((url, json, headers))
+    if MODE.get("delay"):
+        import time
+        time.sleep(MODE["delay"])
     if MODE["refuse"]:
         return R(402, {"message": "insufficient credits"})
     if MODE["limit"] and len(json["text"]) > MODE["limit"]:
@@ -93,9 +96,18 @@ def main():
     long = " ".join(["Iya Bisi owes you twenty thousand naira for indomie."] * 6)
     out = tts.speak(long, "English")
     check("too long -> learns the 100-character limit, sends pieces, joins them", out["path"].endswith(".wav")
-          and all(len(b["text"]) <= 100 for _, b, _ in SENT[1:]) and tts._INTRON_MAX["chars"] <= 100, [len(b["text"]) for _, b, _ in SENT])
+          and all(len(b["text"]) <= 100 for _, b, _ in SENT[-len(tts._pieces(tts.speakable(long), tts._INTRON_MAX["chars"])):])
+          and tts._INTRON_MAX["chars"] <= 100, [len(b["text"]) for _, b, _ in SENT])
     with wave.open(out["path"]) as w:
         check("…into one clip", w.getnframes() == 800 * len(tts._pieces(tts.speakable(long), tts._INTRON_MAX["chars"])))
+    import time
+    MODE["delay"], t0 = 0.4, time.perf_counter()
+    out = tts.speak(" ".join(["Mama Tunde owes you ten thousand naira for garri."] * 4), "English")
+    took = time.perf_counter() - t0
+    n = len(tts._pieces(tts.speakable(" ".join(["Mama Tunde owes you ten thousand naira for garri."] * 4)), tts._INTRON_MAX["chars"]))
+    check(f"a long reply's {n} pieces are made at the same time, not one after another ({took:.1f} s, not {n * 0.4:.1f} s)",
+          out and n >= 2 and took < 0.4 * 1.6, (n, took))
+    MODE["delay"] = 0
     MODE["limit"] = None
 
     MODE["accent_bad"] = True

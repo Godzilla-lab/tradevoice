@@ -101,5 +101,28 @@ check("CSV export (header key works too): anonymised rows", csv.status_code == 2
 os.environ["ADMIN_TOKEN"] = ""
 check("no ADMIN_TOKEN set -> /team closed for everyone", client.get("/team?key=").status_code == 403)
 
+# speed report (scripts/speed.py, deploy/server/speed.sh): times per step of a voice turn, nothing else
+import contextlib  # noqa: E402
+import io  # noqa: E402
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+import speed  # noqa: E402
+
+events.ENABLED = True
+for ms in (2100, 2500, 9000):
+    events.log("hear", engine="natlas:NCAIR1/NigerianAccentedEnglish", ms=ms)
+for ms in (3000, 3400):
+    events.log("llm", engine="natlas", ms=ms)
+events.log("voice", engine="intron", lang="English", ms=1800)
+events.log("voice", engine="cache", lang="English")
+out = io.StringIO()
+with contextlib.redirect_stdout(out):
+    speed.main(["--days", "1"])
+txt = out.getvalue()
+line = next((x for x in txt.splitlines() if x.startswith("hearing")), "")
+check("speed report: typical / slow / slowest per step, in seconds",
+      line.split()[1:] == ["3", "2.5", "9.0", "9.0"] and "brain (N-ATLaS)" in txt and "voice (Intron)" in txt)
+check("speed report: times only (no phone, no words)", PHONE not in txt)
+
 print(f"\n{passed}/{total} team dashboard checks pass")
 sys.exit(0 if passed == total else 1)
