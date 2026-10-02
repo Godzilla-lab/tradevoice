@@ -64,8 +64,9 @@ def masked(phone):
 
 def demo_mode():
     """Code shown on screen: ONLY when AUTH_DEMO=1 is set on purpose (local demos). Never on a public server:
-    anyone could then open any phone number's book. (Before 2 Oct it also switched on when WhatsApp was missing.)"""
-    return os.getenv("AUTH_DEMO") == "1"
+    anyone could then open any phone number's book. (Before 2 Oct it also switched on when WhatsApp was missing.)
+    TV_PUBLIC=1 (set by the live server's service file, deploy/oracle/setup.sh) keeps it off whatever .env says."""
+    return os.getenv("AUTH_DEMO") == "1" and os.getenv("TV_PUBLIC") != "1"
 
 
 # ---------------------------------------------------------------- one login attempt
