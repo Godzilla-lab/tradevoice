@@ -31,8 +31,18 @@ if [ ! -f "$ETC/duckdns.env" ] || [ "${1:-}" = "--duckdns" ]; then
   say "DuckDNS (duckdns.org): your free address"
   read -rp "Your DuckDNS name, the part before .duckdns.org (e.g. tradevoice): " SUB
   SUB=$(printf '%s' "$SUB" | tr 'A-Z' 'a-z' | sed 's/\.duckdns\.org$//; s/[^a-z0-9-]//g')
-  read -rsp "Your DuckDNS token (from duckdns.org, it won't show as you type/paste): " TOKEN; echo
-  [ -n "$SUB" ] && [ -n "$TOKEN" ] || { echo "Both are needed."; exit 1; }
+  [ -n "$SUB" ] || { echo "The name is needed."; exit 1; }
+  for try in 1 2 3; do   # check the token with DuckDNS now, not at the end (it never shows on screen)
+    read -rsp "Your DuckDNS token (top of duckdns.org; it won't show as you paste): " TOKEN; echo
+    TOKEN=$(printf '%s' "$TOKEN" | tr -d '[:space:]')
+    if [ "${#TOKEN}" -ne 36 ]; then echo "   That's ${#TOKEN} characters; a DuckDNS token has 36 (like a1b2c3d4-…). Copy it again."; continue; fi
+    if curl -fsS --max-time 30 "https://www.duckdns.org/update?domains=$SUB&token=$TOKEN&ip=" 2>/dev/null | grep -q OK; then
+      echo "   DuckDNS accepted it ✅"; break
+    fi
+    echo "   DuckDNS said no: check the name ($SUB) and that the token is from the same DuckDNS account."
+    [ "$try" = 3 ] && exit 1
+  done
+  [ "${#TOKEN}" -eq 36 ] || exit 1
   umask 077
   printf 'DUCKDNS_SUB=%s\nDUCKDNS_TOKEN=%s\n' "$SUB" "$TOKEN" > "$ETC/duckdns.env"
   umask 022
@@ -44,14 +54,22 @@ DOMAIN="$SUB.duckdns.org"
 # ------------------------------------------------------------------ packages
 say "Installing packages (a few minutes the first time)"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y -qq python3 python3-venv ffmpeg sqlite3 git curl gnupg debian-keyring debian-archive-keyring \
+if pgrep -x unattended-upgr >/dev/null 2>&1 || pgrep -f '^/usr/bin/python3 /usr/bin/unattended-upgrade' >/dev/null 2>&1; then
+  echo "   A new server first installs Ubuntu's own security updates: waiting for them (often 5-15 minutes)."
+  echo "   Nothing is frozen. Don't close this window."
+fi
+APT="-o DPkg::Lock::Timeout=1800"   # wait for Ubuntu's own updates instead of failing
+# shellcheck disable=SC2086
+apt-get $APT update -qq
+# shellcheck disable=SC2086
+apt-get $APT install -y -qq python3 python3-venv ffmpeg sqlite3 git curl gnupg debian-keyring debian-archive-keyring \
   apt-transport-https iptables-persistent unattended-upgrades >/dev/null
 if ! command -v caddy >/dev/null; then   # Caddy's official package (https://caddyserver.com/docs/install)
   curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt > /etc/apt/sources.list.d/caddy-stable.list
   chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
-  apt-get update -qq && apt-get install -y -qq caddy >/dev/null
+  # shellcheck disable=SC2086
+  apt-get $APT update -qq && apt-get $APT install -y -qq caddy >/dev/null
 fi
 printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n' > /etc/apt/apt.conf.d/20auto-upgrades   # security updates by themselves
 python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' || { echo "Python 3.10+ needed: use the Ubuntu 24.04 image."; exit 1; }
@@ -78,7 +96,8 @@ set_env() {   # KEY VALUE: replace the line or add it (values here are never sec
   if grep -qE "^\s*#?\s*$1=" "$APP/.env"; then sed -i -E "s|^\s*#?\s*$1=.*|$1=$2|" "$APP/.env"; else echo "$1=$2" >> "$APP/.env"; fi
 }
 set_env PUBLIC_URL "https://$DOMAIN"
-sed -i -E 's/^\s*AUTH_DEMO\s*=/# AUTH_DEMO (never on the live server) =/' "$APP/.env"
+# laptop-only settings never belong on the live server (demo codes, no login, local folders, old Brev links)
+sed -i -E 's/^[[:space:]]*(export[[:space:]]+)?(ACCOUNTS_DB|BOOKS_DIR|DB_PATH|BACKUP_DIR|PORT|TRADEVOICE_ADMIN|TV_PUBLIC|AUTH_DEMO|AUTH_REQUIRED|AUTH_STRICT|LOCAL_LLM_URL|LOCAL_VISION_URL|ASR_ENGINE)[[:space:]]*=/# (not on the server) &/' "$APP/.env"
 chown root:tradevoice "$APP/.env" && chmod 640 "$APP/.env"
 
 # ------------------------------------------------------------------ services
@@ -224,9 +243,8 @@ cat <<EOF
    Paystack webhook:           https://$DOMAIN/paystack/webhook
    Team dashboard:             https://$DOMAIN/team?key=<ADMIN_TOKEN>
 
-Next: put the keys in .env (never in the chat), then restart:
-   sudo nano $APP/.env
-   sudo systemctl restart tradevoice
+Next: the keys (it asks for each one; never paste them in a chat):
+   sudo bash $APP/deploy/server/keys.sh
 Logs:     sudo journalctl -u tradevoice -f
 Backups:  sudo ls -lh $DATA/backups
 Update:   sudo bash $APP/deploy/server/update.sh
