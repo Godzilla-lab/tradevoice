@@ -4,7 +4,7 @@ The web app, the WhatsApp and Paystack webhooks, every trader's book and the acc
 server** in Johannesburg (the closest Oracle region to Nigeria), at a free fixed address **https://NAME.duckdns.org**.
 N-ATLaS and the speech models stay on Modal (they need a GPU; the server only calls them).
 Until the Oracle account works (it needs a card that pays abroad), TradeVoice runs on a Mac: [`HOSTING_MAC.md`](HOSTING_MAC.md).
-The same scripts work on any Ubuntu 24.04 server (AWS, Azure, …): there, open ports 80/443 in its firewall instead of step 3.
+The same scripts work on any Ubuntu 24.04 server: AWS step by step in [`HOSTING_AWS.md`](HOSTING_AWS.md).
 
 | What | Where | Cost |
 |---|---|---|
