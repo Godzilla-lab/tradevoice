@@ -447,6 +447,13 @@ def parse_type(text):
         return "payment_received"
     if any(k in t for k in _PAYMENT_KW):
         return "payment_received"
+    # "Iya Bisi paid 10000, she will pay the rest Friday": part of a debt paid now (the promise is about what is left,
+    # so it is not a new debt). Not when goods are taken in the same breath ("took rice 45k, paid 10k, rest Friday").
+    if (re.search(r"\b(?:paid|has paid|have paid|don pay|don pay me|paid me)\b.*\b(?:the rest|the balance|balance|"
+                  r"remaining|remainder|the remain|wetin remain)\b", t)
+            and not owe_words and not _SOLD_RE.search(t) and not re.search(r"\b(?:took|take|carry|carried|collect|"
+                                                                            r"collected|bought|buy)\b", t)):
+        return "payment_received"
     # "Iya Bisi paid 10000": a named customer paying with nothing bought = paying back (not "paid 5000 for 2 bags")
     who = parse_customer(text)
     m = who and re.match(rf"\s*{re.escape(who)}\s+paid\b(.*)", text, re.IGNORECASE)

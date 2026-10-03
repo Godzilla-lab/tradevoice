@@ -15,12 +15,14 @@ KEYS="NATLAS_URL|no|N-ATLaS brain link from Modal (starts https://, ends /v1)
 NATLAS_ASR_URL|no|N-ATLaS speech link from Modal (starts https://)
 NATLAS_KEY|yes|N-ATLaS key (the same one you set on Modal)
 NVIDIA_API_KEY|yes|Backup AI key from build.nvidia.com (starts nvapi-)
+NATLAS_WATCH|no|Keep N-ATLaS awake 7am to 8pm Nigeria time? 1 = yes (pilot days; about 10 dollars a day on Modal), 0 = no (it sleeps after an hour)
 WHATSAPP_TOKEN|yes|WhatsApp token from Meta (long, starts EA)
 WHATSAPP_PHONE_ID|no|WhatsApp Phone number ID from Meta (digits only)
 WHATSAPP_APP_SECRET|yes|Meta App secret (App settings > Basic)
 WHATSAPP_VERIFY_TOKEN|yes|Any word you choose; type the same word in Meta's webhook settings
 WHATSAPP_BOT_NUMBER|no|The bot's WhatsApp number, digits only, e.g. 2348012345678
 TEAM_WHATSAPP|no|Team numbers for alerts, digits, comma between them
+TEAM_PHONES|no|Team phone numbers (digits, comma between): their own testing is left out of the NAIC numbers
 ADMIN_TOKEN|yes|Password for the team dashboard (/team); press Enter on an empty one to make one for you
 INTRON_API_KEY|yes|Intron key (voice replies)
 PAYSTACK_SECRET_KEY|yes|Paystack secret key (starts sk_test_ or sk_live_)
@@ -62,6 +64,8 @@ check() {   # NAME VALUE -> a warning when it looks wrong (the value itself is n
     WHATSAPP_PHONE_ID|WHATSAPP_BOT_NUMBER) case "$2" in *[!0-9]*) echo "   ⚠️  digits only (no +, spaces or dashes)";; esac ;;
     NVIDIA_API_KEY) case "$2" in nvapi-*) ;; *) echo "   ⚠️  NVIDIA keys start with nvapi-";; esac ;;
     PAYSTACK_SECRET_KEY) case "$2" in sk_test_*|sk_live_*) ;; *) echo "   ⚠️  Paystack secret keys start with sk_test_ or sk_live_";; esac ;;
+    NATLAS_WATCH) case "$2" in 0|1|-) ;; *) echo "   ⚠️  type 1 (keep awake) or 0 (let it sleep)";; esac ;;
+    TEAM_PHONES|TEAM_WHATSAPP) case "$2" in *[!0-9,]*) echo "   ⚠️  digits and commas only, e.g. 2348012345678,2348098765432";; esac ;;
   esac
 }
 
@@ -81,6 +85,7 @@ while IFS='|' read -r name secret what <&3; do
   fi
   if [ -z "$val" ]; then echo "   kept"; continue; fi
   check "$name" "$val"
+  if [ "$name" = NATLAS_WATCH ] && ! [[ "$val" =~ ^[01-]$ ]]; then echo "   not saved"; continue; fi
   put "$name" "$val"
   if [ "$val" = "-" ]; then echo "   removed"; else echo "   saved ✅"; fi
 done 3<<< "$KEYS"
@@ -104,5 +109,6 @@ print("  brain (AI that understands):", brain, mark(brain == "natlas"), "(natlas
 print("  hearing (voice notes):      ", hearing, mark(hearing == "natlas"))
 print("  WhatsApp:                   ", mark(s.get("whatsapp")))
 print("  voice replies:              ", voice)
+print("  N-ATLaS kept awake 7am-8pm: ", "yes" if s.get("keep_awake") else "no (it sleeps after an hour; first voice note then waits 1-2 min)")
 '
 curl -sf http://127.0.0.1:8000/api/status | "$PY" -c "$STATUS_PY" || echo " ❌ the app did not come back: sudo journalctl -u tradevoice -n 30"

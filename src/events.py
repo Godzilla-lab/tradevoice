@@ -81,12 +81,32 @@ def log(kind, phone=None, channel=None, lang=None, engine=None, ok=True, ms=None
         print(f"event log failed: {type(e).__name__}: {e}")
 
 
-def rows(since_days=None):
+def team_phones():
+    """The team's own numbers (TEAM_PHONES + TEAM_WHATSAPP): their testing is not traders' use, so the NAIC numbers
+    (/team, the CSV, the speed report) leave it out."""
+    import accounts
+    out = set()
+    for env in ("TEAM_PHONES", "TEAM_WHATSAPP"):
+        for n in os.getenv(env, "").split(","):
+            p = n.strip() and accounts.normalize(n.strip())
+            if p:
+                out.add(p)
+    return out
+
+
+def rows(since_days=None, team=False):
+    """The log, oldest first. team=False (the default) leaves out what the team's own phones did."""
     with _db() as c:
         if since_days:
             since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=since_days)).isoformat(timespec="seconds")
-            return [dict(r) for r in c.execute("SELECT * FROM events WHERE ts >= ? ORDER BY id", (since,))]
-        return [dict(r) for r in c.execute("SELECT * FROM events ORDER BY id")]
+            out = [dict(r) for r in c.execute("SELECT * FROM events WHERE ts >= ? ORDER BY id", (since,))]
+        else:
+            out = [dict(r) for r in c.execute("SELECT * FROM events ORDER BY id")]
+    if team:
+        return out
+    hashes = {_hash(p) for p in team_phones()}
+    hashes |= {"g" + h[:15] for h in hashes}
+    return [r for r in out if r["who"] not in hashes] if hashes else out
 
 
 def summary(now=None):
@@ -140,4 +160,5 @@ def summary(now=None):
         "understanding": llm, "natlas_share": round(100 * llm.get("natlas", 0) / llm_ok) if llm_ok else None,
         "hearing": share("hear"), "voice_replies": share("voice"),
         "errors": sum(1 for r in ev if not r["ok"]),
+        "team_left_out": len(team_phones()),
     }

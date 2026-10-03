@@ -203,16 +203,35 @@ def looping(text, seconds=None):
 
 
 def _natlas_transcribe(path, language, vocab=None):
-    """N-ATLaS speech model for the trader's language, on our Modal server."""
+    """N-ATLaS speech model for the trader's language, on our Modal server.
+    The server sleeps after an hour with no voice notes and takes a minute or two to wake. So: one normal try
+    (NATLAS_ASR_TIMEOUT, 60 s); if it doesn't answer, wake it (/health waits until it is up) and try once more with
+    the long wait (NATLAS_ASR_TIMEOUT_COLD, 240 s), instead of telling the trader "I couldn't hear you"."""
     import requests
 
     lang = NATLAS_ASR_LANG.get(language or "English / Pidgin", "english")
     hints = ", ".join((vocab or {}).get("names", [])[:15] + (vocab or {}).get("items", [])[:8])
-    with open(path, "rb") as f:
-        r = requests.post(os.environ["NATLAS_ASR_URL"].rstrip("/") + "/transcribe",
-                          files={"file": (os.path.basename(path), f)}, data={"lang": lang, "prompt": hints},
-                          headers={"Authorization": f"Bearer {os.getenv('NATLAS_KEY', '')}"},
-                          timeout=float(os.getenv("NATLAS_ASR_TIMEOUT", "60")))
+    base = os.environ["NATLAS_ASR_URL"].rstrip("/")
+    head = {"Authorization": f"Bearer {os.getenv('NATLAS_KEY', '')}"}
+
+    def send(timeout):
+        with open(path, "rb") as f:
+            return requests.post(base + "/transcribe", files={"file": (os.path.basename(path), f)},
+                                 data={"lang": lang, "prompt": hints}, headers=head, timeout=timeout)
+    slow = (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+    try:
+        r = send(float(os.getenv("NATLAS_ASR_TIMEOUT", "60")))
+    except slow:
+        print("N-ATLaS speech server didn't answer in time: waking it, then one more try")
+        try:
+            requests.get(base + "/health", headers=head, timeout=float(os.getenv("NATLAS_ASR_TIMEOUT_COLD", "240")))
+        except slow:
+            pass
+        r = send(float(os.getenv("NATLAS_ASR_TIMEOUT_COLD", "240")))
+    if getattr(r, "status_code", 200) == 401:
+        raise RuntimeError("N-ATLaS speech server refused the key: NATLAS_KEY on the server and on Modal differ")
+    if getattr(r, "status_code", 200) == 404:
+        raise RuntimeError("N-ATLaS speech server link is wrong (404): check NATLAS_ASR_URL")
     r.raise_for_status()
     out = r.json()
     if out.get("no_speech"):

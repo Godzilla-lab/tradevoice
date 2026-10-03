@@ -226,8 +226,29 @@ class FakeResp:
 
 
 HEARD = {}
-fake_requests = SimpleNamespace(post=lambda url, files, data, headers, timeout: (
-    POSTS.append((url, data)), FakeResp(HEARD))[1])
+
+
+class _Timeout(Exception):
+    pass
+
+
+class _ConnErr(Exception):
+    pass
+
+
+COLD, GETS = {"left": 0}, []
+
+
+def _post(url, files, data, headers, timeout):
+    POSTS.append((url, data, timeout))
+    if COLD["left"] > 0:   # a sleeping server: the first try times out
+        COLD["left"] -= 1
+        raise _Timeout()
+    return FakeResp(HEARD)
+
+
+fake_requests = SimpleNamespace(post=_post, get=lambda url, headers, timeout: GETS.append((url, timeout)),
+                                exceptions=SimpleNamespace(Timeout=_Timeout, ConnectionError=_ConnErr))
 sys.modules["requests"] = fake_requests
 os.environ.update({"NATLAS_ASR_URL": "http://asr", "INTRON_API_KEY": "x"})
 os.environ.pop("ASR_ENGINE", None)
@@ -255,6 +276,13 @@ try:
     check("silence -> 'no speech', not invented words", False)
 except RuntimeError as e:
     check("silence -> 'no speech', not invented words", "no speech" in str(e))
+HEARD.clear()
+HEARD.update(text="Iya Bisi paid 5000", model="NCAIR1/NigerianAccentedEnglish", seconds=2.0)
+COLD["left"], n = 1, len(POSTS)
+out = asr.transcribe(note.name, "English / Pidgin")
+check("asleep: the first try times out -> it wakes the server (/health) and tries once more with a long wait",
+      out["text"] == "Iya Bisi paid 5000" and len(POSTS) == n + 2 and GETS and GETS[-1][0].endswith("/health")
+      and POSTS[-1][2] >= 240 > POSTS[-2][2])
 os.environ["ASR_ENGINE"] = "intron"
 check("tests can still pick Intron to compare (ASR_ENGINE=intron)",
       asr.transcribe(note.name, "Igbo")["engine"] == "intron")

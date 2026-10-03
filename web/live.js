@@ -253,8 +253,9 @@
     fd.append("file", new Blob(parts, { type: rec.mimeType || "audio/webm" }), "note.webm");
     fd.append("session", SID); fd.append("lang", lang()); fd.append("consent", "yes"); fd.append("shop", A ? A.biz : "");
     const slow = setTimeout(() => { const s = $(".steps .on", o); if (s) s.textContent = "Still working…"; }, 9000);
+    const waking = setTimeout(() => { const q = $("#qt", o); if (q) q.textContent = (LW[L] || LW.en).wake; }, 20000);
     const r = await api("/api/voice", { form: fd });
-    clearTimeout(slow);
+    clearTimeout(slow); clearTimeout(waking);
     if (!o.isConnected) return;
     if (!r.ok) return err("I couldn't hear you", r.data.error || "It was too noisy or too short. Move closer and say it again.");
     const words = (r.data.heard || "").split(" "); let s = "";
@@ -329,15 +330,15 @@
      while it waits, follows your voice while you talk and its own voice while it answers; tap it to cut in.
      Nothing is saved until you say yes (it asks "Should I save it?"). Voice replies off (Me) -> the card flow above. */
   const LW = {   // words the design doesn't have yet (Yoruba, Hausa, Igbo: for the native speaker check)
-    en: { speak: "Speaking", rest: "Paused", hello: "Go ahead, I'm listening.", tap: "Tap to cut in", again: "I didn't catch that. Say it again?",
+    en: { wake: "Waking up N-ATLaS. After a quiet hour this takes a minute or two.", speak: "Speaking", rest: "Paused", hello: "Go ahead, I'm listening.", tap: "Tap to cut in", again: "I didn't catch that. Say it again?",
       slow: "Still working…", bye: "Talk soon.", stop: "I'll stop here. Tap me when you need me.", check: "Tap to check it on screen", done: "Done", off: "Sorry, I couldn't hear that." },
-    pcm: { speak: "I dey talk", rest: "I don pause", hello: "Talk, I dey hear you.", tap: "Touch am make I stop", again: "I no catch am. Talk am again?",
+    pcm: { wake: "N-ATLaS dey wake up. After one hour wey e rest, e fit take one or two minutes.", speak: "I dey talk", rest: "I don pause", hello: "Talk, I dey hear you.", tap: "Touch am make I stop", again: "I no catch am. Talk am again?",
       slow: "I still dey work on am…", bye: "We go talk.", stop: "I go stop here. Touch me when you need me.", check: "Touch am to check am", done: "Done", off: "Sorry, I no hear am well." },
-    yo: { speak: "Mò ń sọ̀rọ̀", rest: "Mo dúró", hello: "Sọ ọ́, mò ń gbọ́.", tap: "Fọwọ́ kàn án láti dá mi dúró", again: "Mi ò gbọ́ ọ. Tún un sọ?",
+    yo: { wake: "N-ATLaS ń jí. Lẹ́yìn wákàtí kan tí ó sinmi, ó lè gba ìṣẹ́jú kan tàbí méjì.", speak: "Mò ń sọ̀rọ̀", rest: "Mo dúró", hello: "Sọ ọ́, mò ń gbọ́.", tap: "Fọwọ́ kàn án láti dá mi dúró", again: "Mi ò gbọ́ ọ. Tún un sọ?",
       slow: "Mo ṣì ń ṣiṣẹ́ lé e…", bye: "Ó dàbọ̀.", stop: "Màá dúró báyìí. Fọwọ́ kàn mí tí o bá nílò mi.", check: "Tẹ̀ ẹ́ láti yẹ̀ ẹ́ wò", done: "Ó tó", off: "Má bínú, mi ò gbọ́ ọ dáadáa." },
-    ha: { speak: "Ina magana", rest: "Na tsaya", hello: "Faɗa, ina saurare.", tap: "Taɓa don ka tsayar da ni", again: "Ban ji ba. Sake faɗa?",
+    ha: { wake: "N-ATLaS yana farkawa. Bayan awa ɗaya na hutu, yana ɗaukar minti ɗaya ko biyu.", speak: "Ina magana", rest: "Na tsaya", hello: "Faɗa, ina saurare.", tap: "Taɓa don ka tsayar da ni", again: "Ban ji ba. Sake faɗa?",
       slow: "Ina kan aiki…", bye: "Sai anjima.", stop: "Zan tsaya nan. Taɓa ni idan kana bukata ta.", check: "Taɓa don ka duba", done: "Shikenan", off: "Yi haƙuri, ban ji sosai ba." },
-    ig: { speak: "Ana m ekwu", rest: "Akwụsịrị m", hello: "Kwuo, ana m ege ntị.", tap: "Metụ ya aka ka m kwụsị", again: "Anụghị m ya. Kwughachi ya?",
+    ig: { wake: "N-ATLaS na-eteta. Mgbe o zuru ike otu awa, ọ na-ewe otu nkeji ma ọ bụ abụọ.", speak: "Ana m ekwu", rest: "Akwụsịrị m", hello: "Kwuo, ana m ege ntị.", tap: "Metụ ya aka ka m kwụsị", again: "Anụghị m ya. Kwughachi ya?",
       slow: "Ana m arụ ya…", bye: "Ka ọ dị.", stop: "Aga m akwụsị ebe a. Metụ m aka mgbe ịchọrọ m.", check: "Pịa ka i lelee ya", done: "Ọ zuola", off: "Ndo, anụghị m nke ọma." },
   };
   // what to call the trader (same rule as the server's accounts.trader): "Ada Okafor" -> "Ada", "Mama Ngozi" stays
@@ -491,8 +492,13 @@ button.tvc-say{text-decoration:none}
           if (V.talking) {   // talking (again): not finished after all
             spoke = true;
             if (early) { early.ctrl.abort(); early = null; }
+            if (box.dataset.st != "listen") { set("listen"); $("#hint", o).textContent = ""; }
           }
           const quiet = spoke && !V.talking ? now - V.lastLoud : 0;
+          if (early && !early.result && quiet >= DONE) {   // you've finished; the words aren't back yet
+            if (box.dataset.st == "listen") { set("think"); if ($("#cap", o).tagName == "P") caption("&nbsp;"); }
+            if (quiet > 15000) $("#hint", o).textContent = w("wake");   // a sleeping N-ATLaS takes a minute or two
+          }
           if (quiet >= PAUSE && !early) early = hearNow(R.blob());   // a pause: start hearing, keep listening
           if (tapped || now - R.t0 > MAX) return finish();
           if (early && early.result && quiet >= DONE) return finish();   // a real stop, and the words are back

@@ -124,5 +124,19 @@ check("speed report: typical / slow / slowest per step, in seconds",
       line.split()[1:] == ["3", "2.5", "9.0", "9.0"] and "brain (N-ATLaS)" in txt and "voice (Intron)" in txt)
 check("speed report: times only (no phone, no words)", PHONE not in txt)
 
+# the team's own phones are left out of the NAIC numbers (TEAM_PHONES, and TEAM_WHATSAPP)
+before = events.summary()["interactions"]
+events.log("message", "2348000000771", "whatsapp", engine="text")    # a trader
+events.log("message", "2348000000772", "whatsapp", engine="text")    # the team, testing
+events.log("web_visit", "2348000000772", "web")
+os.environ["TEAM_PHONES"] = "08000000772"
+s2 = events.summary()
+check("team phones (TEAM_PHONES) are left out of interactions and traders; the trader still counts",
+      s2["interactions"] == before + 1 and s2["team_left_out"] == 1)
+check("…and out of the CSV export and the speed report's rows", all(
+    r["who"] != events._hash("2348000000772") for r in events.rows()) and any(
+    r["who"] == events._hash("2348000000772") for r in events.rows(team=True)))
+os.environ.pop("TEAM_PHONES")
+
 print(f"\n{passed}/{total} team dashboard checks pass")
 sys.exit(0 if passed == total else 1)

@@ -62,7 +62,7 @@ font-variant-numeric:tabular-nums}} td.bar{{width:40%}} td.bar span{{display:blo
 background:var(--accent)}} a{{color:var(--accent)}}
 </style></head><body><main>
 <h1>TradeVoice: team dashboard</h1><p class=muted>Counts only: no names, amounts or messages. Traders are anonymous
-codes. Guests (web, not linked): {s['guests_total']}.</p>{cap}
+codes. Guests (web, not linked): {s['guests_total']}. {f"The team's own {s['team_left_out']} phones are left out (TEAM_PHONES)." if s['team_left_out'] else "Team phones are counted too: list them in TEAM_PHONES to leave them out."}</p>{cap}
 <div class=tiles>{tiles_html}</div><div class=grid>
 {_table("Funnel", s["funnel"], first)}
 {_table("Channel (traders)", s["channels"])}

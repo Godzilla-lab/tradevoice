@@ -89,6 +89,18 @@ def main():
     say("yes she will pay friday")
     check("'yes' + new details is not a bare yes: nothing saved by accident", st["pending"] is not None, st["pending"])
 
+    say("no")
+    # part payment with a promise for the rest: money IN now, never a new debt (it was saved as a ₦10,000 debt)
+    for line in ("Iya Bisi paid 10000, she will pay the rest Friday", "Mama Tunde don pay 10k, she go pay the balance Friday"):
+        say(line)
+        p = st["pending"] or {}
+        check(f"'{line}' -> she paid ₦10,000 (not a new debt)", p.get("type") == "payment_received"
+              and p.get("amount") == 10000, p)
+        say("no")
+    say("Mama Tunde took rice 45000, she paid 10000, she will pay the rest Friday")
+    check("goods taken in the same breath stay a credit sale", (st["pending"] or {}).get("type") == "credit_sale",
+          st["pending"])
+
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} correction checks pass")
     return all(CHECKS)
 

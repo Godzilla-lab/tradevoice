@@ -746,6 +746,7 @@ def status():
              "nvidia" if os.getenv("NVIDIA_API_KEY") else "offline")
     # counts only: no error text or tokens on this public page (details are on /team)
     return {"hearing": hearing, "voice": tts.backend(), "brain": brain,
+            "keep_awake": bool(os.getenv("NATLAS_URL")) and os.getenv("NATLAS_WATCH", "1") == "1",
             "photos": "brev" if os.getenv("LOCAL_VISION_URL") else ("nvidia" if llm.available("vision") else "off"),
             "shop": SHOP_NAME, "whatsapp": bool(os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID")
                                                                or os.getenv("WHATSAPP_PHONE_NUMBER_ID")))}
