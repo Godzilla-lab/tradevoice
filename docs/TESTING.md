@@ -50,6 +50,30 @@ The report shows: accuracy per field **with 95% range (Wilson)**, all-fields sco
 score per language and per trap, a type confusion table, latency (median / 90% / max), and how often the AI failed
 and the offline rules were used. Each run is saved in `eval/results/` (not committed) for `--compare`.
 
+## Tool calls with N-ATLaS (E10)
+`python eval/run_tools_eval.py` scores the word rules alone (offline, part of the tests). With the live N-ATLaS:
+`sudo bash /opt/tradevoice/app/deploy/server/tools_eval.sh` on the server (its keys; a throwaway demo book in /tmp,
+no trader's book touched, nothing added to /team). Paste the table into `docs/RESULTS.md`.
+
+## Speech before vs after (E11)
+1. Record 10 to 20 voice notes in the market, **with the speaker's OK** (WhatsApp voice notes or phone recordings, any
+   format), a mix of languages, some with noise. Made-up customer names are fine ("Mama Ngozi took rice 45000").
+2. Put them in one folder with `expected.csv`:
+   ```
+   file,language,amount,customer
+   note01.ogg,Yoruba,45000,Mama Ngozi
+   note02.m4a,Pidgin,12000,
+   ```
+3. Copy the folder to the server and run it there (it has the keys):
+   ```
+   scp -i ~/Downloads/tradevoice-key.pem -r ~/Desktop/notes ubuntu@54.170.27.207:~/notes
+   ssh -i ~/Downloads/tradevoice-key.pem ubuntu@54.170.27.207 "sudo bash /opt/tradevoice/app/deploy/server/speech_ab.sh ~/notes"
+   ```
+   It prints amount and customer right, per language: raw (before), light prep, and prep + two models merged.
+   `--noise market.wav` (needs numpy) also mixes market noise in at 10, 5 and 0 dB.
+4. Delete the notes and `speech_ab.csv` from the server when the numbers are in `docs/RESULTS.md`
+   (`ssh ... "rm -rf ~/notes"`).
+
 ## Rules for honest numbers
 - **Small tests prove little.** 16/16 = "somewhere between 81% and 100%". Quote the range, not just the %.
 - **Same cases for both sides** when comparing models or prompts; use `--compare` (McNemar test). p ≥ 0.05 = could be luck.

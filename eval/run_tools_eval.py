@@ -21,18 +21,28 @@ LANGS = ("English", "Pidgin", "Yoruba", "Hausa", "Igbo")
 
 
 def setup(use_llm=False):
+    sys.path.insert(0, os.path.join(HERE, "..", "src"))
     if not use_llm:
         os.environ["TV_NO_DOTENV"] = "1"
         for k in list(os.environ):
             if k.endswith("API_KEY") or k.startswith(("LOCAL_", "NATLAS")):
                 os.environ.pop(k)
-    os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(), "tools.db")
-    os.environ["BOOKS_DIR"] = tempfile.mkdtemp()
-    os.environ["ACCOUNTS_DB"] = os.path.join(tempfile.mkdtemp(), "a.db")
-    sys.path.insert(0, os.path.join(HERE, "..", "src"))
-    if use_llm:
-        import settings  # noqa: F401  (loads .env)
+    else:
+        import settings  # noqa: F401  (the N-ATLaS link and key from .env)
+    # AFTER .env: a throwaway book, never the real one (.env or the server may name the live database)
+    tmp = tempfile.mkdtemp(prefix="tv-tools-eval-")
+    import atexit
+    import shutil
+
+    atexit.register(shutil.rmtree, tmp, True)
+    os.environ.update(DB_PATH=os.path.join(tmp, "tools.db"), BOOKS_DIR=os.path.join(tmp, "books"),
+                      ACCOUNTS_DB=os.path.join(tmp, "a.db"))
+    import accounts
     import ledger
+
+    ledger.DB_PATH, ledger.BOOKS_DIR = os.environ["DB_PATH"], os.environ["BOOKS_DIR"]   # also if already imported
+    accounts.ACCOUNTS_DB = os.environ["ACCOUNTS_DB"]
+    assert ledger.book_path().startswith(tmp), "refusing to touch a real book"
     import seed_demo
 
     seed_demo.seed()
