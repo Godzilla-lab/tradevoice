@@ -107,7 +107,7 @@ Even an **unverified** business can use a real number. Traders message first, an
 - [ ] **Submit:** GitHub link `https://github.com/Godzilla-lab/tradevoice`, the live app link and the WhatsApp
       number.
 
-- [ ] **Public Hugging Face Space "TradeVoice"**, so we appear under "Spaces using NCAIR1/N-ATLaS" on the official
+- [x] ~~Public Hugging Face Space~~ **Dropped 3 Oct (team decision): no Space for now.** The plan was a Space, so we appear under "Spaces using NCAIR1/N-ATLaS" on the official
       model page, where Awarri, NCAIR and judges look.
   - **Listing:** put `models: [NCAIR1/N-ATLaS, NCAIR1/Yoruba-ASR, NCAIR1/Hausa-ASR, NCAIR1/Igbo-ASR,
     NCAIR1/NigerianAccentedEnglish]` in the Space README's YAML header. That lists us on all 5 model pages.

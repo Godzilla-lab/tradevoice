@@ -141,7 +141,7 @@ Est. = rough engineer-days. **P1 = before NAIC.** Fill in owners today.
 |---|---|---|---|---|---|
 | **E16** | **Build the P1 designs** from Figma frames marked "Ready for dev" (`web/style.css` tokens, `web/app.js`), incl. Connect my WhatsApp (2b) and listening/re-ask states | 2–3 | | Design 5 Oct | Matches Figma at 390 px light/dark; works at 320 px; all 5 languages fit |
 | **E17** | **Connect my WhatsApp + merge books** (2b) `src/merge.py` | 1.5 | | E7 | Merge test: shared customer joined, balances right, guest book gone |
-| **E18** | **Hugging Face Space** (demo book, calls Modal with a secret + rate limit, lists all 5 NCAIR1 models, attribution) | 0.5 | | E3 | Appears under "Spaces using NCAIR1/N-ATLaS" |
+| ~~E18~~ | ~~Hugging Face Space~~ **Dropped 3 Oct (team decision): no Space for now.** | – | | | |
 | **E20** | **Telegram as a second channel (optional)**: `src/telegram_bot.py` using the free Bot API (webhook, voice notes, photos, inline Yes/Change/Cancel buttons), reusing `converse.py`, the same book-per-phone (phone shared via Telegram's contact button). **WhatsApp stays the main channel** | 1 | | E2 | A judge or tester can use TradeVoice on Telegram with no 5-number limit and no per-message cost |
 | **E19** | **Code freeze Fri 10 Oct 18:00.** Only fixes after. Tag `naic-submission` | – | all | – | Tests green; live app + bot + Space up |
 
