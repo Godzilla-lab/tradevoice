@@ -101,6 +101,46 @@ def main():
     check("goods taken in the same breath stay a credit sale", (st["pending"] or {}).get("type") == "credit_sale",
           st["pending"])
 
+    say("no")
+    # E14 memory: nicknames, "did you mean", usual prices (all in this trader's own book)
+    import ledger
+    for line in ("Mama Tunde took 2 bags of rice 90000 on credit", "yes", "Mama Titi owes me 5000", "yes",
+                 "Hajiya Amina owes me 20000", "yes", "Iya Bisi took 1 bag of rice 45000 on credit", "yes"):
+        say(line)
+    r = say("Mama T took 1 bag of rice 45000 on credit")
+    check("'Mama T' with Mama Tunde and Mama Titi in the book -> 'Which Mama T?'", "Which Mama T" in r["text"], r["text"])
+    r = say("Mama Tunde")
+    check("…saying the name picks her", st["pending"]["customer"] == "Mama Tunde", st["pending"])
+    say("no")
+    r = say("Mama T took 1 bag of rice 45000 on credit")
+    check("…and next time 'Mama T' is Mama Tunde without asking (remembered in the book)",
+          "Which" not in r["text"] and st["pending"]["customer"] == "Mama Tunde", r["text"])
+    say("no")
+    r = converse.reply("How much does Mama T owe?", st, today=dt.date.today())   # (records are saved today)
+    check("questions understand the nickname too", "Mama Tunde owes you" in r["text"], r["text"])
+    r = say("Hajia Aminat took 1 bag of rice 45000 on credit")
+    check("a name close to one in the book -> 'Did you mean Hajiya Amina?' (not a second customer)",
+          "Did you mean Hajiya Amina" in r["text"], r["text"])
+    say("yes")
+    check("…'yes' picks Hajiya Amina", st["pending"]["customer"] == "Hajiya Amina", st["pending"])
+    say("no")
+    r = say("Hajiya Aminah owes me 1000")
+    say("no")
+    check("…'no' after 'Did you mean' = a new customer with the name said",
+          "Did you mean" in r["text"] and st["pending"] and st["pending"]["customer"] == "Hajiya Aminah"
+          and not st["pending"].get("customer_id"), st["pending"])
+    r = say("Oga Bayo took 2 bags of rice 9000 on credit")
+    check("usual price: ₦9,000 for 2 bags of rice (usually ₦45,000 a bag) -> 'Did you mean ₦90,000?'",
+          "Did you mean ₦90,000" in r["text"] and "₦45,000 a bag" in r["text"], r["text"])
+    r = say("90000")
+    check("…saying the right amount fixes it, and the warning goes", st["pending"]["amount"] == 90000
+          and "Did you mean" not in r["text"], r["text"])
+    say("no")
+    say("Oga Bayo took 2 bags of rice 9000 on credit")
+    r = say("yes")
+    check("…or 'yes' keeps what they said (never silently changed)", "₦9,000" in r["text"], r["text"])
+    check("nicknames live in the trader's own book", ledger.recall("nick", "mama t") is not None)
+
     print(f"\n{sum(CHECKS)}/{len(CHECKS)} correction checks pass")
     return all(CHECKS)
 

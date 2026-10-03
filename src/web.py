@@ -153,7 +153,7 @@ def _draft(state):
     if not rec or state.get("choose"):
         return None
     unsure = []
-    if rec.get("amount") in (None, ""):
+    if rec.get("amount") in (None, "") or rec.get("_price"):   # no amount, or far from their usual price
         unsure.append("amount")
     if (rec.get("confidence") or 0) < 0.5 and rec.get("amount") not in (None, ""):
         unsure.append("type")

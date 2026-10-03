@@ -109,9 +109,34 @@ def conn():
     c.execute(REMINDERS)
     c.execute(CUSTOMERS)
     c.execute(MESSAGES)
+    c.execute(MEMORY)
     with c:
         _migrate(c)
     return c
+
+
+# What TradeVoice remembers about this trader's way of talking (ROADMAP 8a), kept in their own book: deleted with it.
+# kind "nick": a name as the trader says it ("mama t", or a name the speech model hears wrong) -> customer id.
+MEMORY = """CREATE TABLE IF NOT EXISTS memory (kind TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+    updated_at TEXT NOT NULL, PRIMARY KEY (kind, key))"""
+
+
+def remember(kind, key, value):
+    key = customer_key(key)
+    if not key:
+        return
+    with conn() as c:
+        c.execute("INSERT INTO memory VALUES (?,?,?,?) ON CONFLICT(kind, key) DO UPDATE SET value=excluded.value, "
+                  "updated_at=excluded.updated_at", (kind, key, str(value), dt.datetime.now().isoformat(timespec="seconds")))
+
+
+def recall(kind, key=None):
+    """One remembered value (or None); without a key, everything of that kind as {key: value}."""
+    with conn() as c:
+        if key is None:
+            return {r["key"]: r["value"] for r in c.execute("SELECT key, value FROM memory WHERE kind=?", (kind,))}
+        r = c.execute("SELECT value FROM memory WHERE kind=? AND key=?", (kind, customer_key(key))).fetchone()
+    return r["value"] if r else None
 
 
 # Money the TRADER owes: 'credit_purchase' = goods (or cash) taken on credit from a supplier/lender,
@@ -177,6 +202,75 @@ def find_customers(name):
     exact = [r for r in rows if customer_key(r["name"]) == key]
     found = exact or [r for r in rows if all(w in customer_key(r["name"]).split() for w in key.split())]
     return sorted(found, key=lambda r: r["last_at"] or r["created_at"], reverse=True)
+
+
+def _initials_fit(said, name):
+    """"Mama T" fits "Mama Tunde": every word said is a word of the name, or its first letter or two, in order."""
+    a, n = customer_key(said).split(), customer_key(name).split()
+    if not a or len(a) > len(n) or not any(w in n for w in a):
+        return False
+    i = 0
+    for w in a:
+        while i < len(n) and not (n[i] == w or (len(w) <= 2 and n[i].startswith(w.rstrip(".")))):
+            i += 1
+        if i == len(n):
+            return False
+        i += 1
+    return True
+
+
+def _sounds(a, b):
+    import difflib
+    return difflib.SequenceMatcher(None, customer_key(a).replace(" ", ""), customer_key(b).replace(" ", "")).ratio()
+
+
+def match_customers(name):
+    """Who a name said by the trader means, and how sure: (customers, how). how = "nick" (a name they taught it),
+    "name" (the name, or part of it: "Alhaji" -> "Alhaji Sani"), "initials" ("Mama T"), "sounds" (close to a name
+    in the book: "Hajia Aminat" -> "Hajiya Amina", to be asked about), or "none"."""
+    key = customer_key(name)
+    if not key:
+        return [], "none"
+    nick = recall("nick", key)
+    if nick and get_customer(int(nick)):
+        return [get_customer(int(nick))], "nick"
+    found = find_customers(name)
+    if found:
+        return found, "name"
+    with conn() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT c.*, (SELECT max(created_at) FROM entries e WHERE e.customer_id=c.id) AS last_at FROM customers c")]
+    rows.sort(key=lambda r: r["last_at"] or r["created_at"], reverse=True)
+    fits = [r for r in rows if _initials_fit(name, r["name"])]
+    if fits:
+        return fits, "initials"
+    close = sorted(((_sounds(name, r["name"]), r) for r in rows), key=lambda x: -x[0])
+    close = [r for score, r in close if score >= 0.8][:3]
+    return (close, "sounds") if close else ([], "none")
+
+
+def _item_key(item):
+    w = customer_key(item).split()
+    return " ".join(w[:-1] + [w[-1][:-1] if len(w[-1]) > 3 and w[-1].endswith("s") else w[-1]]) if w else ""
+
+
+def usual_price(item):
+    """What ONE of this item usually sells for in this trader's own book (code, never the AI): the middle of the
+    last 10 sales that had a quantity, with the unit they used most. None until there are at least 2 such sales."""
+    key = _item_key(item)
+    if not key:
+        return None
+    with conn() as c:
+        rows = c.execute("SELECT item, unit, quantity, amount FROM entries WHERE type IN ('sale','credit_sale') AND "
+                         "quantity > 0 AND item IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 500").fetchall()
+    mine = [r for r in rows if _item_key(r["item"]) == key][:10]
+    if len(mine) < 2:
+        return None
+    prices = sorted(r["amount"] / r["quantity"] for r in mine)
+    mid = len(prices) // 2
+    price = prices[mid] if len(prices) % 2 else (prices[mid - 1] + prices[mid]) / 2
+    units = [_item_key(r["unit"]) for r in mine if r["unit"]]
+    return {"price": round(price), "unit": max(set(units), key=units.count) if units else None, "sales": len(mine)}
 
 
 def resolve_customer(name, created_at=None):

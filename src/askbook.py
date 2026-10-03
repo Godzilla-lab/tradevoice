@@ -54,7 +54,8 @@ WHAT_WORDS = [
     ("profit", [r"\bere (melo+|elo+)\b", r"\bje ere\b", r"\bjere\b"]),
     ("i_owe", [r"\b(i|we) (still )?(dey )?owe\b", r"\bwho i owe\b", r"\bmo je\b", r"\bmo ni gbese\b",
                r"\bina da bashi", r"\bana m ji\b", r"\ba m ji\b"]),
-    ("owed_to_me", [r"\bowes? me\b", r"\bwho (dey )?owes?\b", r"\bowing me\b", r"\bdey owe me\b", r"\bje mi\b", r"\bgbese\b", r"\bbashi\b",
+    ("owed_to_me", [r"\bowes? me\b", r"\bwho (dey )?owes?\b", r"\bhow much (does|do|did|is|na)\b.{0,30}\bowe",
+                    r"\b(owe|owes|owing)\W*$", r"\bowing me\b", r"\bdey owe me\b", r"\bje mi\b", r"\bgbese\b", r"\bbashi\b",
                     r"\bugwo\b", r"\bji m\b"]),
     ("profit", [r"\bprofit\b", r"\bgain\b", r"\b(make|made|making)\b", r"\bremain for me\b", r"\bjere\b",
                 r"\bere mi\b", r"\briba\b", r"\buru\b"]),
@@ -154,6 +155,12 @@ def find_name(text, names):
     full = next((n for n in names or [] if fold(n) in fold(text)), None)
     if full:
         return full
+    # "Mama T" / "O. Emeka": the first letter(s) of a name in the book, when only one name fits
+    words = re.findall(r"[a-z'.]+", fold(text))
+    fits = {n for n in names or [] for k in [len(n.split())] for i in range(max(len(words) - k + 1, 0))
+            if any(len(w.rstrip(".")) <= 2 for w in words[i:i + k]) and ledger._initials_fit(" ".join(words[i:i + k]), n)}
+    if len(fits) == 1:
+        return fits.pop()
     best = max(((len(said), " ".join(said)) for n in names or []
                 for said in [[w for w in n.split() if fold(w) in t]] if said), default=None)
     return best[1] if best else None
@@ -162,7 +169,7 @@ def find_name(text, names):
 def same_person(asked, name):
     """"Alhaji" matches "Alhaji Sani"; "Mama Tunde" matches "mama tunde"."""
     a, n = ledger.customer_key(asked).split(), ledger.customer_key(name).split()
-    return a == n or (a and all(w in n for w in a))
+    return a == n or (a and all(w in n for w in a)) or ledger._initials_fit(asked, name)
 
 
 NOT_A_PERSON = {"total", "all", "everybody", "everyone", "people", "customers", "customer", "me", "them", "anybody",

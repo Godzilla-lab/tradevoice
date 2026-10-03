@@ -133,6 +133,27 @@ SAY = {
 SAY["which"] = {"English": "Which {n}? You have more than one.", "Pidgin": "Which {n}? You get pass one.",
                 "Yoruba": "{n} wo? O ní ju ẹyọ kan lọ.", "Hausa": "Wanne {n}? Kana da fiye da ɗaya.",
                 "Igbo": "{n} ole? I nwere karịa otu."}
+SAY["did_you_mean"] = {"English": "Did you mean {who}? Say yes, or no if {n} is a new customer.",
+                       "Pidgin": "Na {who} you mean? Talk yes, or no if {n} na new customer.",
+                       "Yoruba": "Ṣé {who} lo ní lọ́kàn? Sọ bẹ́ẹ̀ni, tàbí rárá tí {n} bá jẹ́ oníbàárà tuntun.",
+                       "Hausa": "{who} kake nufi? Ka ce eh, ko a'a idan {n} sabon abokin ciniki ne.",
+                       "Igbo": "Ọ bụ {who} ka ị na-ekwu? Sị ee, ma ọ bụ mba ma ọ bụrụ na {n} bụ onye ahịa ọhụrụ."}
+# usual price (code works it out from the trader's own sales): a missed or extra zero is caught before saving
+SAY["price_check"] = {
+    "English": "You said {said} for {what}, but you usually sell {item} at {usual}{per}. Did you mean {guess}? "
+               "Say the right amount, or say yes to keep {said}.",
+    "Pidgin": "You talk {said} for {what}, but you dey usually sell {item} {usual}{per}. You mean {guess}? "
+              "Talk the correct amount, or talk yes make I keep {said}.",
+    "Yoruba": "O sọ {said} fún {what}, ṣùgbọ́n o máa ń ta {item} ní {usual}{per}. Ṣé {guess} lo fẹ́ sọ? "
+              "Sọ iye tó tọ́, tàbí sọ bẹ́ẹ̀ni láti fi {said} sílẹ̀.",
+    "Hausa": "Ka ce {said} na {what}, amma kana sayar da {item} {usual}{per}. {guess} kake nufi? "
+             "Faɗi adadin da ya dace, ko ka ce eh don a bar {said}.",
+    "Igbo": "I kwuru {said} maka {what}, mana ị na-ere {item} {usual}{per}. Ọ bụ {guess} ka ị chọrọ ịsị? "
+            "Kwuo ego ziri ezi, ma ọ bụ sị ee ka m debe {said}."}
+SAY["per_unit"] = {"English": " a {u}", "Pidgin": " for one {u}", "Yoruba": " fún {u} kan", "Hausa": " kowane {u}",
+                   "Igbo": " otu {u}"}
+SAY["per_each"] = {"English": " each", "Pidgin": " each", "Yoruba": " ọ̀kọ̀ọ̀kan", "Hausa": " kowanne",
+                   "Igbo": " otu ọ bụla"}
 SAY["new_customer"] = {"English": "New customer", "Pidgin": "New customer", "Yoruba": "Oníbàárà tuntun",
                        "Hausa": "Sabon abokin ciniki", "Igbo": "Onye ahịa ọhụrụ"}
 SAY["owes"] = {"English": "owes {m}", "Pidgin": "dey owe {m}", "Yoruba": "jẹ {m}", "Hausa": "bashi {m}",
@@ -193,10 +214,22 @@ def _lang(text, state):
 
 def _known_name(text, state, vocab, owes_me=False, today=None):
     """Who the message is about: a name from the book (full or part), else "her/him/am" = the last person."""
+    nick = _nick_in(text)
+    if nick:
+        return nick
     name = askbook.find_name(text, vocab.get("names"))
     if name:
         return name
     return _pronoun_person(text, state, owes_me=owes_me, today=today)
+
+
+def _nick_in(text):
+    """A name the trader taught it, said in this message ("Mama T" = Mama Tunde): the customer's book name."""
+    t = fold(text)
+    for nick, cid in sorted(ledger.recall("nick").items(), key=lambda kv: -len(kv[0])):
+        if re.search(rf"(?<![\w]){re.escape(nick)}(?![\w])", t) and (c := ledger.get_customer(int(cid))):
+            return c["name"]
+    return None
 
 
 def _full_name(asked, people):
@@ -237,9 +270,15 @@ def _choices(matches, name, lang, today):
     return out
 
 
-def _ask_which(state, name, matches, lang, today, purpose, text=""):
-    state["choose"] = {"ids": [m["id"] for m in matches], "name": name, "for": purpose, "text": text}
-    out = _out(SAY["which"][lang].format(n=name), lang, english=SAY["which"]["English"].format(n=name))
+def _ask_which(state, name, matches, lang, today, purpose, text="", how="name"):
+    """"Which Feranmi?" (several fit), or "Did you mean Hajiya Amina?" (a name close to one in the book)."""
+    state["choose"] = {"ids": [m["id"] for m in matches], "name": name, "for": purpose, "text": text, "how": how}
+    if how == "sounds":
+        who = matches[0]["name"]
+        out = _out(SAY["did_you_mean"][lang].format(who=who, n=name), lang,
+                   english=SAY["did_you_mean"]["English"].format(who=who, n=name))
+    else:
+        out = _out(SAY["which"][lang].format(n=name), lang, english=SAY["which"]["English"].format(n=name))
     out["choices"] = _choices(matches, name, lang, today)
     return out
 
@@ -247,6 +286,13 @@ def _ask_which(state, name, matches, lang, today, purpose, text=""):
 def _chosen(t, state):
     """'cust:12' / 'cust:new' / '1' / '2' / 'new' -> customer id, 'new', or None."""
     ids = state["choose"]["ids"]
+    if YES.match(t) and len(ids) == 1:          # "Did you mean Hajiya Amina?" "Yes"
+        return ids[0]
+    if NO.match(t) and state["choose"].get("how") == "sounds":
+        return "new"                            # "No": a new customer with the name they said
+    said = [i for i in ids if (c := ledger.get_customer(i)) and fold(c["name"]) in t]
+    if len(said) == 1:                          # they said the name: "Mama Titi"
+        return said[0]
     m = re.match(r"^cust:(\d+|new)$", t) or re.match(r"^(\d)$", t) or re.match(r"^(new|\+.*)$", t)
     if not m:
         return None
@@ -263,14 +309,38 @@ def _pick_customer(rec, state, lang, today, text):
     name = rec.get("customer")
     if not name or rec.get("customer_id"):
         return None
-    matches = ledger.find_customers(name)
+    matches, how = ledger.match_customers(name)
+    if how == "sounds":   # close to someone in the book: ask before making a second customer
+        return _ask_which(state, name, matches[:1], lang, today, "record", text, how="sounds")
     exact = [m for m in matches if ledger.customer_key(m["name"]) == ledger.customer_key(name)]
     pool = exact or matches
     if len(pool) > 1:
-        return _ask_which(state, name, pool, lang, today, "record", text)
+        return _ask_which(state, name, pool, lang, today, "record", text, how=how)
     if len(pool) == 1:
         rec["customer_id"], rec["customer"] = pool[0]["id"], pool[0]["name"]
     return None
+
+
+def price_check(rec):
+    """A missed or extra zero, caught from the trader's own usual price for the item (all maths here, in code)."""
+    if rec.get("type") not in ("sale", "credit_sale") or not rec.get("item") or rec.get("amount") in (None, ""):
+        return None
+    u = ledger.usual_price(rec["item"])
+    if not u:
+        return None
+    qty = float(rec.get("quantity") or 1)
+    expected, said = u["price"] * qty, float(rec["amount"])
+    if expected <= 0 or 0.2 < said / expected < 5:
+        return None
+    guess = next((said * f for f in (10, 0.1, 100, 0.01) if 0.7 <= said * f / expected <= 1.4), expected)
+    return {"said": said, "guess": round(guess), "usual": u["price"], "unit": u["unit"]}
+
+
+def _price_text(rec, chk, lang):
+    per = (SAY["per_unit"][lang].format(u=chk["unit"]) if chk["unit"] else SAY["per_each"][lang])
+    what = _what({"quantity": rec.get("quantity"), "unit": rec.get("unit"), "item": rec["item"]})
+    return SAY["price_check"][lang].format(said=_money(chk["said"]), what=what, item=rec["item"],
+                                           usual=_money(chk["usual"]), per=per, guess=_money(chk["guess"]))
 
 
 def _confirm(state, today):
@@ -456,6 +526,12 @@ def _heard(rec, lang, note=None, updated=False, dropped=False):
         warn = over_limit_text(lim, lang)
         written += "\n" + warn
         spoken = _say_amounts(warn) + " " + spoken
+    chk = price_check(rec)
+    rec["_price"] = chk
+    if chk:   # "You said ₦4,500 … Did you mean ₦45,000?": the trader says the right amount, or yes to keep it
+        warn = _price_text(rec, chk, lang)
+        written += "\n" + warn
+        spoken = _say_amounts(warn)
     english = SAY["heard"]["English"].format(s=tts.entry_sentence(rec, "English", money=_money))
     if updated:
         english = SAY["updated"]["English"] + " " + english
@@ -463,6 +539,8 @@ def _heard(rec, lang, note=None, updated=False, dropped=False):
         english += "\n" + SAY["dropped"]["English"]
     if lim and lim["over"]:
         english += "\n" + over_limit_text(lim, "English")
+    if chk:
+        english += "\n" + _price_text(rec, chk, "English")
     return _out(written, lang, spoken=spoken, english=english)
 
 
@@ -523,6 +601,7 @@ def _question(text, lang, state, vocab, today):
         return None
     if not q.get("customer"):
         q["customer"] = _pronoun_person(text, state, today=today)  # "how much she owe now?"
+    q["customer"] = _nick_in(text) or q.get("customer")   # a name they taught it ("Mama T" = Mama Tunde)
     if q.get("customer") and q["what"] in ("owed_to_me", "i_owe"):
         people = ledger.debtors(today) if q["what"] == "owed_to_me" else ledger.creditors(today)
         q["customer"] = _full_name(q["customer"], people)
@@ -562,6 +641,8 @@ def reply(text, state=None, today=None, shop="your shop"):
                 else:
                     cu = ledger.get_customer(pick)
                     pending["customer_id"], pending["customer"] = pick, cu["name"]
+                    if ch.get("how") in ("initials", "sounds"):   # "Mama T" / a misheard name: next time, no question
+                        ledger.remember("nick", ch["name"], pick)
                 if pending.get("amount") in (None, ""):
                     return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
                 return _heard(pending, lang)
