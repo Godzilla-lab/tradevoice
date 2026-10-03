@@ -5,6 +5,8 @@ import os
 import sqlite3
 from collections import defaultdict
 
+import clock  # noqa: F401  (the process runs on Nigeria time: 'today' means today in Lagos)
+
 DB_PATH = os.getenv("DB_PATH", "tradevoice.db")  # the book when nobody is logged in (tests, the admin page)
 BOOKS_DIR = os.getenv("BOOKS_DIR", "books")      # one book per phone number: books/2348031234567.db
 _BOOK = contextvars.ContextVar("book", default=None)

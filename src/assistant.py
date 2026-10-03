@@ -35,14 +35,16 @@ _cache, _lock = {}, threading.Lock()
 
 
 def who_line():
-    """For the AI: who it is talking to (their own profile), so answers fit this trader, not a generic one."""
+    """For the AI: when it is (Nigeria time) and who it is talking to (their own profile), so answers fit this
+    trader and this moment, not a generic one."""
     import accounts
+    import clock
     t = accounts.trader()
     if not t:
-        return ""
+        return clock.now_line()
     biz = t.get("biz") and (f"who runs {t['biz']}" + (f", a {t['type'].lower()} business" if t.get("type") else "")
                             + (f" at {t['market']}" if t.get("market") else ""))
-    return (f"You are talking with {t.get('name') or 'the trader'}" + (f", {biz}" if biz else "") + ". "
+    return clock.now_line() + " " + (f"You are talking with {t.get('name') or 'the trader'}" + (f", {biz}" if biz else "") + ". "
             + ("Use their name now and then, never in every sentence. " if t.get("name") else ""))
 
 
@@ -268,7 +270,11 @@ def answer(question, screen, lang="English", state=None, today=None, shop="my sh
 
     t = fold(question)
     # records, reminders and yes/no go through the same chat brain (so "Mama Tunde paid 5k" works here too)
+    import clock
+
+    # the time and date too ("what time is it?" is said by code, in Nigeria time)
     if (converse.REMIND.search(t) or converse.TAX.search(t) or converse.YES.match(t) or converse.NO.match(t)
+            or (clock.asked(t) and parse_amount(question) is None)
             or (parse_amount(question) is not None and converse.EVENT.search(t) and not converse.QUESTION.search(t))):
         if state is None:
             state = dict(converse.new_state(), prefer=lang)

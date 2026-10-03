@@ -17,6 +17,7 @@ import re
 import urllib.parse
 
 import askbook
+import clock
 import insights
 import ledger
 import tts
@@ -667,6 +668,12 @@ def reply(text, state=None, today=None, shop="your shop"):
     if STATEMENT_RX.search(t):
         return _statement(text, lang, state, vocab, shop)
     amount = parse_amount(text)
+    asked = clock.asked(t)  # "what time is it?" / "what day is today?": Nigeria time, said by code
+    if asked and amount is None:
+        kind, said = asked
+        if said not in ("English", "Pidgin") or lang == "English":   # "Karfe nawa?" is Hausa whatever was picked
+            lang = state["lang"] = said
+        return _out(clock.answer(kind, lang), lang, english=clock.answer(kind, "English"))
     if THANKS.match(t):
         return _out(_named(SAY_THANKS.get(lang, SAY_THANKS["English"])), lang, english=_named(SAY_THANKS["English"]))
     if HELP.search(t) or GREET.match(t):
