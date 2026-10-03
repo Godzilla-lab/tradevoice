@@ -870,8 +870,9 @@ Examples:
  "sort": "desc", "period": "this_year"}"""
 
 
-def ai_pick(text, today=None):
-    """N-ATLaS chooses the tool and fills the fields (guided JSON). None if it can't, or says none."""
+def ai_pick(text, today=None, models=None):
+    """N-ATLaS chooses the tool and fills the fields (guided JSON). None if it can't, or says none.
+    `models=["natlas"]`: N-ATLaS only, no backup (for the NAIC numbers)."""
     import llm
 
     if not llm.available():
@@ -881,7 +882,7 @@ def ai_pick(text, today=None):
         "__BOOK__", json.dumps(book))
     try:
         raw, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
-                              max_tokens=200, temperature=0.0, timeout=15, schema=SCHEMA)
+                              max_tokens=200, temperature=0.0, timeout=15, schema=SCHEMA, models=models)
     except Exception as e:  # noqa: BLE001
         print(f"tool pick failed: {type(e).__name__}: {e}")
         return None

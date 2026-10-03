@@ -50,13 +50,35 @@ def setup(use_llm=False):
     ledger.remember("unit", "beans|bag|paint", 30)
 
 
+def wake():
+    """N-ATLaS sleeps after an hour; a cold start takes about 4 minutes. Wait for it, so no answer is lost to it."""
+    import time
+
+    import llm
+
+    if not llm.natlas_on():
+        sys.exit("NATLAS_URL is not set (.env): nothing to test")
+    print("Waking N-ATLaS (up to 5 minutes if it was asleep)...", flush=True)
+    t0 = time.time()
+    while True:
+        try:
+            llm.chat([{"role": "user", "content": "Say OK."}], max_tokens=5, timeout=60, deadline=60, models=["natlas"])
+            print(f"N-ATLaS is awake ({time.time() - t0:.0f} s).", flush=True)
+            return
+        except Exception as e:  # noqa: BLE001
+            if time.time() - t0 > 330:
+                sys.exit(f"N-ATLaS did not wake up: {type(e).__name__}: {e}")
+            llm._resting.pop("natlas", None)
+            time.sleep(10)
+
+
 def score(case, use_llm=False):
     """(right tool?, right fields and result?, what was picked)"""
     import tools
 
     choice = tools.pick(case["text"], today=TODAY)
     if choice is None and use_llm:
-        choice = tools.ai_pick(case["text"], TODAY)
+        choice = tools.ai_pick(case["text"], TODAY, models=["natlas"])   # N-ATLaS only: these are its numbers
     got = (choice or {}).get("tool") or "none"
     if case["tool"] == "none" or got != case["tool"]:
         return got == case["tool"], got == case["tool"], got
@@ -81,6 +103,8 @@ def main(argv=None):
     ap.add_argument("--show", action="store_true", help="print every miss")
     a = ap.parse_args(argv)
     setup(a.llm)
+    if a.llm:
+        wake()
     cases = [json.loads(x) for x in open(os.path.join(HERE, "cases_tools.jsonl"), encoding="utf-8")]
     table = {lang: [0, 0, 0] for lang in LANGS}       # cases, right tool, right tool + fields + result
     misses = []
@@ -92,7 +116,7 @@ def main(argv=None):
         t[2] += all_ok
         if not all_ok:
             misses.append((c["id"], c["text"], c["tool"], got))
-    print(f"Tool calls ({'rules + N-ATLaS' if a.llm else 'rules only, offline'}), {len(cases)} sentences:")
+    print(f"Tool calls ({'rules first, then N-ATLaS only' if a.llm else 'rules only, offline'}), {len(cases)} sentences:")
     print(f"  {'language':<9} {'cases':>5}  {'right tool':>10}  {'all right':>9}")
     for lang, (n, t, f) in table.items():
         print(f"  {lang:<9} {n:>5}  {t / n:>9.0%}  {f / n:>9.0%}")
