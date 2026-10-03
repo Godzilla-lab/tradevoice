@@ -1,0 +1,203 @@
+{"id": "en-calculate-1", "lang": "English", "text": "If I give Mama Tunde 5% discount on 45,000, how much will she pay?", "tool": "calculate", "check": {"value": 42750.0}}
+{"id": "en-calculate-2", "lang": "English", "text": "What is 90,000 times 6?", "tool": "calculate", "check": {"value": 540000}}
+{"id": "en-calculate-3", "lang": "English", "text": "How much is 6 bags at 30,000 each?", "tool": "calculate", "check": {"value": 180000}}
+{"id": "en-calculate-4", "lang": "English", "text": "Calculate 90,000 plus 1,500", "tool": "calculate", "check": {"value": 91500}}
+{"id": "en-calculate-5", "lang": "English", "text": "Remove 3000 from 24000, how much remains?", "tool": "calculate", "check": {"value": 21000}}
+{"id": "en-calculate-6", "lang": "English", "text": "Share 24,000 among 6 people, how much each?", "tool": "calculate", "check": {"value": 4000.0}}
+{"id": "en-calculate-7", "lang": "English", "text": "What is half of 90,000?", "tool": "calculate", "check": {"value": 45000.0}}
+{"id": "en-calculate-8", "lang": "English", "text": "45,000 x 6 =", "tool": "calculate", "check": {"value": 270000}}
+{"id": "en-calculate-9", "lang": "English", "text": "Add 15% to 30000, how much?", "tool": "calculate", "check": {"value": 34500.0}}
+{"id": "en-calculate-10", "lang": "English", "text": "What is 5% of 60,000?", "tool": "calculate", "check": {"value": 3000.0}}
+{"id": "en-calculate-11", "lang": "English", "text": "If I give Mama Chika 20% discount on 45,000, how much will she pay?", "tool": "calculate", "check": {"value": 36000.0}}
+{"id": "en-calculate-12", "lang": "English", "text": "What is 72000 times 4?", "tool": "calculate", "check": {"value": 288000}}
+{"id": "pi-calculate-1", "lang": "Pidgin", "text": "If I comot 15% for 60,000, how much e go be?", "tool": "calculate", "check": {"value": 51000.0}}
+{"id": "pi-calculate-2", "lang": "Pidgin", "text": "Wetin be 36000 times 5?", "tool": "calculate", "check": {"value": 180000}}
+{"id": "pi-calculate-3", "lang": "Pidgin", "text": "4 bags for 12000 each, na how much?", "tool": "calculate", "check": {"value": 48000}}
+{"id": "pi-calculate-4", "lang": "Pidgin", "text": "Abeg add 36,000 and 2000, wetin e be?", "tool": "calculate", "check": {"value": 38000}}
+{"id": "pi-calculate-5", "lang": "Pidgin", "text": "If I share 24000 for 5 people, how much each person go get?", "tool": "calculate", "check": {"value": 4800.0}}
+{"id": "pi-calculate-6", "lang": "Pidgin", "text": "Comot 3,000 from 72000, wetin remain?", "tool": "calculate", "check": {"value": 69000}}
+{"id": "pi-calculate-7", "lang": "Pidgin", "text": "Wetin be half of 24,000?", "tool": "calculate", "check": {"value": 12000.0}}
+{"id": "pi-calculate-8", "lang": "Pidgin", "text": "If I comot 15% for 90,000, how much e go be?", "tool": "calculate", "check": {"value": 76500.0}}
+{"id": "pi-calculate-9", "lang": "Pidgin", "text": "Wetin be 90000 times 4?", "tool": "calculate", "check": {"value": 360000}}
+{"id": "pi-calculate-10", "lang": "Pidgin", "text": "6 bags for 12,000 each, na how much?", "tool": "calculate", "check": {"value": 72000}}
+{"id": "pi-calculate-11", "lang": "Pidgin", "text": "Abeg add 48000 and 1,500, wetin e be?", "tool": "calculate", "check": {"value": 49500}}
+{"id": "pi-calculate-12", "lang": "Pidgin", "text": "If I share 45,000 for 2 people, how much each person go get?", "tool": "calculate", "check": {"value": 22500.0}}
+{"id": "yo-calculate-1", "lang": "Yoruba", "text": "Elo ni 45000 yọ 5%?", "tool": "calculate", "check": {"value": 42750.0}}
+{"id": "yo-calculate-2", "lang": "Yoruba", "text": "Tí mo bá fún Alhaja Kudi ní discount 15% lórí 36,000, elo ni yóò san?", "tool": "calculate", "check": {"value": 30600.0}}
+{"id": "yo-calculate-3", "lang": "Yoruba", "text": "Àpò 5 ní 60,000 kọ̀ọ̀kan, elo ni lápapọ̀?", "tool": "calculate", "check": {"value": 300000}}
+{"id": "yo-calculate-4", "lang": "Yoruba", "text": "Pín 36,000 sí 3, elo ni?", "tool": "calculate", "check": {"value": 12000.0}}
+{"id": "yo-calculate-5", "lang": "Yoruba", "text": "Elo ni 24000 pẹ̀lú 7500?", "tool": "calculate", "check": {"value": 31500}}
+{"id": "yo-calculate-6", "lang": "Yoruba", "text": "Elo ni ìdajì 36,000?", "tool": "calculate", "check": {"value": 18000.0}}
+{"id": "yo-calculate-7", "lang": "Yoruba", "text": "Elo ni 72000 yọ 10%?", "tool": "calculate", "check": {"value": 64800.0}}
+{"id": "yo-calculate-8", "lang": "Yoruba", "text": "Tí mo bá fún Mama Ngozi ní discount 20% lórí 30,000, elo ni yóò san?", "tool": "calculate", "check": {"value": 24000.0}}
+{"id": "yo-calculate-9", "lang": "Yoruba", "text": "Àpò 4 ní 36000 kọ̀ọ̀kan, elo ni lápapọ̀?", "tool": "calculate", "check": {"value": 144000}}
+{"id": "yo-calculate-10", "lang": "Yoruba", "text": "Pín 45,000 sí 2, elo ni?", "tool": "calculate", "check": {"value": 22500.0}}
+{"id": "ha-calculate-1", "lang": "Hausa", "text": "Idan na rage 5% daga 30,000, nawa ne?", "tool": "calculate", "check": {"value": 28500.0}}
+{"id": "ha-calculate-2", "lang": "Hausa", "text": "Nawa ne 18,000 sau 5?", "tool": "calculate", "check": {"value": 90000}}
+{"id": "ha-calculate-3", "lang": "Hausa", "text": "Buhu 5 kowanne 45,000, nawa ne gaba ɗaya?", "tool": "calculate", "check": {"value": 225000}}
+{"id": "ha-calculate-4", "lang": "Hausa", "text": "Raba 24,000 ga mutum 3, nawa kowa zai samu?", "tool": "calculate", "check": {"value": 8000.0}}
+{"id": "ha-calculate-5", "lang": "Hausa", "text": "Haɗa 24000 da 7,500, nawa ne?", "tool": "calculate", "check": {"value": 31500}}
+{"id": "ha-calculate-6", "lang": "Hausa", "text": "Nawa ne rabin 72000?", "tool": "calculate", "check": {"value": 36000.0}}
+{"id": "ha-calculate-7", "lang": "Hausa", "text": "Idan na rage 10% daga 72000, nawa ne?", "tool": "calculate", "check": {"value": 64800.0}}
+{"id": "ha-calculate-8", "lang": "Hausa", "text": "Nawa ne 30000 sau 6?", "tool": "calculate", "check": {"value": 180000}}
+{"id": "ha-calculate-9", "lang": "Hausa", "text": "Buhu 2 kowanne 48000, nawa ne gaba ɗaya?", "tool": "calculate", "check": {"value": 96000}}
+{"id": "ha-calculate-10", "lang": "Hausa", "text": "Raba 72000 ga mutum 6, nawa kowa zai samu?", "tool": "calculate", "check": {"value": 12000.0}}
+{"id": "ig-calculate-1", "lang": "Igbo", "text": "Ọ bụrụ na m wepụ 5% na 60000, ego ole ka ọ ga-abụ?", "tool": "calculate", "check": {"value": 57000.0}}
+{"id": "ig-calculate-2", "lang": "Igbo", "text": "Ego ole bụ 60,000 ugboro 2?", "tool": "calculate", "check": {"value": 120000}}
+{"id": "ig-calculate-3", "lang": "Igbo", "text": "Akpa 6 n'otu otu 60,000, ego ole niile?", "tool": "calculate", "check": {"value": 360000}}
+{"id": "ig-calculate-4", "lang": "Igbo", "text": "Kee 18000 n'etiti mmadụ 5, ego ole onye ọ bụla?", "tool": "calculate", "check": {"value": 3600.0}}
+{"id": "ig-calculate-5", "lang": "Igbo", "text": "Gbakọọ 45000 na 7,500, ego ole?", "tool": "calculate", "check": {"value": 52500}}
+{"id": "ig-calculate-6", "lang": "Igbo", "text": "Ego ole bụ ọkara 60000?", "tool": "calculate", "check": {"value": 30000.0}}
+{"id": "ig-calculate-7", "lang": "Igbo", "text": "Ọ bụrụ na m wepụ 5% na 60,000, ego ole ka ọ ga-abụ?", "tool": "calculate", "check": {"value": 57000.0}}
+{"id": "ig-calculate-8", "lang": "Igbo", "text": "Ego ole bụ 30000 ugboro 2?", "tool": "calculate", "check": {"value": 60000}}
+{"id": "ig-calculate-9", "lang": "Igbo", "text": "Akpa 3 n'otu otu 24000, ego ole niile?", "tool": "calculate", "check": {"value": 72000}}
+{"id": "ig-calculate-10", "lang": "Igbo", "text": "Kee 18000 n'etiti mmadụ 5, ego ole onye ọ bụla?", "tool": "calculate", "check": {"value": 3600.0}}
+{"id": "en-resolve_date-1", "lang": "English", "text": "When is Christmas?", "tool": "resolve_date", "check": {"holiday": "christmas"}}
+{"id": "en-resolve_date-2", "lang": "English", "text": "When is Sallah this year?", "tool": "resolve_date", "check": {"holiday": "sallah"}}
+{"id": "en-resolve_date-3", "lang": "English", "text": "How many days to Independence Day?", "tool": "resolve_date", "check": {"holiday": "independence_day"}}
+{"id": "en-resolve_date-4", "lang": "English", "text": "When is Easter?", "tool": "resolve_date", "check": {"holiday": "easter"}}
+{"id": "en-resolve_date-5", "lang": "English", "text": "What date is next Friday?", "tool": "resolve_date", "check": {"date": "2026-10-09"}}
+{"id": "en-resolve_date-6", "lang": "English", "text": "When is Big Sallah?", "tool": "resolve_date", "check": {"holiday": "eid_kabir"}}
+{"id": "en-resolve_date-7", "lang": "English", "text": "When is New Year?", "tool": "resolve_date", "check": {"holiday": "new_year"}}
+{"id": "en-resolve_date-8", "lang": "English", "text": "How many days to month end?", "tool": "resolve_date", "check": {"date": "2026-10-31"}}
+{"id": "en-resolve_date-9", "lang": "English", "text": "When is Democracy Day?", "tool": "resolve_date", "check": {"holiday": "democracy_day"}}
+{"id": "en-resolve_date-10", "lang": "English", "text": "When is Boxing Day?", "tool": "resolve_date", "check": {"holiday": "boxing_day"}}
+{"id": "pi-resolve_date-1", "lang": "Pidgin", "text": "When Christmas go be?", "tool": "resolve_date", "check": {"holiday": "christmas"}}
+{"id": "pi-resolve_date-2", "lang": "Pidgin", "text": "Sallah na when?", "tool": "resolve_date", "check": {"holiday": "sallah"}}
+{"id": "pi-resolve_date-3", "lang": "Pidgin", "text": "How many days remain for Christmas?", "tool": "resolve_date", "check": {"holiday": "christmas"}}
+{"id": "pi-resolve_date-4", "lang": "Pidgin", "text": "Which date be next Monday?", "tool": "resolve_date", "check": {"date": "2026-10-05"}}
+{"id": "pi-resolve_date-5", "lang": "Pidgin", "text": "When be small sallah?", "tool": "resolve_date", "check": {"holiday": "eid_fitr"}}
+{"id": "pi-resolve_date-6", "lang": "Pidgin", "text": "When Easter go reach?", "tool": "resolve_date", "check": {"holiday": "easter"}}
+{"id": "pi-resolve_date-7", "lang": "Pidgin", "text": "How many days remain for month end?", "tool": "resolve_date", "check": {"date": "2026-10-31"}}
+{"id": "pi-resolve_date-8", "lang": "Pidgin", "text": "When be New Year?", "tool": "resolve_date", "check": {"holiday": "new_year"}}
+{"id": "yo-resolve_date-1", "lang": "Yoruba", "text": "Ìgbà wo ni Kérésìmesì?", "tool": "resolve_date", "check": {"holiday": "christmas"}}
+{"id": "yo-resolve_date-2", "lang": "Yoruba", "text": "Nígbà wo ni Iléyá?", "tool": "resolve_date", "check": {"holiday": "eid_kabir"}}
+{"id": "yo-resolve_date-3", "lang": "Yoruba", "text": "Ọjọ́ mélòó ló kù kí Ọdún Tuntun dé?", "tool": "resolve_date", "check": {"holiday": "new_year"}}
+{"id": "yo-resolve_date-4", "lang": "Yoruba", "text": "Ìgbà wo ni Ọdún Àjíǹde?", "tool": "resolve_date", "check": {"holiday": "easter"}}
+{"id": "yo-resolve_date-5", "lang": "Yoruba", "text": "Nígbà wo ni Ìtúnú Ààwẹ̀?", "tool": "resolve_date", "check": {"holiday": "eid_fitr"}}
+{"id": "yo-resolve_date-6", "lang": "Yoruba", "text": "Ìgbà wo ni Sallah?", "tool": "resolve_date", "check": {"holiday": "sallah"}}
+{"id": "ha-resolve_date-1", "lang": "Hausa", "text": "Yaushe ne Babbar Sallah?", "tool": "resolve_date", "check": {"holiday": "eid_kabir"}}
+{"id": "ha-resolve_date-2", "lang": "Hausa", "text": "Yaushe ne Kirsimeti?", "tool": "resolve_date", "check": {"holiday": "christmas"}}
+{"id": "ha-resolve_date-3", "lang": "Hausa", "text": "Kwana nawa ya rage kafin Sabuwar Shekara?", "tool": "resolve_date", "check": {"holiday": "new_year"}}
+{"id": "ha-resolve_date-4", "lang": "Hausa", "text": "Yaushe ne Ƙaramar Sallah?", "tool": "resolve_date", "check": {"holiday": "eid_fitr"}}
+{"id": "ha-resolve_date-5", "lang": "Hausa", "text": "Yaushe ne Maulud?", "tool": "resolve_date", "check": {"holiday": "maulud"}}
+{"id": "ha-resolve_date-6", "lang": "Hausa", "text": "Yaushe ne Sallah?", "tool": "resolve_date", "check": {"holiday": "sallah"}}
+{"id": "ig-resolve_date-1", "lang": "Igbo", "text": "Olee mgbe Ekeresimesi bụ?", "tool": "resolve_date", "check": {"holiday": "christmas"}}
+{"id": "ig-resolve_date-2", "lang": "Igbo", "text": "Kedu mgbe Sallah ga-abụ?", "tool": "resolve_date", "check": {"holiday": "sallah"}}
+{"id": "ig-resolve_date-3", "lang": "Igbo", "text": "Ụbọchị ole fọdụrụ ka Afọ Ọhụrụ?", "tool": "resolve_date", "check": {"holiday": "new_year"}}
+{"id": "ig-resolve_date-4", "lang": "Igbo", "text": "Olee mgbe Ista bụ?", "tool": "resolve_date", "check": {"holiday": "easter"}}
+{"id": "ig-resolve_date-5", "lang": "Igbo", "text": "Kedu mgbe Independence Day bụ?", "tool": "resolve_date", "check": {"holiday": "independence_day"}}
+{"id": "ig-resolve_date-6", "lang": "Igbo", "text": "Olee mgbe Boxing Day bụ?", "tool": "resolve_date", "check": {"holiday": "boxing_day"}}
+{"id": "en-convert_units-1", "lang": "English", "text": "1 bag of rice is 40 mudu", "tool": "convert_units", "check": {"teach": true, "from_unit": "bag", "to_unit": "mudu", "quantity": 40}}
+{"id": "en-convert_units-2", "lang": "English", "text": "How many mudu are in 2 bags of rice?", "tool": "convert_units", "check": {"value": 80}}
+{"id": "en-convert_units-3", "lang": "English", "text": "How many mudu are in 3 bags of rice?", "tool": "convert_units", "check": {"value": 120}}
+{"id": "en-convert_units-4", "lang": "English", "text": "If a bag of rice is 48000, how much is one mudu?", "tool": "convert_units", "check": {"value": 1200}}
+{"id": "en-convert_units-5", "lang": "English", "text": "How many eggs in 3 crates?", "tool": "convert_units", "check": {"value": 90}}
+{"id": "en-convert_units-6", "lang": "English", "text": "How many grams in 2 kg?", "tool": "convert_units", "check": {"value": 2000}}
+{"id": "en-convert_units-7", "lang": "English", "text": "How much is 5 mudu if a bag of rice is 40000?", "tool": "convert_units", "check": {"value": 5000}}
+{"id": "en-convert_units-8", "lang": "English", "text": "One bag of beans is 30 paint", "tool": "convert_units", "check": {"teach": true, "from_unit": "bag", "to_unit": "paint", "quantity": 30}}
+{"id": "pi-convert_units-1", "lang": "Pidgin", "text": "One bag of beans na 30 paint", "tool": "convert_units", "check": {"teach": true, "from_unit": "bag", "to_unit": "paint", "quantity": 30}}
+{"id": "pi-convert_units-2", "lang": "Pidgin", "text": "How many mudu dey for 2 bags of rice?", "tool": "convert_units", "check": {"value": 80}}
+{"id": "pi-convert_units-3", "lang": "Pidgin", "text": "If bag of rice na 48000, how much be one mudu?", "tool": "convert_units", "check": {"value": 1200}}
+{"id": "pi-convert_units-4", "lang": "Pidgin", "text": "How many paint go enter 2 bags of beans?", "tool": "convert_units", "check": {"value": 60}}
+{"id": "pi-convert_units-5", "lang": "Pidgin", "text": "How many eggs dey inside 4 crates?", "tool": "convert_units", "check": {"value": 120}}
+{"id": "pi-convert_units-6", "lang": "Pidgin", "text": "How much for 10 mudu if bag of rice na 40k?", "tool": "convert_units", "check": {"value": 10000}}
+{"id": "yo-convert_units-1", "lang": "Yoruba", "text": "Mudu mélòó ló wà nínú àpò ìrẹsì mẹ́ta?", "tool": "convert_units", "check": {"value": 120}}
+{"id": "yo-convert_units-2", "lang": "Yoruba", "text": "Àpò ìrẹsì kan jẹ́ mudu 40", "tool": "convert_units", "check": {"teach": true}}
+{"id": "yo-convert_units-3", "lang": "Yoruba", "text": "Tí àpò ìrẹsì bá jẹ́ 48000, elo ni mudu kan?", "tool": "convert_units", "check": {"value": 1200}}
+{"id": "yo-convert_units-4", "lang": "Yoruba", "text": "How many mudu are in 2 bags of rice?", "tool": "convert_units", "check": {"value": 80}}
+{"id": "ha-convert_units-1", "lang": "Hausa", "text": "Mudu nawa ne a cikin buhu biyu na shinkafa?", "tool": "convert_units", "check": {"value": 80}}
+{"id": "ha-convert_units-2", "lang": "Hausa", "text": "Buhu ɗaya na shinkafa mudu 40 ne", "tool": "convert_units", "check": {"teach": true}}
+{"id": "ha-convert_units-3", "lang": "Hausa", "text": "Idan buhun shinkafa 48000 ne, nawa ne mudu ɗaya?", "tool": "convert_units", "check": {"value": 1200}}
+{"id": "ha-convert_units-4", "lang": "Hausa", "text": "How many eggs in 2 crates?", "tool": "convert_units", "check": {"value": 60}}
+{"id": "ig-convert_units-1", "lang": "Igbo", "text": "Mudu ole dị n'akpa osikapa abụọ?", "tool": "convert_units", "check": {"value": 80}}
+{"id": "ig-convert_units-2", "lang": "Igbo", "text": "Otu akpa osikapa bụ mudu 40", "tool": "convert_units", "check": {"teach": true}}
+{"id": "ig-convert_units-3", "lang": "Igbo", "text": "Ọ bụrụ na akpa osikapa bụ 48000, ego ole bụ otu mudu?", "tool": "convert_units", "check": {"value": 1200}}
+{"id": "ig-convert_units-4", "lang": "Igbo", "text": "How many mudu are in 3 bags of rice?", "tool": "convert_units", "check": {"value": 120}}
+{"id": "en-reconcile_cash-1", "lang": "English", "text": "I counted 47000 in my hand, is it correct?", "tool": "reconcile_cash", "check": {"counted": 47000}}
+{"id": "en-reconcile_cash-2", "lang": "English", "text": "My cash is 47,000, does it match?", "tool": "reconcile_cash", "check": {"counted": 47000}}
+{"id": "en-reconcile_cash-3", "lang": "English", "text": "I started with 5000 and now I have 25,000 in my drawer, is it complete?", "tool": "reconcile_cash", "check": {"counted": 25000, "started_with": 5000}}
+{"id": "en-reconcile_cash-4", "lang": "English", "text": "Check my cash: 22000 in my hand", "tool": "reconcile_cash", "check": {"counted": 22000}}
+{"id": "en-reconcile_cash-5", "lang": "English", "text": "I counted 22,000 in my hand, is it correct?", "tool": "reconcile_cash", "check": {"counted": 22000}}
+{"id": "en-reconcile_cash-6", "lang": "English", "text": "My cash is 47,000, does it match?", "tool": "reconcile_cash", "check": {"counted": 47000}}
+{"id": "pi-reconcile_cash-1", "lang": "Pidgin", "text": "Money wey dey my hand na 22,000, e correct?", "tool": "reconcile_cash", "check": {"counted": 22000}}
+{"id": "pi-reconcile_cash-2", "lang": "Pidgin", "text": "I count 52000 for my hand, e complete?", "tool": "reconcile_cash", "check": {"counted": 52000}}
+{"id": "pi-reconcile_cash-3", "lang": "Pidgin", "text": "I start with 3000, now I get 52000 for hand. E correct?", "tool": "reconcile_cash", "check": {"counted": 52000, "started_with": 3000}}
+{"id": "pi-reconcile_cash-4", "lang": "Pidgin", "text": "Money wey dey my hand na 22000, e correct?", "tool": "reconcile_cash", "check": {"counted": 22000}}
+{"id": "pi-reconcile_cash-5", "lang": "Pidgin", "text": "I count 25000 for my hand, e complete?", "tool": "reconcile_cash", "check": {"counted": 25000}}
+{"id": "pi-reconcile_cash-6", "lang": "Pidgin", "text": "I start with 3000, now I get 22,000 for hand. E correct?", "tool": "reconcile_cash", "check": {"counted": 22000, "started_with": 3000}}
+{"id": "yo-reconcile_cash-1", "lang": "Yoruba", "text": "Owó tó wà lọ́wọ́ mi jẹ́ 31,500, ṣé ó pé?", "tool": "reconcile_cash", "check": {"counted": 31500}}
+{"id": "yo-reconcile_cash-2", "lang": "Yoruba", "text": "Mo ka 25,000 lọ́wọ́ mi, ṣé ó tọ́?", "tool": "reconcile_cash", "check": {"counted": 25000}}
+{"id": "yo-reconcile_cash-3", "lang": "Yoruba", "text": "Owó tó wà lọ́wọ́ mi jẹ́ 25000, ṣé ó pé?", "tool": "reconcile_cash", "check": {"counted": 25000}}
+{"id": "yo-reconcile_cash-4", "lang": "Yoruba", "text": "Mo ka 31,500 lọ́wọ́ mi, ṣé ó tọ́?", "tool": "reconcile_cash", "check": {"counted": 31500}}
+{"id": "ha-reconcile_cash-1", "lang": "Hausa", "text": "Kuɗin da ke hannuna 52000 ne, ya yi daidai?", "tool": "reconcile_cash", "check": {"counted": 52000}}
+{"id": "ha-reconcile_cash-2", "lang": "Hausa", "text": "Na ƙirga 52,000 a hannuna, ya cika?", "tool": "reconcile_cash", "check": {"counted": 52000}}
+{"id": "ha-reconcile_cash-3", "lang": "Hausa", "text": "Kuɗin da ke hannuna 31,500 ne, ya yi daidai?", "tool": "reconcile_cash", "check": {"counted": 31500}}
+{"id": "ha-reconcile_cash-4", "lang": "Hausa", "text": "Na ƙirga 22000 a hannuna, ya cika?", "tool": "reconcile_cash", "check": {"counted": 22000}}
+{"id": "ig-reconcile_cash-1", "lang": "Igbo", "text": "Ego dị m n'aka bụ 25,000, ọ zuru ezu?", "tool": "reconcile_cash", "check": {"counted": 25000}}
+{"id": "ig-reconcile_cash-2", "lang": "Igbo", "text": "Agụrụ m 22,000 n'aka m, ọ ziri ezi?", "tool": "reconcile_cash", "check": {"counted": 22000}}
+{"id": "ig-reconcile_cash-3", "lang": "Igbo", "text": "Ego dị m n'aka bụ 22000, ọ zuru ezu?", "tool": "reconcile_cash", "check": {"counted": 22000}}
+{"id": "ig-reconcile_cash-4", "lang": "Igbo", "text": "Agụrụ m 31,500 n'aka m, ọ ziri ezi?", "tool": "reconcile_cash", "check": {"counted": 31500}}
+{"id": "en-query_book-1", "lang": "English", "text": "Which week did I sell the most?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "week", "sort": "desc"}}
+{"id": "en-query_book-2", "lang": "English", "text": "Which month did I spend the most this year?", "tool": "query_book", "check": {"kind": "spent", "metric": "sum", "group": "month", "sort": "desc"}}
+{"id": "en-query_book-3", "lang": "English", "text": "What is my average sales per day?", "tool": "query_book", "check": {"kind": "sold", "metric": "avg", "group": "day"}}
+{"id": "en-query_book-4", "lang": "English", "text": "What was my biggest sale this month?", "tool": "query_book", "check": {"kind": "sold", "metric": "max"}}
+{"id": "en-query_book-5", "lang": "English", "text": "How many sales did I make last week?", "tool": "query_book", "check": {"kind": "sold", "metric": "count"}}
+{"id": "en-query_book-6", "lang": "English", "text": "Which customer bought the most?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "customer", "sort": "desc"}}
+{"id": "en-query_book-7", "lang": "English", "text": "Which day did I sell the least?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "day", "sort": "asc"}}
+{"id": "en-query_book-8", "lang": "English", "text": "What is my average spending per week?", "tool": "query_book", "check": {"kind": "spent", "metric": "avg", "group": "week"}}
+{"id": "en-query_book-9", "lang": "English", "text": "Which week in September did I sell the most?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "week", "sort": "desc"}}
+{"id": "en-query_book-10", "lang": "English", "text": "What was my smallest sale?", "tool": "query_book", "check": {"kind": "sold", "metric": "min"}}
+{"id": "pi-query_book-1", "lang": "Pidgin", "text": "Which week I sell pass?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "week", "sort": "desc"}}
+{"id": "pi-query_book-2", "lang": "Pidgin", "text": "Wetin be my average sales every day?", "tool": "query_book", "check": {"kind": "sold", "metric": "avg", "group": "day"}}
+{"id": "pi-query_book-3", "lang": "Pidgin", "text": "Which customer buy pass?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "customer", "sort": "desc"}}
+{"id": "pi-query_book-4", "lang": "Pidgin", "text": "My biggest sale na how much?", "tool": "query_book", "check": {"kind": "sold", "metric": "max"}}
+{"id": "pi-query_book-5", "lang": "Pidgin", "text": "Which month I spend pass this year?", "tool": "query_book", "check": {"kind": "spent", "metric": "sum", "group": "month", "sort": "desc"}}
+{"id": "pi-query_book-6", "lang": "Pidgin", "text": "How many sales I don make this week?", "tool": "query_book", "check": {"kind": "sold", "metric": "count"}}
+{"id": "yo-query_book-1", "lang": "Yoruba", "text": "Ọ̀sẹ̀ wo ni mo tà jù?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "week", "sort": "desc"}}
+{"id": "yo-query_book-2", "lang": "Yoruba", "text": "Oṣù wo ni mo ná owó jù?", "tool": "query_book", "check": {"kind": "spent", "metric": "sum", "group": "month", "sort": "desc"}}
+{"id": "yo-query_book-3", "lang": "Yoruba", "text": "Kí ni àròpin owó tí mo ń tà lójoojúmọ́?", "tool": "query_book", "check": {"kind": "sold", "metric": "avg", "group": "day"}}
+{"id": "yo-query_book-4", "lang": "Yoruba", "text": "Oníbàárà wo ló ra jù?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "customer", "sort": "desc"}}
+{"id": "ha-query_book-1", "lang": "Hausa", "text": "Wane mako na fi sayarwa?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "week", "sort": "desc"}}
+{"id": "ha-query_book-2", "lang": "Hausa", "text": "Wane wata na fi kashe kuɗi?", "tool": "query_book", "check": {"kind": "spent", "metric": "sum", "group": "month", "sort": "desc"}}
+{"id": "ha-query_book-3", "lang": "Hausa", "text": "Menene matsakaicin cinikina a kowace rana?", "tool": "query_book", "check": {"kind": "sold", "metric": "avg", "group": "day"}}
+{"id": "ha-query_book-4", "lang": "Hausa", "text": "Wane mai siya ne ya fi saya?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "customer", "sort": "desc"}}
+{"id": "ig-query_book-1", "lang": "Igbo", "text": "Izu ole ka m rere ahịa karịa?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "week", "sort": "desc"}}
+{"id": "ig-query_book-2", "lang": "Igbo", "text": "Ọnwa ole ka m mefuru ego karịa?", "tool": "query_book", "check": {"kind": "spent", "metric": "sum", "group": "month", "sort": "desc"}}
+{"id": "ig-query_book-3", "lang": "Igbo", "text": "Gịnị bụ nkezi ahịa m na-ere kwa ụbọchị?", "tool": "query_book", "check": {"kind": "sold", "metric": "avg", "group": "day"}}
+{"id": "ig-query_book-4", "lang": "Igbo", "text": "Onye ahịa ole zụrụ karịa?", "tool": "query_book", "check": {"kind": "sold", "metric": "sum", "group": "customer", "sort": "desc"}}
+{"id": "en-none-1", "lang": "English", "text": "Mama Ngozi paid 5000", "tool": "none", "check": {}}
+{"id": "en-none-2", "lang": "English", "text": "I sold 3 bags of rice at 45000 each", "tool": "none", "check": {}}
+{"id": "en-none-3", "lang": "English", "text": "How much did I sell today?", "tool": "none", "check": {}}
+{"id": "en-none-4", "lang": "English", "text": "Who owes me the most?", "tool": "none", "check": {}}
+{"id": "en-none-5", "lang": "English", "text": "Remind Iya Bisi on Friday", "tool": "none", "check": {}}
+{"id": "en-none-6", "lang": "English", "text": "When will Mama Tunde pay?", "tool": "none", "check": {}}
+{"id": "en-none-7", "lang": "English", "text": "Hello", "tool": "none", "check": {}}
+{"id": "en-none-8", "lang": "English", "text": "Baba Femi took 2 cartons of indomie on credit, he will pay after Sallah", "tool": "none", "check": {}}
+{"id": "en-none-9", "lang": "English", "text": "How much does Iya Bisi owe?", "tool": "none", "check": {}}
+{"id": "en-none-10", "lang": "English", "text": "I spent 2000 on transport", "tool": "none", "check": {}}
+{"id": "en-none-11", "lang": "English", "text": "Who dey sell rice cheap pass?", "tool": "none", "check": {}}
+{"id": "en-none-12", "lang": "English", "text": "What is my record score?", "tool": "none", "check": {}}
+{"id": "pi-none-1", "lang": "Pidgin", "text": "Mama Ngozi don pay 5000", "tool": "none", "check": {}}
+{"id": "pi-none-2", "lang": "Pidgin", "text": "I sell 2 bags of beans 60k", "tool": "none", "check": {}}
+{"id": "pi-none-3", "lang": "Pidgin", "text": "Wetin I sell today?", "tool": "none", "check": {}}
+{"id": "pi-none-4", "lang": "Pidgin", "text": "Who dey owe me pass?", "tool": "none", "check": {}}
+{"id": "pi-none-5", "lang": "Pidgin", "text": "Remind Iya Bisi for Friday", "tool": "none", "check": {}}
+{"id": "pi-none-6", "lang": "Pidgin", "text": "Baba Femi carry 3 crates of egg on credit", "tool": "none", "check": {}}
+{"id": "pi-none-7", "lang": "Pidgin", "text": "How far", "tool": "none", "check": {}}
+{"id": "pi-none-8", "lang": "Pidgin", "text": "I spend 1500 for transport", "tool": "none", "check": {}}
+{"id": "yo-none-1", "lang": "Yoruba", "text": "Mo ta ìrẹsì fún Iya Bisi ní 20000", "tool": "none", "check": {}}
+{"id": "yo-none-2", "lang": "Yoruba", "text": "Iya Bisi ti san 5000", "tool": "none", "check": {}}
+{"id": "yo-none-3", "lang": "Yoruba", "text": "Elo ni mo tà lónìí?", "tool": "none", "check": {}}
+{"id": "yo-none-4", "lang": "Yoruba", "text": "Ta ló jẹ mí lówó jù?", "tool": "none", "check": {}}
+{"id": "yo-none-5", "lang": "Yoruba", "text": "Ẹ káàárọ̀", "tool": "none", "check": {}}
+{"id": "ha-none-1", "lang": "Hausa", "text": "Na sayar da shinkafa 20000", "tool": "none", "check": {}}
+{"id": "ha-none-2", "lang": "Hausa", "text": "Hajiya Amina ta biya 5000", "tool": "none", "check": {}}
+{"id": "ha-none-3", "lang": "Hausa", "text": "Nawa na sayar yau?", "tool": "none", "check": {}}
+{"id": "ha-none-4", "lang": "Hausa", "text": "Wa ke bina bashi?", "tool": "none", "check": {}}
+{"id": "ha-none-5", "lang": "Hausa", "text": "Sannu", "tool": "none", "check": {}}
+{"id": "ig-none-1", "lang": "Igbo", "text": "Arere m osikapa 20000", "tool": "none", "check": {}}
+{"id": "ig-none-2", "lang": "Igbo", "text": "Mama Chika akwụọla 5000", "tool": "none", "check": {}}
+{"id": "ig-none-3", "lang": "Igbo", "text": "Ego ole ka m rere taa?", "tool": "none", "check": {}}
+{"id": "ig-none-4", "lang": "Igbo", "text": "Onye ji m ụgwọ?", "tool": "none", "check": {}}
+{"id": "ig-none-5", "lang": "Igbo", "text": "Ndewo", "tool": "none", "check": {}}

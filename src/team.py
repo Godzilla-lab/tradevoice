@@ -71,6 +71,9 @@ codes. Guests (web, not linked): {s['guests_total']}. {f"The team's own {s['team
 {_table("Understanding: which model answered", s["understanding"])}
 {_table("Hearing: which model", s["hearing"])}
 {_table("Voice replies (Intron calls vs free cached)", s["voice_replies"])}
+{_table("Tools used (code did the maths)", s["tools"])}
+{_table("Two hearings merged by N-ATLaS (Yoruba, Hausa, Igbo)", s["hearing_merge"])}
+{_table("Questions nothing could answer (by language): add the common ones as tools", s["unanswered"])}
 </div><p><a href="/team/export.csv?key={key}">Download the anonymised interaction log (CSV)</a> · for the NAIC
 validation PDF.</p>
 <p class=muted>N-ATLaS is an initiative of the Federal Ministry of Communications, Innovation and Digital Economy,

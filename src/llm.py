@@ -135,12 +135,14 @@ def _with_shots(messages, shots):
 
 
 def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, models=None, deadline=None, retries=0,
-         shots=None):
+         shots=None, schema=None):
     """Return (text, model_used). Tries each configured model (or `models`) until one answers.
     `deadline` (seconds, default LLM_DEADLINE=30) caps the TOTAL wait across all models, so a live demo never
     hangs: when it runs out the caller falls back to the offline rules.
     `shots`: worked examples [(user, assistant), ...] given to N-ATLaS only (an 8B model gains ~10 points from
-    examples, independent AfroBench evaluation; the big cloud models don't need the extra tokens)."""
+    examples, independent AfroBench evaluation; the big cloud models don't need the extra tokens).
+    `schema`: a JSON schema N-ATLaS must follow (vLLM guided decoding: always valid JSON and valid tool names);
+    other models just get the prompt, and the caller checks what comes back."""
     pinned = models is not None
     models = list(models or (VISION_MODELS if kind == "vision" else LLM_MODELS))
     if kind == "llm" and natlas_on() and not pinned and "natlas" not in models:
@@ -179,6 +181,9 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
             temp = NATLAS_TEMPERATURE
             extra = {"extra_body": {"repetition_penalty": NATLAS_REPETITION_PENALTY,
                                     "chat_template_kwargs": {"date_string": time.strftime("%d %b %Y")}}}
+            if schema:
+                extra["response_format"] = {"type": "json_schema",
+                                            "json_schema": {"name": "answer", "schema": schema}}
         client = _client(kind, wait, retries, model)
         try:
             resp = client.chat.completions.create(model=_served_name(kind, model), messages=msgs,

@@ -280,6 +280,11 @@ def answer(question, screen, lang="English", state=None, today=None, shop="my sh
             state = dict(converse.new_state(), prefer=lang)
         r = converse.reply(question, state, today=today, shop=shop)
         return dict(r, engine="chat", pending=bool((state or {}).get("pending")))
+    import tools
+
+    done = tools.answer(question, lang, today)   # sums, dates, measures, cash check, grouped questions: by code
+    if done:
+        return dict(done, engine=f"tool:{done['tool']}")
     fixed = book_answer(question, lang, today)
     if fixed:  # the example questions: answered straight from the book
         return {"text": fixed, "spoken": spoken(fixed), "lang": lang, "engine": "book:exact"}

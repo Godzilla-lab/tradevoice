@@ -729,6 +729,11 @@ def reply(text, state=None, today=None, shop="your shop"):
         if said not in ("English", "Pidgin") or lang == "English":   # "Karfe nawa?" is Hausa whatever was picked
             lang = state["lang"] = said
         return _out(clock.answer(kind, lang), lang, english=clock.answer(kind, "English"))
+    import tools
+
+    done = tools.answer(text, lang, today, vocab)  # sums, dates, measures, cash check, grouped questions: by code
+    if done:
+        return done
     if THANKS.match(t):
         return _out(_named(SAY_THANKS.get(lang, SAY_THANKS["English"])), lang, english=_named(SAY_THANKS["English"]))
     if HELP.search(t) or GREET.match(t):
@@ -756,6 +761,9 @@ def reply(text, state=None, today=None, shop="your shop"):
             return out
     if amount is not None or EVENT.search(t):
         return _record(text, lang, state, vocab, today, heard)
+    done = tools.ai_answer(text, lang, today)   # N-ATLaS picks a tool for what the rules didn't catch; code runs it
+    if done:
+        return done
     if lang not in ("English", "Pidgin"):  # the AI answers in Yoruba / Hausa / Igbo, numbers checked against the book
         import assistant
 
@@ -764,6 +772,7 @@ def reply(text, state=None, today=None, shop="your shop"):
             return _out(said, lang, spoken=assistant.spoken(said))
     answer, engine = insights.ask(text)
     if engine == "rules" and not answer:
+        tools.unanswered(lang)     # counted for the team (no words kept): the common ones become new tools
         return _out(SAY["not_sure"][lang], lang, english=SAY["not_sure"]["English"])
     return _out(answer, lang)
 

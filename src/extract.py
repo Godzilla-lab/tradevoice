@@ -391,6 +391,10 @@ def parse_due(text, today):
         if any(re.search(rf"(?<![\w']){re.escape(n)}(?![\w'])", t) for n in (day, *_LOCAL_WEEKDAYS[i])):
             delta = (i - today.weekday()) % 7 or 7
             return (today + dt.timedelta(days=delta)).isoformat()
+    if re.search(r"\b(after|by|before|on|for|till|until|leyin|bayan|kafin|tupu)\b", t):
+        import tools   # "I go pay after Sallah" / "by Christmas": the Nigerian calendar (expected dates for Sallah)
+
+        return tools.holiday_due(text, today)
     return None
 
 

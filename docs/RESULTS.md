@@ -3,6 +3,25 @@
 Record every real run here (date, who, command, numbers). These numbers go into the NAIC PDFs (`docs/naic/`) and the video; all runs, old and new, are submitted together.
 ⚠️ Test phrases in `eval/cases*.jsonl` were written by our team/Claude, not native speakers yet. Say so when quoting them.
 
+## 3 Oct 2026: tool calls (E10), 203 sentences in 5 languages (`eval/cases_tools.jsonl`)
+Does TradeVoice pick the right tool (calculator, Nigerian dates, market units, cash check, book query) with the right
+fields, and does the code get the right number? 35 of the sentences are records or plain book questions that must
+NOT trigger a tool. Rules only, offline (`python eval/run_tools_eval.py`):
+
+| Language | Sentences | Right tool | All right |
+|---|---|---|---|
+| English | 58 | 100% | 100% |
+| Pidgin | 46 | 100% | 100% |
+| Yorùbá | 33 | 91% | 91% |
+| Hausa | 33 | 91% | 91% |
+| Igbo | 33 | 91% | 91% |
+| **All** | **203** | **96%** | **96%** |
+
+**Honest limits:** the same team wrote these sentences and the word rules, so this is a regression floor, not proof.
+The misses are market measures asked in Yorùbá, Hausa or Igbo ("Mudu mélòó ló wà nínú àpò ìrẹsì mẹ́ta?"); in the
+app, N-ATLaS picks the tool for those (`--llm`, still to run on the live N-ATLaS). The real test is new sentences from
+traders and the native-speaker check.
+
 ## 2 Oct 2026: 100 NEW research-written sentences (`eval/cases_research.jsonl`): the honest score
 Written from research on how Nigerian traders talk (transfers and "alerts", POS, agbero/market ticket, keke, NEPA
 bill, loaders, mudu/kongo/derica/paint measures, supplier credit, loans, part payments), 20 per language, made-up

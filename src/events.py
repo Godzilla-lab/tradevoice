@@ -159,6 +159,9 @@ def summary(now=None):
         "records_saved": sum(1 for r in ev if r["kind"] == "record_saved"),
         "understanding": llm, "natlas_share": round(100 * llm.get("natlas", 0) / llm_ok) if llm_ok else None,
         "hearing": share("hear"), "voice_replies": share("voice"),
+        "hearing_merge": share("hear_merge"), "tools": share("tool"),
+        "unanswered": {l: sum(1 for r in ev if r["kind"] == "unanswered" and (r["lang"] or "?") == l)
+                       for l in sorted({r["lang"] or "?" for r in ev if r["kind"] == "unanswered"})},
         "errors": sum(1 for r in ev if not r["ok"]),
         "team_left_out": len(team_phones()),
     }
