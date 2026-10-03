@@ -6,6 +6,7 @@ On the live server: sudo bash /opt/tradevoice/app/deploy/server/speed.sh
 
 Steps, in the order a voice turn runs them:
   hearing      N-ATLaS speech model (voice note -> words)            event "hear"
+  merge        Yoruba/Hausa/Igbo: two hearings merged by N-ATLaS    event "hear_merge"
   brain        N-ATLaS answering (record or question)                event "llm" (engine natlas)
   understand   the whole reply on the server (brain + book + rules)  event "understand"
   voice        Intron making the spoken reply (cached replies: 0)    event "voice" (engine intron)
@@ -24,6 +25,7 @@ STEPS = [("hearing", lambda r: r["kind"] == "hear" and r["ok"]),
          ("brain (N-ATLaS)", lambda r: r["kind"] == "llm" and r["ok"] and r["engine"] == "natlas"),
          ("brain (backup AI)", lambda r: r["kind"] == "llm" and r["ok"] and r["engine"] != "natlas"),
          ("N-ATLaS didn't answer", lambda r: r["kind"] == "llm" and not r["ok"] and r["engine"] == "natlas"),
+         ("merge two hearings (N-ATLaS)", lambda r: r["kind"] == "hear_merge" and r["ok"]),
          ("understand", lambda r: r["kind"] == "understand"),
          ("voice (Intron)", lambda r: r["kind"] == "voice" and r["ok"] and (r["engine"] or "").startswith("intron"))]
 

@@ -11,3 +11,5 @@ eval/tts_samples/audition/
 books/
 cloudflared
 backups/
+# speech A/B results (the words heard in test voice notes)
+speech_ab*.csv

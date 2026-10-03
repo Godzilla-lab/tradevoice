@@ -214,10 +214,14 @@ def _natlas_transcribe(path, language, vocab=None):
     base = os.environ["NATLAS_ASR_URL"].rstrip("/")
     head = {"Authorization": f"Bearer {os.getenv('NATLAS_KEY', '')}"}
 
+    # two models on one note for Yoruba / Hausa / Igbo (traders mix in English), merged by N-ATLaS (hearing.py)
+    also = "english" if lang != "english" and os.getenv("NATLAS_ASR_MERGE", "1") == "1" else ""
+    form = {"lang": lang, "prompt": hints, "prep": os.getenv("NATLAS_ASR_PREP", "1"), "also": also}
+
     def send(timeout):
         with open(path, "rb") as f:
             return requests.post(base + "/transcribe", files={"file": (os.path.basename(path), f)},
-                                 data={"lang": lang, "prompt": hints}, headers=head, timeout=timeout)
+                                 data=form, headers=head, timeout=timeout)
     slow = (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
     try:
         r = send(float(os.getenv("NATLAS_ASR_TIMEOUT", "60")))
@@ -238,7 +242,23 @@ def _natlas_transcribe(path, language, vocab=None):
         raise RuntimeError("no speech heard (silence or too quiet)")
     if looping(out.get("text"), out.get("seconds")):
         raise RuntimeError("N-ATLaS speech model repeated itself (unclear audio)")
-    return {"text": (out.get("text") or "").strip(), "language": lang, "engine": f"natlas:{out.get('model')}"}
+    import hearing
+
+    text, engine = (out.get("text") or "").strip(), f"natlas:{out.get('model')}"
+    second = out.get("also") if isinstance(out.get("also"), dict) else None
+    if second and looping(second.get("text"), out.get("seconds")):
+        second = None
+    res = {"text": text, "language": lang, "engine": engine}
+    if second:
+        res["heard"] = [text, (second.get("text") or "").strip()]
+        merged, how = hearing.merge(text, second.get("text"), lang.title(), vocab)
+        res["merge"] = how
+        if how == "merged":
+            res["text"], res["engine"] = merged, engine + "+english:merged"
+    chk = hearing.check(out, second, res["text"])
+    if chk:
+        res["check"] = chk
+    return res
 
 
 def _local_transcribe(path, language, vocab):

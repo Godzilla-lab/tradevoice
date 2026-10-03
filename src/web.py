@@ -153,12 +153,14 @@ def _draft(state):
     if not rec or state.get("choose"):
         return None
     unsure = []
-    if rec.get("amount") in (None, "") or rec.get("_price"):   # no amount, or far from their usual price
-        unsure.append("amount")
+    if rec.get("amount") in (None, "") or rec.get("_price") or rec.get("_reask") == "amount":
+        unsure.append("amount")   # no amount, far from their usual price, or not heard clearly
     if (rec.get("confidence") or 0) < 0.5 and rec.get("amount") not in (None, ""):
         unsure.append("type")
     if rec.get("type") in ("credit_sale", "payment_received", "credit_purchase", "payment_made") and not rec.get("customer"):
         unsure.append("customer")  # a debt needs a person
+    elif rec.get("_reask") == "customer":
+        unsure.append("customer")  # a new name not heard clearly
     if rec.get("type") in ("credit_sale", "credit_purchase") and not rec.get("due_date"):
         unsure.append("due_date")
     known = bool(rec.get("customer_id")) or bool(rec.get("customer") and ledger.find_customers(rec["customer"]))
@@ -276,12 +278,23 @@ def _hear(file, lang, consent):
     heard["text"] = (heard.get("text") or "").strip()
     if not heard["text"]:
         return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)
+    if heard.get("check"):   # an unclear amount or name: kept for the reply (live talk replies in the next call)
+        now = time.time()
+        for k in [k for k, (t, _) in HEARD_CHECKS.items() if now - t > 300]:
+            HEARD_CHECKS.pop(k, None)
+        HEARD_CHECKS[(ledger.book_path(), heard["text"])] = (now, heard["check"])
     return heard
+
+
+HEARD_CHECKS = {}   # (book, words heard) -> (time, what the hearing models weren't sure of), for 5 minutes
 
 
 def _say(text, session, lang, shop, live):
     """Words -> the reply (the conversation moves on: a draft, a question, or a save), its voice started at once."""
     state = _state(session, lang)
+    check = HEARD_CHECKS.pop((ledger.book_path(), text), (0, None))[1]
+    if check:
+        state["heard_check"] = check   # the chat asks again for just the unclear part
     t0 = time.perf_counter()
     out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text, live=live)
     events.log("understand", channel="web", lang=lang, ms=(time.perf_counter() - t0) * 1000)   # speed check (E6)

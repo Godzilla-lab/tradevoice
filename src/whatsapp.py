@@ -428,6 +428,7 @@ def handle(msg):
 
                 heard = transcribe_auto(path, VOICE_LANGS.get(u["lang"], "English / Pidgin"), vocab=ledger.known_words())
                 text = heard["text"].strip()
+                st["heard_check"] = heard.get("check")   # unclear amount or name: the chat asks for just that
                 new = {"English / Pidgin": None}.get(heard.get("detected"), heard.get("detected"))
                 if new and new != u["lang"]:  # they spoke another of our languages: use it from now on
                     set_user(phone, lang=new)

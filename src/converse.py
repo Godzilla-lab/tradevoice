@@ -96,6 +96,22 @@ SAY = {
     "check_it": {"English": "Please check it before saving.", "Pidgin": "Abeg check am before you save.",
                  "Yoruba": "Jọ̀wọ́ ṣàyẹ̀wò rẹ̀ kí o tó kọ ọ́.", "Hausa": "Da fatan ka duba kafin ka adana.",
                  "Igbo": "Biko lelee ya tupu i chekwaa."},
+    # asking again for just the unclear part (hearing.py): two hearing models disagreed, or one wasn't sure
+    "amount_again": {"English": "I heard {a} or {b}. Say the amount again.",
+                     "Pidgin": "I hear {a} or {b}. Talk the money again.",
+                     "Yoruba": "Mo gbọ́ {a} tàbí {b}. Ẹ sọ iye owó náà lẹ́ẹ̀kan sí i.",
+                     "Hausa": "Na ji {a} ko {b}. Sake faɗin kuɗin.",
+                     "Igbo": "Anụrụ m {a} ma ọ bụ {b}. Kwuo ego ahụ ọzọ."},
+    "amount_unclear": {"English": "I heard {a}, but not clearly. Say the amount again.",
+                       "Pidgin": "I hear {a}, but e no clear. Talk the money again.",
+                       "Yoruba": "Mo gbọ́ {a}, ṣùgbọ́n kò yé mi dáadáa. Ẹ sọ iye owó náà lẹ́ẹ̀kan sí i.",
+                       "Hausa": "Na ji {a}, amma bai fito sosai ba. Sake faɗin kuɗin.",
+                       "Igbo": "Anụrụ m {a}, mana o doghị anya. Kwuo ego ahụ ọzọ."},
+    "name_again": {"English": "I didn't hear the name well. Say the customer's name again.",
+                   "Pidgin": "I no hear the name well. Talk the customer name again.",
+                   "Yoruba": "Mi ò gbọ́ orúkọ náà dáadáa. Ẹ sọ orúkọ oníbàárà náà lẹ́ẹ̀kan sí i.",
+                   "Hausa": "Ban ji sunan sosai ba. Sake faɗin sunan mai siyan.",
+                   "Igbo": "Anụghị m aha ahụ nke ọma. Kwuo aha onye ahịa ahụ ọzọ."},
     "how_much": {"English": "How much was it?", "Pidgin": "Na how much?", "Yoruba": "Èló ni?",
                  "Hausa": "Nawa ne?", "Igbo": "Ego ole?"},
     "saved": {"English": "Saved. {s}", "Pidgin": "I don save am. {s}", "Yoruba": "Mo ti kọ ọ́ sílẹ̀. {s}",
@@ -383,6 +399,8 @@ def _correct(text, lang, state, today):
     amount = parse_amount(text)
     if amount is not None:
         rec["amount"] = amount
+        if rec.get("_reask") == "amount":
+            rec.pop("_reask")
     nc = new.get("customer")
     if nc and not (rec.get("customer") and _same(nc, rec["customer"])):
         rec["customer"], rec["customer_id"] = nc, None
@@ -415,7 +433,7 @@ def _is_correction(text, t, state):
     return parse_amount(text) is not None and len(t.split()) <= 4 and not new_customer
 
 
-def _record(text, lang, state, vocab, today):
+def _record(text, lang, state, vocab, today, heard=None):
     had_draft = bool(state.get("pending") and state["pending"].get("amount") not in (None, ""))
     rec, meta = extract(text, today=today, vocab=vocab)
     if not rec.get("customer"):
@@ -428,7 +446,41 @@ def _record(text, lang, state, vocab, today):
         return ask
     if rec.get("amount") in (None, ""):
         return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
+    again = _ask_again(rec, heard, lang)
+    if again:
+        return again
     return _heard(rec, lang, note=rec.get("note"), dropped=had_draft)
+
+
+def _ask_again(rec, heard, lang):
+    """Two hearing models heard different amounts, or one wasn't sure of the amount or of a new name: ask for just
+    that part. The draft waits (the card marks the part); a bare amount or name in reply fixes it."""
+    if not heard:
+        return None
+    amount = float(rec["amount"])
+    others = [a for a in heard.get("amounts") or [] if a != amount]
+    if others or heard.get("unsure_amount"):
+        rec["_reask"] = "amount"
+        key, v = ("amount_again", {"a": _money(amount), "b": _money(others[0])}) if others else \
+            ("amount_unclear", {"a": _money(amount)})
+        said = SAY[key][lang].format(**v)
+        return _out(said, lang, spoken=_say_amounts(said), english=SAY[key]["English"].format(**v))
+    name = rec.get("customer")
+    if name and not rec.get("customer_id") and set(heard.get("unsure_words") or []) & set(fold(name).split()):
+        rec["_reask"] = "customer"     # a new name the model wasn't sure of (names in the book are hints already)
+        return _out(SAY["name_again"][lang], lang, english=SAY["name_again"]["English"])
+    return None
+
+
+def _name_again(text, lang, state, today):
+    rec = state["pending"]
+    name = extract_customer(text) or " ".join(w.capitalize() for w in re.sub(r"[^\w\s'-]", " ", text).split()[:4])
+    rec.pop("_reask", None)
+    rec["customer"], rec["customer_id"] = name, None
+    state["pending_text"] = (state.get("pending_text", "") + " / " + text).strip(" /")
+    _mention(state, name)
+    ask = _pick_customer(rec, state, lang, today, state["pending_text"])
+    return ask or _heard(rec, lang, updated=True)
 
 
 def _say_amounts(text):
@@ -628,6 +680,7 @@ def reply(text, state=None, today=None, shop="your shop"):
     t = fold(text)
     vocab = ledger.known_words()
     pending = state.get("pending")
+    heard = state.pop("heard_check", None)   # what the hearing models weren't sure of (this message only)
 
     if state.get("choose"):  # answer to "Which Feranmi?"
         pick, ch = _chosen(t, state), state["choose"]
@@ -657,6 +710,8 @@ def reply(text, state=None, today=None, shop="your shop"):
     if pending and pending.get("amount") in (None, "") and parse_amount(text) and len(t.split()) <= 4:
         pending["amount"] = parse_amount(text)  # answer to "How much?"
         return _heard(pending, lang)
+    if pending and pending.get("_reask") == "customer" and parse_amount(text) is None and len(t.split()) <= 5:
+        return _name_again(text, lang, state, today)   # answer to "Say the customer's name again"
     if pending and _is_correction(text, t, state):
         return _correct(text, lang, state, today)
     if REMIND.search(t):
@@ -700,7 +755,7 @@ def reply(text, state=None, today=None, shop="your shop"):
         if out:
             return out
     if amount is not None or EVENT.search(t):
-        return _record(text, lang, state, vocab, today)
+        return _record(text, lang, state, vocab, today, heard)
     if lang not in ("English", "Pidgin"):  # the AI answers in Yoruba / Hausa / Igbo, numbers checked against the book
         import assistant
 
