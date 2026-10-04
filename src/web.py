@@ -327,6 +327,143 @@ def say(b: Said):
     return _say(b.text.strip(), b.session, b.lang, b.shop, live=True)
 
 
+# ---------------------------------------------------------------- Ask: the chat with your book (design 3, Ask tab)
+# The questions and answers are kept on the trader's phone (the design's history); the server keeps only what a
+# conversation needs to follow on ("how much does SHE owe?"), per open page, and forgets it on "Clear history".
+
+ASK_PHOTO = {
+    "found": {"English": "I found {n} lines. Check them before I save.", "Pidgin": "I see {n} lines. Check dem before I save.",
+              "Yoruba": "Mo rí ìlà {n}. Ṣàyẹ̀wò wọn kí n tó kọ wọ́n sílẹ̀.", "Hausa": "Na ga layuka {n}. Duba su kafin in adana.",
+              "Igbo": "Ahụrụ m ahịrị {n}. Lelee ha tupu m chekwaa."},
+    "found1": {"English": "I found 1 line. Check it before I save.", "Pidgin": "I see 1 line. Check am before I save.",
+               "Yoruba": "Mo rí ìlà kan. Ṣàyẹ̀wò rẹ̀ kí n tó kọ ọ́ sílẹ̀.", "Hausa": "Na ga layi 1. Duba shi kafin in adana.",
+               "Igbo": "Ahụrụ m otu ahịrị. Lelee ya tupu m chekwaa."},
+    "none": {"English": "I couldn't read that page. Try again in good light, with the whole page in the photo.",
+             "Pidgin": "I no fit read that page. Try again for better light, make the whole page show.",
+             "Yoruba": "Mi ò lè ka ojú ìwé yẹn. Tún gbìyànjú níbi tí ìmọ́lẹ̀ wà, kí gbogbo ojú ìwé hàn nínú fọ́tò.",
+             "Hausa": "Ban iya karanta wannan shafin ba. Sake gwadawa a wuri mai haske, duk shafin ya fito a hoton.",
+             "Igbo": "Enweghị m ike ịgụ peeji ahụ. Nwaa ọzọ n'ebe ìhè dị, ka peeji niile pụta na foto."},
+    "cant": {"English": "I can't read photos right now. Try again later.",
+             "Pidgin": "I no fit read photo now. Try again later.",
+             "Yoruba": "Mi ò lè ka fọ́tò báyìí. Tún gbìyànjú nígbà míì.",
+             "Hausa": "Ba zan iya karanta hoto yanzu ba. Sake gwadawa anjima.",
+             "Igbo": "Enweghị m ike ịgụ foto ugbu a. Nwaa ọzọ ma emechaa."},
+}
+
+
+def _headline(text):
+    """The big number on top of an answer: the one amount in its first sentence ("Mama Tunde owes you ₦63,600.").
+    None when the first sentence has none, or several (then the words carry it)."""
+    money = lambda x: re.findall(r"₦\s?\d[\d,]*(?:\.\d+)?", x)  # noqa: E731
+    first = re.split(r"(?<=[.!?])\s|\n", text or "", maxsplit=1)[0]
+    head, _, tail = first.partition(":")    # "owes you the most: ₦45,000" / "₦70,000 in total, 2 people: A ₦…, B ₦…"
+    if not money(head) and tail.strip().startswith("₦"):   # "money that came in: ₦10,000 (₦8,000 + ₦2,000)"
+        return money(tail)[0].replace(" ", "")
+    for part in (head, tail if not money(head) else "", first):
+        found = money(part)
+        if len(found) == 1:
+            return found[0].replace(" ", "")
+        if found:
+            return None
+    return None
+
+
+def _ask_text(r, out):
+    """The chat bubble's words: no WhatsApp *bold*, choices as numbered lines, a reminder's message to forward."""
+    t = (out["text"] or "").replace("*", "")
+    if r.get("choices"):
+        n = 0
+        for key, label in r["choices"]:
+            if key == "cust:new":
+                t += "\n" + label + " (say: new)"
+            else:
+                n += 1
+                t += f"\n{n}. {label}"
+    if out.get("message"):
+        t += "\n\n" + out["message"]
+    return t
+
+
+class AskIn(BaseModel):
+    session: str = "anon"
+    text: str
+    lang: str = "English"
+    voice: bool = False     # asked by voice: the answer is spoken at once (typed: on a tap)
+    shop: str = ""
+
+
+@app.post("/api/ask")
+def ask_chat(b: AskIn):
+    """One question in the Ask chat -> {n, t, lang, say, speak, autoplay}. The same brain as everywhere (the book,
+    the tools, 5 languages, N-ATLaS); a record said here waits for "yes" like anywhere else."""
+    text = (b.text or "").strip()[:1000]
+    if not text:
+        raise HTTPException(400, "nothing was asked")
+    state = _state("ask:" + b.session, b.lang)
+    check = HEARD_CHECKS.pop((ledger.book_path(), text), (0, None))[1]
+    if check:
+        state["heard_check"] = check
+    t0 = time.perf_counter()
+    r = _safe_reply(text, state, b.shop, b.lang)
+    out = _reply_json(r, state, heard=text if b.voice else None, live=True)   # no buttons in a chat: "Should I save it?"
+    events.log("understand", channel="web", lang=b.lang, ms=(time.perf_counter() - t0) * 1000)
+    words = _ask_text(r, out)
+    said = SPEAK.get(out["speak"], (None,))[0] if out.get("speak") else None
+    if b.voice and out.get("speak"):
+        _start_voice(out["speak"])     # ready by the time the page asks for it
+    return {"t": words, "n": _headline(words), "lang": out["lang"], "english": out.get("english"),
+            "say": said, "speak": out.get("speak"), "autoplay": b.voice, "pending": out["pending"],
+            "link": out.get("link")}
+
+
+@app.post("/api/ask/photo")
+def ask_photo(file: UploadFile = File(...), consent: str = Form(""), lang: str = Form("English")):
+    """A photo of a notebook page sent in the chat -> {t, rows, act}. Nothing is saved: the trader checks the
+    lines first ("Check the lines"), then /api/save_rows."""
+    if consent != "yes":
+        raise HTTPException(400, "consent needed")
+    lang = lang if lang in ASK_PHOTO["found"] else "English"
+    path = _upload(file, os.path.splitext(file.filename or "")[1] or ".jpg")
+    try:
+        res = photo.read(path)
+    except Exception as e:  # noqa: BLE001
+        print(f"ask photo failed: {type(e).__name__}: {e}")
+        return {"t": ASK_PHOTO["cant"][lang], "rows": [], "act": None, "lang": lang}
+    finally:
+        os.remove(path)   # the photo is deleted as soon as it is read
+    rows = res.get("rows") or []
+    key = "none" if not rows else "found1" if len(rows) == 1 else "found"
+    return {"t": ASK_PHOTO[key][lang].format(n=len(rows)), "rows": rows, "act": "scan" if rows else None, "lang": lang}
+
+
+class SayAgain(BaseModel):
+    text: str
+    lang: str = "English"
+
+
+@app.post("/api/ask/say")
+def ask_say(b: SayAgain):
+    """Play an answer again (the voice-note button): a fresh id for the same words. Words already spoken come
+    from the voice cache, so a replay costs nothing."""
+    from plain import no_emoji
+    text = no_emoji((b.text or "").replace("*", "").strip())[:800]
+    if not text:
+        raise HTTPException(400, "nothing to say")
+    import assistant
+    return {"speak": _speak_id(assistant.spoken(text), b.lang)}
+
+
+class AskReset(BaseModel):
+    session: str = "anon"
+
+
+@app.post("/api/ask/reset")
+def ask_reset(b: AskReset):
+    """'Clear history': the server forgets this chat's follow-on memory (who was talked about, a waiting draft)."""
+    SESSIONS.pop((ledger.book_path(), "ask:" + (b.session or "anon")), None)
+    return {"ok": True}
+
+
 @app.post("/api/warm")
 def warm():
     """Talk was opened: wake the N-ATLaS servers now, so they are up by the time the voice note arrives."""

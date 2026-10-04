@@ -202,32 +202,99 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
     await page.keyboard.press("Escape");
     await page.evaluate(() => document.querySelectorAll(".ov").forEach(o => o.remove()));
 
-    /* ------------------------------------------------------------ Ask */
+    /* ------------------------------------------------------------ Ask: the chat with your book (design 3) */
     await tab("ask");
-    const ans = async q => { await page.click(`#ask [data-q=${q}]`); return (await page.locator("#out .ans").textContent()).replace(/\s+/g, " "); };
-    await check("Ask: who owes the most → Iya Bisi ₦45,000", async () => {
-      const a = await ans("owe"); if (!/45,000/.test(a) || !/Iya Bisi/.test(a)) throw new Error(a);
+    const answers = () => page.locator("#thr .ab:not(.u):not(.ty)");
+    const nextAnswer = async (n, ms = 15000) => {
+      await page.waitForFunction(n => document.querySelectorAll("#thr .ab:not(.u):not(.ty)").length > n, n, { timeout: ms });
+      return (await answers().last().textContent()).replace(/\s+/g, " ");
+    };
+    const askBtn = async q => { const n = await answers().count(); await page.locator(`#ask [data-a=aqs][data-t="${q}"]`).first().click(); return nextAnswer(n); };
+    let speaks = 0, says = 0, resets = 0;
+    page.on("request", r => { const u = r.url(); if (/\/api\/speak\//.test(u)) speaks++; if (/\/api\/ask\/say$/.test(u)) says++; if (/\/api\/ask\/reset$/.test(u)) resets++; });
+    await check("Ask: the design's empty chat, with its four questions", async () => (await page.locator("#ask .sl [data-a=aqs]").count()) === 4);
+    await check("Ask: who owes the most → Iya Bisi, big number ₦45,000 on top", async () => {
+      const a = await askBtn("Who owes me the most?"), big = (await answers().last().locator(".an").textContent()).trim();
+      if (!/Iya Bisi/.test(a) || big !== "₦45,000") throw new Error(`${a} | ${big}`);
     });
-    await check("Ask: total owed → ₦70,000", async () => {
-      const a = await ans("total"); if (!/70,000/.test(a)) throw new Error(a);
-    });
-    await check("Ask: who is late → nobody", async () => {
-      const a = await ans("late"); if (!/Nobody is late/.test(a)) throw new Error(a);
-    });
+    await check("Ask: total owed → ₦70,000", async () => { const a = await askBtn("How much is owed in total?"); if (!/70,000/.test(a)) throw new Error(a); });
+    await check("Ask: who is late → nobody", async () => { const a = await askBtn("Who is late?"); if (!/Nobody is late/.test(a)) throw new Error(a); });
     await check("Ask: money in today matches the book", async () => {
-      bk = await book(); const a = await ans("sold");
+      bk = await book(); const a = await askBtn("How much did I get today?");
       if (!a.includes(naira(bk.in))) throw new Error(`${a} vs book ${bk.in}`);
     });
-    await check("Ask: typed 'who is late' answers on the phone", async () => {
-      await page.fill("#aq", "who is late"); await page.press("#aq", "Enter");
-      const a = (await page.locator("#out .ans").textContent()).replace(/\s+/g, " ");
-      if (!/Nobody is late/.test(a)) throw new Error(a);
-    });
-    await check("Ask: a free question goes to the brain and comes back with the right number", async () => {
+    await check("Ask: a typed question goes to the same brain: Oga Emeka ₦25,000", async () => {
+      const n = await answers().count();
       await page.fill("#aq", "How much does Oga Emeka owe me?"); await page.press("#aq", "Enter");
-      await page.waitForFunction(() => document.querySelector("#out .ans") && !document.querySelector("#out .wave"), null, { timeout: 30000 });
-      const a = (await page.locator("#out .ans").textContent()).replace(/\s+/g, " ");
-      if (!/25,000/.test(a)) throw new Error(a);
+      const a = await nextAnswer(n); if (!/25,000/.test(a)) throw new Error(a);
+      const u = (await page.locator("#thr .ab.u").last().textContent()).trim();
+      if (u !== "How much does Oga Emeka owe me?") throw new Error("question bubble: " + u);
+    });
+    await check("Ask: a typed answer doesn't speak by itself", async () => { await sleep(500); return speaks === 0; });
+    await check("Ask: every answer is a voice note, play button in the design's accent colour", async () => {
+      const vp = answers().last().locator(".vn .vp");
+      const [bg, accent] = await Promise.all([vp.evaluate(el => getComputedStyle(el).backgroundColor), page.evaluate(() => {
+        const d = document.createElement("div"); d.style.background = "var(--accent)"; document.body.append(d);
+        const c = getComputedStyle(d).backgroundColor; d.remove(); return c; })]);
+      if (bg !== accent) throw new Error(`${bg} vs accent ${accent}`);
+      if ((await answers().last().locator(".vn .vb i").count()) < 20) throw new Error("no waveform");
+    });
+    // the voice (Intron) is off in this test: a 1-second WAV stands in for it
+    const wav = (() => { const n = 8000, b = Buffer.alloc(44 + n * 2); b.write("RIFF", 0); b.writeUInt32LE(36 + n * 2, 4); b.write("WAVEfmt ", 8);
+      b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(8000, 24); b.writeUInt32LE(16000, 28);
+      b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write("data", 36); b.writeUInt32LE(n * 2, 40); return b; })();
+    await page.route("**/api/speak/*", route => route.fulfill({ status: 200, contentType: "audio/wav", body: wav }));
+    await check("Ask: tap play → the answer is spoken (a fresh id for the same words), its length shows", async () => {
+      await answers().last().locator(".vp").click();
+      await page.waitForFunction(() => { const v = [...document.querySelectorAll("#thr .vn")].pop(); return v && /\d:\d\d/.test(v.querySelector(".vd").textContent); }, null, { timeout: 10000 });
+      if (says < 1 || speaks < 1) throw new Error(`say ${says}, speak ${speaks}`);
+    });
+    await page.route("**/api/hear", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ heard: "Who owes me the most?" }) }));
+    await check("Ask: a voice question: recorded, heard, asked, shown with the mic mark, and the answer speaks by itself", async () => {
+      const n = await answers().count(), s0 = speaks;
+      await page.click("#amic"); await page.waitForSelector("#cmp.rec", { timeout: 5000 });
+      for (let i = 0; i < 30 && await page.locator("#cmp.rec").count(); i++) await sleep(200);   // stops itself after the voice
+      if (await page.locator("#cmp.rec").count()) await page.click("#amic");                       // or the trader taps stop
+      const a = await nextAnswer(n); if (!/Iya Bisi/.test(a)) throw new Error(a);
+      const u = page.locator("#thr .ab.u").last();
+      if (!(await u.locator(".vtag").count()) || !/Who owes me the most/.test(await u.textContent())) throw new Error("question bubble");
+      for (let i = 0; i < 20 && speaks === s0; i++) await sleep(250);
+      if (speaks === s0) throw new Error("the answer didn't play");
+    });
+    await page.unroute("**/api/hear");
+    const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+    let saved = null;
+    await page.route("**/api/ask/photo", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      t: "I found 2 lines. Check them before I save.", act: "scan", lang: "English",
+      rows: [{ save: true, type: "sale", amount: 5000, item: "rice", customer: null, line: "rice 5000" },
+             { save: false, type: "credit_sale", amount: null, item: "beans", customer: "Mama Ada", line: "Mama Ada beans ?" }] }) }));
+    await page.route("**/api/save_rows", route => { saved = route.request().postDataJSON(); route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ saved: 1, problems: [] }) }); });
+    await check("Ask: + photo → preview → send → 'Check the lines'", async () => {
+      await page.setInputFiles("#fgal", { name: "page.png", mimeType: "image/png", buffer: PNG });
+      await page.waitForSelector("#ask .pv img", { timeout: 5000 });
+      await page.click("#amic");   // the send button while a photo waits
+      await page.waitForSelector("#thr [data-a=achk]", { timeout: 15000 });
+    });
+    await check("Ask: 'Check the lines' shows the lines found; only the ticked line is saved", async () => {
+      await page.locator("#thr [data-a=achk]").last().click();
+      await page.waitForSelector(".ov.on .ln", { timeout: 5000 });
+      if ((await page.locator(".ov.on .ln").count()) !== 2) throw new Error("lines");
+      await page.click(".ov.on #sv");
+      for (let i = 0; i < 20 && !saved; i++) await sleep(250);
+      if (!saved || saved.rows.filter(r => r.save).length !== 1) throw new Error(JSON.stringify(saved));
+      await page.waitForFunction(() => /1 line saved/.test(document.querySelector("#thr").textContent), null, { timeout: 5000 });
+    });
+    await page.unroute("**/api/ask/photo"); await page.unroute("**/api/save_rows"); await page.unroute("**/api/speak/*");
+    await check("Ask: the chat is kept on this phone, per account", async () => {
+      const h = await page.evaluate(() => JSON.parse(localStorage.getItem("tv-ask-" + TVL.A.phone) || "[]"));
+      if (h.length < 12) throw new Error(`${h.length} messages kept`);
+    });
+    await check("Ask: Clear history asks first, then the chat and the server's memory are cleared", async () => {
+      await page.click("#ask [data-a=aclr]");
+      await page.locator(".ov.on button", { hasText: "Clear history" }).last().click();
+      await page.waitForSelector("#ask .sl", { timeout: 5000 });
+      for (let i = 0; i < 20 && !resets; i++) await sleep(100);
+      if (!resets) throw new Error("server not told");
     });
     await check("Ask: nothing was saved by asking", async () => {
       const b2 = await book(); return JSON.stringify(b2.customers.map(c => [c.n, c.b])) === JSON.stringify(bk.customers.map(c => [c.n, c.b]));

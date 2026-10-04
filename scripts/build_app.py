@@ -87,8 +87,8 @@ PATCHES = [
     ("askId", 'loadAll();return{em,key,acct:Object.values(AC).find(a=>em?(a.email&&a.emailOk&&a.email.toLowerCase()==key):a.phone==key)}}',
      'return{em,key,acct:null}}'),
     # --- log in with a WhatsApp code
-    ("otp login", '$("#go").onclick=()=>{err("id","");const p=normPhone(val("id"));if(!okPhone(p))return err("id","Enter a valid Nigerian number, like 803 123 4567.");if(offline())return err("id","You\'re offline. Connect to continue.");loadAll();const a=AC[p];if(!a)',
-     '$("#go").onclick=async()=>{err("id","");const p=normPhone(val("id"));if(!okPhone(p))return err("id","Enter a valid Nigerian number, like 803 123 4567.");if(offline())return err("id","You\'re offline. Connect to continue.");const a=await TVL.exists(p);if(!a)'),
+    ("otp login", '$("#go").onclick=()=>{err("id","");const p=normPhone(val("id"));if(!okPhone(p))return err("id","Enter a valid Nigerian number, like 803 123 4567.");if(offline())return err("id","No network. Check your data and try again.");loadAll();const a=AC[p];if(!a)',
+     '$("#go").onclick=async()=>{err("id","");const p=normPhone(val("id"));if(!okPhone(p))return err("id","Enter a valid Nigerian number, like 803 123 4567.");if(offline())return err("id","No network. Check your data and try again.");const a=await TVL.exists(p);if(!a)'),
     ("otp login 2", 'verify($("#ob"),{label:mphone(p),onOk:()=>{A=a;startSession(true)},',
      'verify($("#ob"),{phone:p,purpose:"login",label:mphone(p),onOk:lid=>TVL.loginCode(lid,true),'),
     # --- forgot password: code, then a new password (every other phone is logged out)
@@ -129,8 +129,14 @@ PATCHES = [
     ("gave", 'amtSheet("You gave",v=>{c.b+=v;c.h.unshift(["Sold on credit",v,"Today"]);all();toast(`${f(v)} added. ${first(c.n)} owes ${f(c.b)}.`)});',
      'amtSheet("You gave",v=>TVL.gave(c,v));'),
     # --- Ask: anything the quick answers don't cover goes to N-ATLaS
-    ("ask", ':`<div class="ans"><b style="font-weight:500">I can\'t calculate that yet.</b><small>Try one of the questions above.</small></div>`}});',
-     ':"";if(!k)TVL.askFree(e.target.value)}});'),
+    # --- Ask chat: answers, photos and voice come from the server (web/live.js gives areply / aimg / AX.avoice
+    #     their real versions); the design's own guesser and fake photo reader are not used
+    ("ask answer", 'if(im)rep=await aimg();else{await sleep(650);rep=areply(text)}',
+     'if(im)rep=await aimg(im,text);else rep=await areply(text,how)'),
+    ("ask photo file", 'try{apend=await athumb(f0);arefresh();', 'try{apend=await athumb(f0);TVL.pick=f0;arefresh();'),
+    ("ask check lines", '${m.act?`<button class="btn p" data-a="achk"', '${m.act?`<button class="btn p" data-a="achk" data-ts="${m.ts}"'),
+    ("ask listen", '${m.t?`<p>${esc(m.t)}</p>`:""}', '${m.t?`<p>${esc(m.t)}</p>`:""}${m.r=="a"&&m.t?TVL.listenBtn(m):""}'),
+    ("ask clear", '()=>{AH=[];asave();arefresh()}', '()=>{AH=[];asave();arefresh();TVL.askReset()}'),
     # --- the design's test tools (scenarios, empty book, design editor): only with ?demo=1
     ("demo tools", '<h2>Make it yours</h2>', '${TVL.demo?`<h2>Make it yours</h2>'),
     ("demo tools 2", '${R("Empty book","See the first-time screens",sw("empty",!C.length,"Empty book"))}',

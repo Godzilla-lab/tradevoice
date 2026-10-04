@@ -147,15 +147,6 @@
       await loadBook(); const n = C.find(y => y.id === c.id) || c;
       toast(`${f(v)} added. ${first(n.n)} owes ${f(n.b)}.`);
     },
-    async askFree(q) {
-      const out = $("#out"); if (!out) return;
-      out.innerHTML = `<div class="ans"><div class="wave">${"<i></i>".repeat(16)}</div></div>`;
-      const r = await api("/api/message", { body: { session: SID, text: q, lang: lang() } });
-      if (!r.ok) { out.innerHTML = `<div class="ans"><b style="font-weight:500">I can't calculate that yet.</b><small>Try one of the questions above.</small></div>`; return; }
-      const text = r.data.text || "", m = text.match(/₦[\d,]+/);
-      if (r.data.pending) api("/api/message", { body: { session: SID, text: "no", lang: lang() } });  // Ask never saves
-      out.innerHTML = m ? ansH(m[0], esc(text)) : `<div class="ans"><b style="font-weight:500">${esc(text)}</b></div>`;
-    },
   };
 
   /* ---------------------------------------------------------------- codes by WhatsApp (the design's verify) */
@@ -597,6 +588,20 @@ button.tvc-say{text-decoration:none}
   };
   pay = function () { remind(); };   // the real pay page opens from the reminder ("See what … sees")
 
+  // the line check: every line found in a photo, ticked or amber; only the ticked lines are saved, after the tap
+  function checkRows(rows, o, box, done) {
+    if (!o) { o = sheet(""); box = $(".in", o); }
+    box.innerHTML = `<h3>${rows.length} line${rows.length == 1 ? "" : "s"} found</h3><p class="s">Amber lines need a look.</p>${rows.map((x, i) => `<div class="ln ${x.save ? "" : "u"}"><input type="checkbox" ${x.save ? "checked" : ""} aria-label="Include ${esc(x.customer || x.line)}"><label class="inp"><input value="${esc(x.customer || x.item || x.line)}" aria-label="Name"></label><label class="inp"><input value="${x.amount ? Number(x.amount).toLocaleString("en-NG") : ""}" inputmode="numeric" aria-label="Amount"></label></div>`).join("")}<div class="btns"><button class="btn p w" id="sv">Save ticked</button></div>`;
+    $("#sv", o).onclick = async () => {
+      const out = $$(".ln", o).map((el, i) => { const [a, b] = $$("input:not([type=checkbox])", el), x = rows[i];
+        return Object.assign({}, x, { save: $("[type=checkbox]", el).checked, customer: x.customer ? a.value.trim() : x.customer,
+          item: x.customer ? x.item : a.value.trim(), amount: +b.value.replace(/\D/g, "") || null }); });
+      const s = await api("/api/save_rows", { body: { rows: out } });
+      shut(o); await loadBook();
+      const k = s.ok ? s.data.saved : 0; toast(`${k} line${k == 1 ? "" : "s"} saved.`); if (done) done(k);
+    };
+  }
+
   /* ---------------------------------------------------------------- scan an old notebook page */
   scan = async function () {
     const o = sheet(`<h3>Scan your book</h3><p class="s">Take a photo of a page. You check every line before it is saved.</p><div class="btns"><button class="btn p w" id="ph">Choose photo</button></div><input type="file" id="pf" accept="image/*" capture="environment" hidden>`), box = $(".in", o);
@@ -611,16 +616,7 @@ button.tvc-say{text-decoration:none}
         box.innerHTML = `<h3>I couldn't read that page</h3><p class="s">Try again in good light, with the whole page in the photo.</p><div class="btns"><button class="btn p w" id="re">Try again</button></div>`;
         $("#re", o).onclick = () => { shut(o); setTimeout(scan, 300); }; return;
       }
-      const rows = r.data.rows;
-      box.innerHTML = `<h3>${rows.length} lines found</h3><p class="s">Amber lines need a look.</p>${rows.map((x, i) => `<div class="ln ${x.save ? "" : "u"}"><input type="checkbox" ${x.save ? "checked" : ""} aria-label="Include ${esc(x.customer || x.line)}"><label class="inp"><input value="${esc(x.customer || x.item || x.line)}" aria-label="Name"></label><label class="inp"><input value="${x.amount ? Number(x.amount).toLocaleString("en-NG") : ""}" inputmode="numeric" aria-label="Amount"></label></div>`).join("")}<div class="btns"><button class="btn p w" id="sv">Save ticked</button></div>`;
-      $("#sv", o).onclick = async () => {
-        const out = $$(".ln", o).map((el, i) => { const [a, b] = $$("input:not([type=checkbox])", el), x = rows[i];
-          return Object.assign({}, x, { save: $("[type=checkbox]", el).checked, customer: x.customer ? a.value.trim() : x.customer,
-            item: x.customer ? x.item : a.value.trim(), amount: +b.value.replace(/\D/g, "") || null }); });
-        const s = await api("/api/save_rows", { body: { rows: out } });
-        shut(o); await loadBook();
-        const k = s.ok ? s.data.saved : 0; toast(`${k} line${k == 1 ? "" : "s"} saved.`);
-      };
+      checkRows(r.data.rows, o, box);
     };
   };
 
@@ -638,11 +634,155 @@ button.tvc-say{text-decoration:none}
     };
   };
 
+  /* ---------------------------------------------------------------- Ask: the chat with your book (design 3)
+     The design keeps the questions and answers on this phone (its history, its Clear button). Here they get real
+     answers: words go to /api/ask (the same brain as everywhere: the book, the tools, 5 languages, N-ATLaS), a
+     voice question is recorded and heard by N-ATLaS (never the browser's own speech service), a photo is read by
+     /api/ask/photo and its lines are checked before anything is saved. Each answer is also a voice note: it plays
+     by itself after a voice question, on a tap after a typed one. */
+  {   // the voice note in an answer bubble: the design's own colours, sizes and motion only
+    const s = document.createElement("style");
+    s.textContent = ".vn{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s3)}" +
+      ".vn .vp{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-fg);transition:transform var(--d1) var(--ease)}" +
+      ".vn .vp:active{transform:scale(.92)}.vn .vp svg{width:18px;height:18px}" +
+      ".vn .vb{flex:1;min-width:0;display:flex;align-items:center;gap:2px;height:28px}" +
+      ".vn .vb i{flex:1;max-width:3px;border-radius:2px;background:var(--label2);opacity:.35;transition:opacity var(--d1)}" +
+      ".vn .vb i.on{background:var(--accent);opacity:1}" +
+      ".vn .vd{flex:none;min-width:2.5em;text-align:right;font-size:.8125rem;color:var(--label2);font-variant-numeric:tabular-nums}";
+    document.head.append(s);
+  }
+  const PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/></svg>';
+  const PAUSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.5" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/></svg>';
+  const mmss = x => `${Math.floor(x / 60)}:${String(Math.round(x) % 60).padStart(2, "0")}`;
+  const bars = t => {   // a fixed little waveform per answer (from its words), like a voice note
+    let h = 7, out = "";
+    for (let i = 0; i < 28; i++) { h = (h * 31 + (t.charCodeAt(i % t.length) || 7)) % 997; out += `<i style="height:${30 + h % 70}%"></i>`; }
+    return out;
+  };
+  let playing = null;   // the answer whose voice note is playing (its ts)
+  const vnEl = ts => document.querySelector(`.vn[data-ts="${ts}"]`);
+  function vnShow(ts) {
+    const el = vnEl(ts); if (!el) return;
+    const on = playing == ts && !player.paused, b = $(".vp", el);
+    b.innerHTML = on ? PAUSE : PLAY; b.setAttribute("aria-label", on ? "Pause" : "Play the answer");
+    const frac = playing == ts && player.duration ? player.currentTime / player.duration : 0, is = $$(".vb i", el);
+    is.forEach((x, i) => x.classList.toggle("on", i < Math.round(frac * is.length)));
+    const m = AH.find(x => x.ts == ts), d = $(".vd", el);
+    if (d) d.textContent = playing == ts && player.duration && player.currentTime ? mmss(player.currentTime) : m && m.dur ? mmss(m.dur) : "";
+  }
+  player.addEventListener("timeupdate", () => playing && vnShow(playing));
+  player.addEventListener("loadedmetadata", () => {
+    const m = playing && AH.find(x => x.ts == playing);
+    if (m && isFinite(player.duration) && !m.dur) { m.dur = Math.round(player.duration); asave(); }
+    playing && vnShow(playing);
+  });
+  player.addEventListener("ended", () => { const ts = playing; playing = null; ts && vnShow(ts); });
+  player.addEventListener("pause", () => playing && vnShow(playing));
+  player.addEventListener("error", () => { if (playing) { const ts = playing; playing = null; vnShow(ts); toast("I couldn't play that answer. Try again."); } });
+  async function playMsg(m, sid) {
+    if (playing == m.ts && !player.paused) { player.pause(); return; }
+    if (playing == m.ts && player.src && player.currentTime > 0 && !player.ended) { player.play().catch(() => {}); return; }
+    if (!sid) {   // a fresh id for the same words: spoken before = from the voice cache, free
+      const r = await api("/api/ask/say", { body: { text: m.sv || m.t, lang: m.l || lang() } });
+      if (!r.ok || !r.data.speak) return toast("I couldn't play that answer. Try again.");
+      sid = r.data.speak;
+    }
+    const was = playing; playing = m.ts; was && vnShow(was);
+    try { player.pause(); player.src = `/api/speak/${sid}`; const p = player.play(); if (p) p.catch(() => {}); } catch (e) {}
+    vnShow(m.ts);
+  }
+  TVL.listenBtn = m => `<div class="vn" data-ts="${m.ts}"><button class="vp" data-a="aplay" data-ts="${m.ts}" aria-label="Play the answer">${playing == m.ts && !player.paused ? PAUSE : PLAY}</button><span class="vb" aria-hidden="true">${bars(m.sv || m.t)}</span><span class="vd">${m.dur ? mmss(m.dur) : ""}</span></div>`;
+  TVL.askReset = () => { player.pause(); playing = null; api("/api/ask/reset", { body: { session: SID } }); };
+  const noNet = "No network. Check your data and try again.";
+
+  // the design's askNow() calls these two: a question in words, or a photo
+  areply = async function (q, how) {
+    if (offline()) return { t: noNet };
+    const voice = how == "voice";
+    const r = await api("/api/ask", { body: { session: SID, text: q, lang: lang(), voice, shop: A ? A.biz : "" } });
+    if (!r.ok) return { t: r.status === 0 ? noNet : "Sorry, something went wrong. Try again." };
+    const d = r.data, rep = { t: d.t, l: d.lang, sv: d.say || "" };
+    if (d.n) rep.n = d.n;
+    if (voice && d.speak && voiceOn())   // asked by voice: the answer plays by itself, once it is in the chat
+      setTimeout(() => { const m = AH[AH.length - 1]; if (m && m.r == "a") playMsg(m, d.speak); }, 0);
+    if (!d.pending) loadBook();          // a "yes" in the chat may have saved a record: Home and Customers update
+    return rep;
+  };
+  aimg = async function (im, text) {
+    if (offline()) return { t: "No network. Your photo is kept on this phone. Try again when the network is back." };
+    let file = TVL.pick; TVL.pick = null;
+    if (!file) { const b = await (await fetch(im)).blob(); file = new File([b], "photo.jpg", { type: b.type || "image/jpeg" }); }
+    const fd = new FormData(); fd.append("file", file, file.name || "photo.jpg"); fd.append("consent", "yes"); fd.append("lang", lang());
+    const r = await api("/api/ask/photo", { form: fd });
+    if (!r.ok) return { t: r.status === 0 ? noNet : "I couldn't read that photo. Try again." };
+    const rep = { t: r.data.t, l: r.data.lang };
+    if (r.data.rows && r.data.rows.length) { rep.act = "scan"; rep.rows = r.data.rows; }
+    return rep;
+  };
+  AX.achk = a => {   // "Check the lines": the lines this photo gave, ticked or amber; nothing saved before the tap
+    const m = AH.find(x => String(x.ts) === a.dataset.ts);
+    if (!m || !m.rows) return scan();
+    checkRows(m.rows, null, null, k => { m.act = 0; asave(); apush({ r: "a", t: `${k} line${k == 1 ? "" : "s"} saved.` }); arefresh(); });
+  };
+  AX.aplay = a => { unlock(); const m = AH.find(x => String(x.ts) === a.dataset.ts); if (m) playMsg(m); };
+
+  // a voice question: recorded here, heard by N-ATLaS (/api/hear), then asked like typed words
+  AX.avoice = async function () {
+    if (abusy) return;
+    if (arec) { arec.stop(); return; }
+    unlock(); player.pause();
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } }); }
+    catch (e) { return micOff(); }
+    const rec = new MediaRecorder(stream), parts = [];
+    rec.ondataavailable = e => e.data.size && parts.push(e.data);
+    const stopped = new Promise(r => (rec.onstop = r));
+    let byHand = false;
+    const stop = () => { if (rec.state == "recording") rec.stop(); };
+    arec = { stop: () => { byHand = true; stop(); } }; rec.start(); arefresh();
+    // stops by itself 1.2 s after they finish talking (quiet = back to the market's own noise), or at 40 s
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(), an = ctx.createAnalyser();
+    ctx.createMediaStreamSource(stream).connect(an); an.fftSize = 1024;
+    const buf = new Uint8Array(an.fftSize), t0 = Date.now(), first = [];
+    let spoke = false, quietSince = 0, floor = 0;
+    (function watch() {
+      if (rec.state != "recording") return;
+      an.getByteTimeDomainData(buf); let s = 0; for (const v of buf) s += (v - 128) ** 2;
+      const rms = Math.sqrt(s / buf.length);
+      if (first.length < 15) { if (rms > 0.5) first.push(rms); floor = first.length ? first.slice().sort((a, b) => a - b)[first.length >> 1] : 0; }
+      else {
+        floor = rms < floor ? rms : floor + (rms - floor) * 0.002;
+        if (rms > Math.max(6, floor * 1.8 + 3)) { spoke = true; quietSince = 0; } else if (spoke && !quietSince) quietSince = Date.now();
+        if (spoke && quietSince && Date.now() - quietSince > 1200) return stop();
+      }
+      if (Date.now() - t0 > 40000 || (!spoke && Date.now() - t0 > 10000)) return stop();
+      requestAnimationFrame(watch);
+    })();
+    await stopped; stream.getTracks().forEach(x => x.stop()); ctx.close();
+    arec = null;
+    // stopped by hand after a second or more: send it (a quiet voice may not look "loud" here; N-ATLaS checks for
+    // silence itself). Stopped by itself with no voice at all: say so at once.
+    if (!parts.length || (!spoke && !(byHand && Date.now() - t0 > 1000))) {
+      apush({ r: "a", t: "I couldn't hear you. Move closer and try again." }); return arefresh();
+    }
+    abusy = true; arefresh();   // the design's typing dots while N-ATLaS hears it
+    const fd = new FormData();
+    fd.append("file", new Blob(parts, { type: rec.mimeType || "audio/webm" }), "question.webm");
+    fd.append("lang", lang()); fd.append("consent", "yes");
+    const waking = setTimeout(() => toast((LW[L] || LW.en).wake), 20000);   // first voice of the day: N-ATLaS wakes
+    const r = await api("/api/hear", { form: fd });
+    clearTimeout(waking); abusy = false;
+    if (!r.ok || !r.data.heard) {
+      apush({ r: "a", t: r.status === 0 ? noNet : (r.data && r.data.error) || "I couldn't hear you. Move closer and try again." });
+      return arefresh();
+    }
+    askNow(r.data.heard, "voice");
+  };
+
   /* ---------------------------------------------------------------- Connect my WhatsApp: when the bot is live */
   wac = function () { toast("Connecting WhatsApp opens when the TradeVoice bot number is live."); };
 
-  /* ---------------------------------------------------------------- the design's local "Ask" answers use the real book;
-     anything else goes to N-ATLaS (via the same chat brain as WhatsApp) */
+  /* ---------------------------------------------------------------- a customer's full history when opened */
   document.addEventListener("click", e => { const a = e.target.closest("[data-a=open]"); if (a) openDet(+a.dataset.i); });
   addEventListener("online", loadBook);
   TVL.loadBook = loadBook;
