@@ -23,15 +23,18 @@ PERIODS = ("today", "yesterday", "this_week", "last_week", "this_month", "last_m
            "last_30", "all")
 TOOLS = ("book_summary", "who_owes", "i_owe", "customers", "sales", "calculate", "date", "record")
 
-PROMPT = """You are TradeVoice, the record book of a Nigerian market trader (__TRADER__). Today is __TODAY__.
+PROMPT = """/no_think
+You are TradeVoice, the record book of a Nigerian market trader (__TRADER__). Today is __TODAY__.
 You talk with the trader in __LANG__. You can ONLY help with their shop: sales, spending, who owes them, who they owe,
 their customers, prices and simple sums. Anything else (health, news, jokes, other topics): say in one sentence that
 you can only help with their shop.
 
 You never know a number until a tool gives it to you. Use the tools; never guess or invent a number or a name.
-Reply with ONE JSON object and nothing else, either a tool call or the answer:
+Reply with ONE JSON object and nothing else (no thinking out loud), either a tool call or the answer:
   {"tool": "<name>", "args": {...}}
-  {"reply": "<1-3 short calm sentences for the trader>"}
+  {"reply": "<1-3 short calm sentences for the trader>", "about_shop": true or false}
+"about_shop": false only when the message is about something other than the shop (health, news, jokes...). A
+follow-up in this conversation ("are you sure?", "and her?", "why?") is about the shop: check again with the tools.
 
 Tools:
 - book_summary {"period": one of today, yesterday, this_week, last_week, this_month, last_month, this_year, last_7,
@@ -54,7 +57,7 @@ trader questions unless you need one missing fact. "she / he / they" = the perso
 conversation). Say what the tool said; if a tool found nothing, say that plainly.
 """
 SCHEMA = {"type": "object", "properties": {"tool": {"type": "string", "enum": list(TOOLS)}, "args": {"type": "object"},
-                                           "reply": {"type": "string"}}}
+                                           "reply": {"type": "string"}, "about_shop": {"type": "boolean"}}}
 
 
 def models(lang):
@@ -180,13 +183,22 @@ def answer(text, state, lang="English", today=None):
     msgs = [{"role": "system", "content": prompt}] + hist[-8:] + [{"role": "user", "content": text}]
     ctx = {"today": today, "text": text, "lang": lang, "state": state, "numbers": set(_numbers_from_text(text))}
     used = []
+    trace = state.setdefault("_trace", [])
+    trace.clear()
+
+    def give_up(why):
+        trace.append({"fell_back": why})
+        print(f"ask brain: the rules answer ({why})")
+        _log(False, why)
+        return None
     for _ in range(MAX_STEPS):
         try:
-            out, model = llm.chat(msgs, max_tokens=400, temperature=0.0, timeout=25, models=models(lang),
+            out, model = llm.chat(msgs, max_tokens=1500, temperature=0.0, timeout=30, models=models(lang),
                                   schema=SCHEMA)
         except Exception as e:  # noqa: BLE001
-            print(f"ask brain: no model answered ({type(e).__name__}: {e})")
-            return None
+            return give_up(f"no model answered: {type(e).__name__}: {str(e)[:120]}")
+        trace.append({"model": model, "wrote": (out or "")[:400]})
+        out = llm.clean(out)
         try:
             from extract import _parse_json
 
@@ -194,6 +206,7 @@ def answer(text, state, lang="English", today=None):
         except Exception:  # noqa: BLE001
             step = {"reply": (out or "").strip()} if out and "{" not in out else {}
         if step.get("tool") == "record":
+            _log(True, "record")
             return {"record": True, "engine": f"llm:{model}"}
         if step.get("tool") in TOOLS:
             result = run_tool(step["tool"], step.get("args") or {}, ctx)
@@ -204,16 +217,37 @@ def answer(text, state, lang="English", today=None):
             continue
         reply = (step.get("reply") or "").strip()
         if not reply:
-            return None
+            return give_up("no JSON answer in what the model wrote")
+        if step.get("about_shop") is False:   # the model says it isn't about the shop: the fixed line, never its words
+            import converse
+
+            reply = converse.SAY["off_topic"].get(lang, converse.SAY["off_topic"]["English"])
+            _log(True, "off_topic")
+            return {"text": reply, "spoken": reply, "lang": lang, "engine": f"llm:{model}", "tools": used}
+        import converse
+
+        if not used and not converse.on_topic(reply) and not converse.on_topic(text):
+            # a model that answers something off the shop without saying so (it once happened: mental health)
+            reply = converse.SAY["off_topic"].get(lang, converse.SAY["off_topic"]["English"])
+            _log(True, "off_topic (caught)")
+            return {"text": reply, "spoken": reply, "lang": lang, "engine": f"llm:{model}", "tools": used}
         bad = [n for n in _said_numbers(reply) if n >= 100 and n not in ctx["numbers"]]
         if bad or not assistant.calm_ok(reply):
-            print(f"ask brain: reply refused ({'numbers ' + str(bad) if bad else 'not calm'})")
-            return None   # a number nobody gave, or cheering: the rules answer instead
+            return give_up(f"reply refused: {'numbers nobody gave ' + str(bad) if bad else 'not calm'}")
         hist += [{"role": "user", "content": text}, {"role": "assistant", "content": reply}]
         del hist[:-12]
+        _log(True, model)
         return {"text": reply, "spoken": assistant.spoken(reply), "lang": lang, "engine": f"llm:{model}",
                 "tools": used}
-    return None
+    return give_up(f"no answer after {MAX_STEPS} steps")
+
+
+def _log(ok, what):
+    try:
+        import events
+        events.log("ask_brain", engine=str(what)[:60], ok=ok)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _numbers_from_text(text):

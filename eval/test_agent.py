@@ -168,5 +168,30 @@ check("…someone not in the book is said so (not left out quietly)", "zainab is
       and [p["name"] for p in out["people"]] == ["Mike"], out)
 check("…the prompt tells the model to put everyone asked about in names", "ALL of them in names" in agent.PROMPT)
 
+# 12. follow-ups are the model's to understand ("are you sure?"), with the conversation; the model flags off topic
+SCRIPT[:] = [{"tool": "who_owes", "args": {"names": ["mike", "dino"]}}, both,
+             lambda m: json.dumps({"tool": "who_owes", "args": {"names": ["mike", "dino"]}}) if
+             any("Together" in x["content"] for x in m[1:-1]) else json.dumps({"reply": "no memory"}),
+             {"reply": "Yes. Mike owes you ₦3,000,000 and Dino owes you ₦20,000.", "about_shop": True}]
+ask("how much does mike and dino owe me", session="m12")
+r = ask("are you sure?", session="m12")
+check("'are you sure?': the model (with the conversation) checks the book again; not refused as off topic",
+      r["t"] == "Yes. Mike owes you ₦3,000,000 and Dino owes you ₦20,000.", r)
+SCRIPT[:] = [{"reply": "Drink water and rest.", "about_shop": False}]
+r = ask("my head dey pain me", session="m13")
+check("the model marks it not about the shop: the fixed line, never its words", r["t"].startswith(
+      "I can only help with your shop"), r)
+SCRIPT[:] = [lambda m: "<think>Let me think about what the trader means. The trader asks who owes the most " * 5]
+r = ask("Who owes me the most?", session="m14")
+check("a thinking model cut off before its JSON: the rules answer (and the reason is kept)", "owes you the most" in r["t"]
+      and any("no JSON" in (s_.get("fell_back") or "") for s_ in web.SESSIONS[(ledger.book_path(), "ask:m14")]["_trace"]), r)
+SCRIPT[:] = [{"tool": "who_owes", "args": {"names": ["mike", "dino"]}}, both]
+d = c.get("/api/ask_check", params={"q": "how much does mike and dino owe me"}).json()
+check("/api/ask_check: model on, which models, the answer, the tools, every step (no keys)", d["model_on"]
+      and d["tools"] == ["who_owes"] and "Together" in d["answer"] and len(d["steps"]) == 2
+      and "test" not in json.dumps(d), d)
+check("the model is asked with room to think (1500 tokens) and told not to", CALLS[-1]["max_tokens"] >= 1500
+      and "/no_think" in agent.PROMPT)
+
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)

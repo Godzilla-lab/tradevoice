@@ -511,14 +511,29 @@ def _ask_brain(text, state, shop, lang):
         with llm.budget(float(os.getenv("ASK_LLM_SECONDS", "45"))):
             a = agent.answer(text, state, lang)
         if a and not a.get("record"):
-            if not converse.on_topic(text) and not a.get("tools"):   # never out of context, whatever the model says
-                said = converse.SAY["off_topic"].get(lang, converse.SAY["off_topic"]["English"])
-                return converse._out(said, lang, english=converse.SAY["off_topic"]["English"])
-            return a
+            return a   # (the model marks a message that isn't about the shop: agent.py shows the fixed line)
     with llm.budget(float(os.getenv("ASK_AI_SECONDS", "20"))):   # an answer in time, even while N-ATLaS wakes up
         r = _safe_reply(text, state, shop, lang)
     agent.remember(state, text, r.get("text") or "")
     return r
+
+
+@app.get("/api/ask_check")
+def ask_check(q: str = "How much does Mike and Dino owe me?", lang: str = "English"):
+    """Open /api/ask_check?q=... while logged in: one question through the Ask chat's model, on your own book, and
+    what happened (which model, what it wrote, which tools, why the rules answered if they did). Never shows a key."""
+    import agent
+    import llm
+
+    state = converse.new_state()
+    if not agent.available(lang):
+        return {"model_on": False, "why": "no NVIDIA_API_KEY and no N-ATLaS (or ASK_BRAIN=rules)", "models": agent.models(lang)}
+    t0 = time.perf_counter()
+    with llm.budget(float(os.getenv("ASK_LLM_SECONDS", "45"))):
+        a = agent.answer(q, state, lang)
+    return {"model_on": True, "models": agent.models(lang), "question": q, "seconds": round(time.perf_counter() - t0, 1),
+            "answer": (a or {}).get("text"), "record": bool((a or {}).get("record")), "tools": (a or {}).get("tools"),
+            "steps": state.get("_trace")}
 
 
 @app.post("/api/ask")

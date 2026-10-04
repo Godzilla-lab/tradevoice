@@ -114,6 +114,7 @@ def _model_gone(err):
 def clean(text):
     """Drop reasoning traces some models (e.g. Nemotron) emit before the answer."""
     text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.DOTALL)
+    text = re.sub(r"<think>.*$", "", text, flags=re.DOTALL)   # reasoning cut off by the length limit: no answer in it
     return text.strip()
 
 
