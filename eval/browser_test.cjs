@@ -217,6 +217,7 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (!(b.x > h.x + 150 && b.y < h.y + h.height)) throw new Error(`not top right: ${JSON.stringify(b)}`);
       if (await page.locator("#home .perseg").count()) throw new Error("the old row of buttons is still there");
       await page.click("#home [data-a=perpick]");
+      await page.waitForFunction(() => document.querySelectorAll(".ov.on [data-pp]").length === 5);
       const names = (await page.locator(".ov.on [data-pp]").allTextContents()).map(x => x.replace("✓", "").trim());
       await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelectorAll(".ov").forEach(o => o.remove()));
       if (names.join("|") !== "Today|Last 7 days|Last 30 days|Last 12 months|Choose dates") throw new Error(names.join("|"));
