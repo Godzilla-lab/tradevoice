@@ -37,9 +37,10 @@ Tools:
 - book_summary {"period": one of today, yesterday, this_week, last_week, this_month, last_month, this_year, last_7,
   last_30, all}: sales, cash sales, credit sales, money paid back, spending, sales minus spending, for that period.
   "the last month" / "past month" = last_30; "last month" = last_month.
-- who_owes {"name": a person or null}: who owes the trader and how much, with pay-by dates and days late. With a name:
-  that person only (part of a name is fine, e.g. "ngozi").
-- i_owe {"name": a person or null}: who the trader owes (suppliers).
+- who_owes {"names": [every person asked about] or null}: who owes the trader and how much, with pay-by dates and days
+  late. With names: those people only (part of a name is fine, e.g. "ngozi"), and their total. When the trader asks
+  about several people ("Mike and Dino"), put ALL of them in names and answer for each one.
+- i_owe {"names": [people] or null}: who the trader owes (suppliers), the same way.
 - customers {}: how many customers and their balances.
 - sales {"item": an item or null, "customer": a name or null, "period": as above}: what was sold, how much, how many.
 - calculate {"expression": "45000 - 45000 * 10%"}: arithmetic with + - * / and n%. Use only numbers the trader said
@@ -84,6 +85,11 @@ def _person(name, rows):
     return [r for r in rows if hit and askbook.same_person(hit, r["customer"])] if hit else []
 
 
+def _row(r):
+    return {"name": r["customer"], "owes": _money(r["balance"]), "pay_by": r.get("due_date"),
+            "days_late": r.get("days_late") or 0}
+
+
 def run_tool(name, args, ctx):
     """-> a JSON-able result. ctx: {"today", "text", "lang", "state", "numbers": set of numbers seen so far}."""
     today, args = ctx["today"], args if isinstance(args, dict) else {}
@@ -97,16 +103,22 @@ def run_tool(name, args, ctx):
                 "sales_minus_spending": _money(s["profit"])}
     if name in ("who_owes", "i_owe"):
         rows = ledger.debtors(today) if name == "who_owes" else ledger.creditors(today)
-        pick = _person(args.get("name"), rows)
-        if args.get("name") and not pick:
-            known = askbook.find_name(args["name"], ledger.known_words(500)["names"])
-            return {"name": args["name"], "found": bool(known), "owes": 0 if known else None,
-                    "note": f"{known} owes nothing now" if known else f"{args['name']} is not in the book"}
-        out = [{"name": r["customer"], "owes": _money(r["balance"]), "pay_by": r.get("due_date"),
-                "days_late": r.get("days_late") or 0} for r in (pick if pick is not None else rows)[:15]]
-        if pick:
-            ctx["state"]["last_customer"] = pick[0]["customer"]
-        return {"people": out, "total": _money(sum(p["owes"] for p in out)), "count": len(out)}
+        asked = args.get("names") if isinstance(args.get("names"), list) else ([args["name"]] if args.get("name") else [])
+        asked = [str(a) for a in asked if a]
+        if not asked:
+            out = [_row(r) for r in rows[:15]]
+            return {"people": out, "total": _money(sum(p["owes"] for p in out)), "count": len(rows)}
+        out, notes = [], []
+        for who in asked:   # each person asked about, in the order asked
+            pick = _person(who, rows)
+            if pick:
+                out += [_row(r) for r in pick if _row(r) not in out]
+                continue
+            known = askbook.find_name(who, ledger.known_words(500)["names"])
+            notes.append(f"{known} owes nothing now" if known else f"{who} is not in the book")
+        if out:
+            ctx["state"]["last_customer"] = out[-1]["name"]
+        return {"people": out, "total": _money(sum(p["owes"] for p in out)), "count": len(out), "notes": notes}
     if name == "customers":
         conv = ledger.conversations(today)
         d = ledger.debtors(today)

@@ -143,5 +143,30 @@ check("an advert: 'This looks like an advert for a ring, not a page from your re
       r["t"].startswith("This looks like an advert for a ring, not a page from your record book") and not r["rows"], r)
 check("…the vision prompt asks for that", "NOT_A_RECORD" in vision.PROMPT)
 
+# 11. several people in one question: the model passes all the names; the tool gives each one and the total
+ledger.add_entry({"type": "credit_sale", "amount": 3000000, "customer": "Mike"})
+ledger.add_entry({"type": "credit_sale", "amount": 20000, "customer": "Dino"})
+SEEN_RESULT = {}
+
+
+def both(m):
+    res = json.loads(m[-1]["content"].split(": ", 1)[1])
+    SEEN_RESULT.update(res)
+    owe = {p["name"]: p["owes"] for p in res["people"]}
+    return json.dumps({"reply": f"Mike owes you ₦{owe['Mike']:,} and Dino owes you ₦{owe['Dino']:,}. "
+                                f"Together: ₦{res['total']:,}."})
+
+
+SCRIPT[:] = [{"tool": "who_owes", "args": {"names": ["mike", "dino"]}}, both]
+r = ask("how much does mike and dino owe me", session="m11")
+check("'mike and dino': the model asks for both; each one and the total come from the book",
+      r["t"] == "Mike owes you ₦3,000,000 and Dino owes you ₦20,000. Together: ₦3,020,000.", r)
+check("…the tool gave both people and the total", [p["name"] for p in SEEN_RESULT.get("people", [])] == ["Mike", "Dino"]
+      and SEEN_RESULT.get("total") == 3020000, SEEN_RESULT)
+out = agent.run_tool("who_owes", {"names": ["mike", "zainab"]}, dict(ctx, state={}))
+check("…someone not in the book is said so (not left out quietly)", "zainab is not in the book" in out["notes"]
+      and [p["name"] for p in out["people"]] == ["Mike"], out)
+check("…the prompt tells the model to put everyone asked about in names", "ALL of them in names" in agent.PROMPT)
+
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)
