@@ -742,7 +742,7 @@ def _record(text, lang, state, vocab, today, heard=None):
     if cands and _other_amount(said, cands):
         # "No 500,000k and spent 130,000": the clear part is the record; the garbled number is said to be left out
         said = _without_doubt(said)
-    rec, meta = extract(said, today=today, vocab=vocab)
+    rec, meta = extract(said, today=today, vocab=vocab, fast=bool(state.get("fast")))
     if keep and (AND_MORE.search(fold(text)) or _next_person(text, old)) and not EVENT.search(fold(said)):
         _like_before(rec, old, said)   # "and Tayo 3 million" after "Mike owes me 2m": the same kind, for Tayo
     if cands:

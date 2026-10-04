@@ -232,5 +232,23 @@ r = c.post("/api/ask", json={"session": "two-ask", "text": "Who is late?", "lang
 check("the Ask chat's voice note stays one clip (made only on a tap)", "parts" not in r and r["say"]
       and r["speak"] not in web.VOICES, r)
 
+# 12. live talk answers at once: no model wait for a book question or a record the rules read fully
+def slow_model(messages, **k):
+    time.sleep(3)
+    raise TimeoutError("slow")
+
+
+llm.chat, os.environ["NATLAS_URL"] = slow_model, "http://natlas/v1"
+for said in ["how much did I sell today?", "how much does Oga Emeka owe me?", "Mama Ngozi took rice 20000 on credit",
+             "yes", "Iya Bisi paid 5000"]:
+    t0 = time.time()
+    d = c.post("/api/say", json={"session": "fast", "text": said, "lang": "English"}).json()
+    check(f"live, at once (no 3 s model wait): '{said}'", time.time() - t0 < 1 and d["text"], (time.time() - t0, d["text"]))
+t0 = time.time()
+d = c.post("/api/say", json={"session": "fast2", "text": "Baba Kunle collect beans 8k, him go pay 2 weeks time",
+                             "lang": "English"}).json()
+check("…but a record with a date the rules can't read still goes to the model (it waited)", time.time() - t0 >= 3, d)
+os.environ.pop("NATLAS_URL")
+
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)

@@ -166,7 +166,8 @@ def parse_offline(question, vocab=None):
                        or how_many
                        or asks_sales) else "other"
     return {"kind": kind, "what": what or "sold", "item": item, "customer": customer, "period": period,
-            "language": guess_language(question), "_person_only": person_only, "unknown_person": unknown}
+            "language": guess_language(question), "_person_only": person_only, "unknown_person": unknown,
+            "_said_what": said_what}
 
 
 def find_name(text, names):
@@ -209,6 +210,8 @@ def parse(question, vocab=None):
 
     if not llm.available():
         return offline, "rules"
+    if offline["kind"] == "query" and (offline.get("_said_what") or offline.get("customer") or offline.get("item")):
+        return offline, "rules"   # the words already say what is asked: no 5-second model call (the answer is the same)
     try:
         import llm
 

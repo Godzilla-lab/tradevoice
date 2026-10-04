@@ -749,13 +749,29 @@ def _normalise(rec, text, today):
     return out
 
 
-def extract(text, today=None, vocab=None):
-    """Return (record, meta). meta = {engine, latency_ms, error}. vocab: this trader's known names (optional)."""
+def sure(rec, text):
+    """The rules read this record completely: a clear amount, a clear word for the kind, a name where the kind needs
+    one, nothing unclear. Live talk then answers at once instead of waiting ~5 s for N-ATLaS to read it again."""
+    needs_name = rec["type"] in ("credit_sale", "payment_received", "credit_purchase", "payment_made")
+    return bool(rec.get("amount") and type_is_explicit(text) and not rec.get("note") and rec.get("confidence", 0) >= 0.6
+                and (rec.get("customer") or not needs_name) and _corrected(text) is None
+                and len(money_spans(text)) == 1
+                and not (re.search(r"\b(week|weeks|month|months|day|days|time|tomorrow|next|monday|tuesday|wednesday|"
+                                   r"thursday|friday|saturday|sunday|sallah|christmas|easter|end)\b", fold(text))
+                         and not rec.get("due_date")))   # a date said that the rules couldn't read: the model reads it
+
+
+def extract(text, today=None, vocab=None, fast=False):
+    """Return (record, meta). meta = {engine, latency_ms, error}. vocab: this trader's known names (optional).
+    fast (live talk): a record the rules read completely is not sent to the model."""
     today = today or dt.date.today()
     start = time.perf_counter()
     rules = rule_extract(text, today)
     meta = {"engine": "rules", "error": None}
     rec = rules
+    if fast and sure(rules, text):
+        meta["latency_ms"] = round((time.perf_counter() - start) * 1000)
+        return rec, meta
     if llm.available():
         try:
             raw, model = llm_extract(text, today, vocab)

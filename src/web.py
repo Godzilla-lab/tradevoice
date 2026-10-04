@@ -309,6 +309,7 @@ def _say(text, session, lang, shop, live):
     state = _state(session, lang)
     if live:
         state["queue_ok"] = True    # the live conversation: several things said one after the other wait together
+        state["fast"] = os.getenv("LIVE_FAST_RECORDS", "1") == "1"   # a record the rules read fully: no model wait
     check = HEARD_CHECKS.pop((ledger.book_path(), text), (0, None))[1]
     if check:
         state["heard_check"] = check   # the chat asks again for just the unclear part
