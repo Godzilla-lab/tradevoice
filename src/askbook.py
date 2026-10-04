@@ -232,6 +232,12 @@ def parse(question, vocab=None):
         return offline, "rules (AI unavailable)"
 
 
+def _money_units():
+    from extract import _MONEY_WORDS
+
+    return _MONEY_WORDS
+
+
 def run(q, today=None):
     """Add up the book for a search. Returns numbers only."""
     today = today or dt.date.today()
@@ -265,7 +271,7 @@ def run(q, today=None):
         rows = [r for r in rows if r["customer"] and same_person(q["customer"], r["customer"])]
     units = {}
     for r in rows:
-        if r["quantity"]:
+        if r["quantity"] and fold(r["unit"] or "").rstrip("s") not in _money_units():   # never "2 millions" of goods
             u = (r["unit"] or "").rstrip("s") or "piece"
             units[u] = units.get(u, 0) + r["quantity"]
     return {"money": sum(r["amount"] for r in rows), "entries": len(rows), "units": units,

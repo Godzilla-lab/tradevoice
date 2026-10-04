@@ -227,6 +227,31 @@ SAY = {
                            "bin ka bashi, da abokan cinikinka. Gwada: Nawa na sayar yau?",
                   "Igbo": "Naanị ihe gbasara ụlọ ahịa gị ka m nwere ike inyere gị aka: ihe i rere ma ọ bụ i mefuru, "
                           "onye ji gị ụgwọ, na ndị ahịa gị. Nwaa: Ole ka m rere taa?"},
+    "promise": {"English": "OK. {who} will pay you {m} by {day}. I'll remind you that day.",
+                "Pidgin": "No wahala. {who} go pay you {m} by {day}. I go remind you that day.",
+                "Yoruba": "Ó dáa. {who} yóò san {m} fún ọ ní {day}. Màá rán ọ létí lọ́jọ́ náà.",
+                "Hausa": "To. {who} zai biya ka {m} zuwa {day}. Zan tunatar da kai ranar.",
+                "Igbo": "Ọ dị mma. {who} ga-akwụ gị {m} na {day}. Aga m echetara gị ụbọchị ahụ."},
+    "promise_none": {"English": "{who} doesn't owe you anything now. If they took something, tell me what and how much.",
+                     "Pidgin": "{who} no dey owe you anything now. If dem collect something, tell me wetin and how much.",
+                     "Yoruba": "{who} kò jẹ ọ́ ní nǹkankan báyìí. Tí wọ́n bá mú nǹkan, sọ ohun náà àti iye rẹ̀.",
+                     "Hausa": "{who} ba ya da bashinka yanzu. Idan sun ɗauki wani abu, faɗa min mene ne da nawa.",
+                     "Igbo": "{who} ejighị gị ihe ọ bụla ugbu a. Ọ bụrụ na ha were ihe, gwa m ihe ahụ na ole."},
+    "left_after": {"English": "If {who} pays {a}, {she} will still owe you {r}.\n{m} - {a} = {r}",
+                   "Pidgin": "If {who} pay {a}, {she} go still owe you {r}.\n{m} - {a} = {r}",
+                   "Yoruba": "Tí {who} bá san {a}, {who} yóò ṣì jẹ ọ́ ní {r}.\n{m} - {a} = {r}",
+                   "Hausa": "Idan {who} ya biya {a}, {who} zai saura da bashin {r}.\n{m} - {a} = {r}",
+                   "Igbo": "Ọ bụrụ na {who} akwụọ {a}, {who} ka ga-eji gị {r}.\n{m} - {a} = {r}"},
+    "left_none": {"English": "If {who} pays {a}, {she} will owe you nothing.",
+                  "Pidgin": "If {who} pay {a}, {she} no go owe you anything again.",
+                  "Yoruba": "Tí {who} bá san {a}, {who} kò ní jẹ ọ́ ní nǹkankan mọ́.",
+                  "Hausa": "Idan {who} ya biya {a}, ba zai sake bin ka bashi ba.",
+                  "Igbo": "Ọ bụrụ na {who} akwụọ {a}, {who} agaghị eji gị ihe ọ bụla."},
+    "left_over": {"English": "{who} owes you only {m}. {a} is {r} more than that.",
+                  "Pidgin": "{who} dey owe you only {m}. {a} pass am with {r}.",
+                  "Yoruba": "{m} nìkan ni {who} jẹ ọ́. {a} pọ̀ ju ìyẹn lọ ní {r}.",
+                  "Hausa": "{m} kawai {who} ke bin ka. {a} ya fi haka da {r}.",
+                  "Igbo": "Naanị {m} ka {who} ji gị. {a} karịrị ya ji {r}."},
     "nothing_pending": {"English": "There is nothing waiting to be saved.", "Pidgin": "Nothing dey wait to save.",
                         "Yoruba": "Kò sí nǹkan tó ń dúró de ìkọsílẹ̀.", "Hausa": "Babu abin da ke jiran adanawa.",
                         "Igbo": "Ọ dịghị ihe na-eche ka e chekwaa ya."},
@@ -305,8 +330,9 @@ def _pronoun_person(text, state, owes_me=False, today=None):
     if not PRONOUN.search(t):
         return None
     people = state.get("people") or ([state["last_customer"]] if state.get("last_customer") else [])
-    if re.search(r"\b(she|her|ita)\b", t):
-        people = [p for p in people if tts._female(p)]
+    male = lambda p: p.split()[0].lower().rstrip(".") in tts._MALE   # noqa: E731
+    if re.search(r"\b(she|her|ita)\b", t):     # a name with no title (Ngozi, Dino) can be either
+        people = [p for p in people if tts._female(p) or not male(p)]
     elif re.search(r"\b(he|him|shi)\b", t):
         people = [p for p in people if not tts._female(p)]
     if owes_me:
@@ -616,6 +642,69 @@ def _many(text, lang, today):
                english=photo.list_summary(rows, meta["missed"]) if lang != "English" else None)
     out["rows"], out["act"] = photo.plain_checks(rows, lang), "scan"
     return out
+
+
+PAY_WORD = re.compile(r"\b(pay|paying|settle|bring (the )?money|balance me|clear|san|sanwo|biya|kwu|akwu|kwuo)\b")
+WILL = re.compile(r"\b(will|go|wan|shall|gonna|going to|promis\w*|said|say|yoo|maa|zai|za ta|ga-|ga)\b")
+LEFT = re.compile(r"\b(left|remain|remains|remaining|remainder|balance|go remain|e go remain|ku|o ku|saura|foduru|fodu)\b")
+TALKED = re.compile(r"^\s*(?:no[,\s]+)?(?:i|we|na)\s+(?:was|were|am|dey|de|bin)?\s*(?:talking|talk|asking|ask|referring|mean|meant)"
+                    r"\s+(?:about|of|for)?\s*(.+?)\s*(?:o+|oo+|na|abeg|please|sef)?\W*$")
+
+
+def _debtor(text, state, today, last_ok=True):
+    """Who a message is about, among people who owe the trader: named (even part of the name, "ngozi"), "she/he",
+    or (last_ok) the last person talked about. -> {customer, customer_id, balance} or a name with balance 0, or None."""
+    d = ledger.debtors(today)
+    names = [x["customer"] for x in d]
+    hit = askbook.find_name(text, names) or askbook.find_name(text, ledger.known_words(200)["names"])
+    who = hit or _pronoun_person(text, state, today=today) or (state.get("last_customer") if last_ok else None)
+    if not who:
+        return None
+    row = next((x for x in d if _same(who, x["customer"])), None)
+    return row or {"customer": who, "customer_id": None, "balance": 0}
+
+
+def _day_text(iso, lang):
+    import ui_text
+
+    d = dt.date.fromisoformat(iso)
+    wd = ui_text.t("wd_" + str(d.weekday()), lang) or d.strftime("%A")
+    return f"{wd} {d.day} {d.strftime('%b')}"
+
+
+def _promise(text, t, lang, state, today):
+    """"She said she will pay me next week" about someone who already owes: the pay-by date and a reminder (no new
+    record, no "How much was it?")."""
+    due = parse_due(text, today)
+    if not due:
+        return None
+    row = _debtor(text, state, today)
+    if not row:
+        return None
+    who = row["customer"]
+    _mention(state, who)
+    if not row["balance"]:
+        return _out(SAY["promise_none"][lang].format(who=who), lang,
+                    english=SAY["promise_none"]["English"].format(who=who))
+    ledger.set_due(row["customer_id"], due, today)
+    ledger.add_reminder(who, due, language=lang, customer_id=row["customer_id"])
+    kw = {"who": who, "m": _money(row["balance"]), "day": _day_text(due, lang)}
+    return _out(SAY["promise"][lang].format(**kw), lang, english=SAY["promise"]["English"].format(
+        **dict(kw, day=_day_text(due, "English"))))
+
+
+def _left_after(text, lang, state, today, amount):
+    """"300,000 how much will be left?" about someone who owes: code works out what would be left (nothing saved)."""
+    row = _debtor(text, state, today)
+    if not row or not row["balance"]:
+        return None
+    who, owed = row["customer"], row["balance"]
+    _mention(state, who)
+    kw = {"who": who, "a": _money(amount), "m": _money(owed), "r": _money(abs(owed - amount)),
+          "she": tts._pronoun(who, tts._female(who))}
+    key = "left_after" if amount < owed else "left_none" if amount == owed else "left_over"
+    return _out(SAY[key][lang].format(**kw), lang, english=SAY[key]["English"].format(**kw),
+                spoken=SAY[key][lang].format(**kw).split("\n")[0])
 
 
 def _same(a, b):
@@ -1061,6 +1150,20 @@ def reply(text, state=None, today=None, shop="your shop"):
                 if pending.get("amount") in (None, ""):
                     return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
                 return _heard(pending, lang)
+    prev, state["prev_text"] = state.get("prev_text"), text
+    m = TALKED.match(t)
+    if m and not state.pop("_again", None):   # "I was talking about Ngozi oo": the last question again, about her
+        row = _debtor(m.group(1), state, today, last_ok=False)
+        if row:
+            state["last_customer"] = row["customer"]
+            _mention(state, row["customer"])
+            if prev and fold(prev) != t:
+                state["_again"] = True
+                state["prev_text"] = prev
+                return reply(prev, state, today=today, shop=shop)
+            kw = {"who": row["customer"], "m": _money(row["balance"])}
+            return _out(askbook.OWED["owed_to_me"].get(lang, askbook.OWED["owed_to_me"]["English"]).format(**kw), lang)
+    state.pop("_again", None)
     if UNDO.match(t) or (not _drafts(state) and WRONG_AFTER.match(t)):
         out = _after_save(text, t, lang, state, today)
         if out:
@@ -1104,6 +1207,10 @@ def reply(text, state=None, today=None, shop="your shop"):
         return _out(clock.answer(kind, lang), lang, english=clock.answer(kind, "English"))
     import tools
 
+    if amount is not None and LEFT.search(t) and (QUESTION.search(t) or re.search(r"\bif\b", t)):
+        out = _left_after(text, lang, state, today, amount)   # "if she pays 30k, how much will be left?"
+        if out:
+            return out
     done = tools.answer(text, lang, today, vocab)  # sums, dates, measures, cash check, grouped questions: by code
     if done:
         return done
@@ -1137,6 +1244,11 @@ def reply(text, state=None, today=None, shop="your shop"):
         # A misheard note once came back as advice on mental health; TradeVoice only knows this trader's book.
         tools.unanswered(lang)
         return _out(SAY["off_topic"][lang], lang, english=SAY["off_topic"]["English"])
+    if (amount is None and PAY_WORD.search(t) and WILL.search(t) and not QUESTION.search(t)
+            and not re.search(r"\b(took|take|collect|collected|carry|carried|buy|bought|sold|sell|gave|give|mu|ra|ta)\b", t)):
+        out = _promise(text, t, lang, state, today)   # "she said she will pay me next week": a date, not a record
+        if out:
+            return out
     if QUESTION.search(t) or (amount is None and not EVENT.search(t)):
         out = _question(text, lang, state, vocab, today)
         if out:

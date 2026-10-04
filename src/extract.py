@@ -388,7 +388,7 @@ def _digits_amount(text):
 
 
 def parse_due(text, today):
-    t = fold(text)
+    t = re.sub(r"(?<=[a-z])[.,]\s+(?=[a-z])", " ", fold(text))   # "next. week" (typed or heard with a stop)
     if re.search(r"\b(tomorrow|tomoro|tmrw|tomorow|gobe|echi)\b", t):
         return (today + dt.timedelta(days=1)).isoformat()
     if "next week" in t:
@@ -400,6 +400,17 @@ def parse_due(text, today):
         if any(re.search(rf"(?<![\w']){re.escape(n)}(?![\w'])", t) for n in (day, *_LOCAL_WEEKDAYS[i])):
             delta = (i - today.weekday()) % 7 or 7
             return (today + dt.timedelta(days=delta)).isoformat()
+    m = re.search(r"\b(?:on|by|before|till|until)?\s*(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b(?:\s+of\s+the\s+month)?", t)
+    if m and 1 <= int(m.group(1)) <= 31:   # "on the 15th": the next 15th
+        d, day = today, int(m.group(1))
+        for _ in range(3):
+            try:
+                cand = d.replace(day=day)
+            except ValueError:
+                cand = None
+            if cand and cand > today:
+                return cand.isoformat()
+            d = (d.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
     if re.search(r"\b(after|by|before|on|for|till|until|leyin|bayan|kafin|tupu)\b", t):
         import tools   # "I go pay after Sallah" / "by Christmas": the Nigerian calendar (expected dates for Sallah)
 

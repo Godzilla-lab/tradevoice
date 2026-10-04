@@ -419,6 +419,14 @@ def wipe():
         return c.execute("DELETE FROM entries").rowcount
 
 
+def set_due(customer_id, due, today=None):
+    """"She will pay next week": the pay-by date of what this customer owes now (debts with no date or an old one)."""
+    today = (today or dt.date.today()).isoformat()
+    with conn() as c:
+        return c.execute("UPDATE entries SET due_date=? WHERE customer_id=? AND type='credit_sale' AND "
+                         "(due_date IS NULL OR due_date < ?)", (due, int(customer_id), today)).rowcount
+
+
 def add_reminder(customer, remind_on, language=None, customer_id=None):
     if customer_id is None:
         customer_id = resolve_customer(customer)

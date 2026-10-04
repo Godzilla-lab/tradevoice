@@ -373,5 +373,46 @@ os.environ.pop("INTRON_API_KEY")
 check("Intron file hearing: general, not its default telehealth (medical) mode, and no Intron AI rewriting",
       SENT.get("use_category") == "file_category_general" and SENT.get("use_disable_llm_corrections") == "TRUE", SENT)
 
+# ---------------------------------------------------------------- 14. the owner's Ngozi conversation (4 Oct night)
+ledger.add_entry({"type": "credit_sale", "amount": 33000, "customer": "Mama Ngozi", "item": "rice"})
+ledger.add_entry({"type": "credit_sale", "amount": 20000, "customer": "Dino", "item": "beans"})
+st = converse.new_state()
+st["queue_ok"] = True
+say = lambda t: converse.reply(t, st)["text"]  # noqa: E731
+r = say("is they any customer named ngozi")
+check("14.1 'any customer named ngozi': Mama Ngozi and what she owes", "Mama Ngozi" in r and "₦" in r, r)
+n0 = entries()
+r = say("she said she will pay me next. week")
+due = (ledger.entries(limit=500) and [e for e in ledger.entries(limit=500) if e["customer"] == "Mama Ngozi"])
+check("14.2 'she said she will pay me next week': a pay-by date and a reminder, no new record, no 'How much was it?'",
+      r.startswith("OK. Mama Ngozi will pay you") and "remind you" in r and entries() == n0
+      and not st.get("pending") and "How much" not in r, r)
+check("…the pay-by date is on her debt (Home and Customers show it)", any(e["due_date"] for e in due), due)
+r = say("300,000 how much will be left?")
+check("14.3 '300,000 how much will be left?': about Ngozi, worked out by code (she owes only ₦33,000)",
+      "Mama Ngozi owes you only" in r and "₦267,000 more" in r and "sold" not in r and entries() == n0, r)
+r = say("if she pays 30k how much will remain?")
+check("…'if she pays 30k': she will still owe ₦3,000, with the working", "she will still owe you ₦3,000" in r
+      and "₦33,000 - ₦30,000 = ₦3,000" in r, r)
+say("how much does dino owe me")
+r = say("if 5000 is paid, how much will remain?")
+check("…the last person talked about (Dino)", r.startswith("If Dino pays ₦5,000"), r)
+r = say("i was talking about ngozi oo")
+check("14.4 'i was talking about ngozi oo': the last question again, about Ngozi",
+      r.startswith("If Mama Ngozi pays ₦5,000, she will still owe you ₦28,000."), r)
+st2 = converse.new_state()
+converse.reply("how much does dino owe me", st2)
+r = converse.reply("she go pay on the 15th", st2)["text"]
+check("'she' can be Dino (no title says otherwise); 'on the 15th' is a date", r.startswith("OK. Dino will pay you ₦")
+      and " 15 " in r, r)
+st3 = converse.new_state()
+converse.reply("Mama Ngozi took beans, she will pay Friday", st3)
+check("'Mama Ngozi took beans, she will pay Friday' is a new record (asks how much), not a promise",
+      st3.get("pending") and st3["pending"].get("due_date"), st3.get("pending"))
+ledger.create_customer("Halima")
+r = converse.reply("Halima go pay me next week", converse.new_state())["text"]
+check("a promise from someone who owes nothing: said, nothing made up", "doesn't owe you anything" in r
+      or "How much" in r, r)
+
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)
