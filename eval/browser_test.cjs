@@ -31,6 +31,7 @@ async function check(name, fn) {
     const ok = await fn();
     if (ok === false) throw new Error("returned false");
     passed++; console.log(`✓ ${name}`);
+    if (process.env.SHOT_ALL) await page.screenshot({ path: path.join(SHOTS, `ok-${String(passed).padStart(2, "0")}-${name.replace(/\W+/g, "_").slice(0, 40)}.png`) }).catch(() => {});
   } catch (e) {
     failed.push(name);
     const file = path.join(SHOTS, `${String(++shot).padStart(2, "0")}-${name.replace(/\W+/g, "_").slice(0, 40)}.png`);
@@ -208,30 +209,39 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
 
     /* ------------------------------------------------------------ Home: Today / 7D / 30D / 1Y / Custom */
     await tab("home");
-    await check("Home: the period switch (Today, 7D, 30D, 1Y, Custom), Today first", async () => {
-      const labels = await page.locator("#home .perseg button").allTextContents();
-      if (labels.join("|") !== "Today|7D|30D|1Y|Custom") throw new Error(labels.join("|"));
+    const pick = async p => { await page.click("#home [data-a=perpick]"); await page.waitForSelector(`.ov.on [data-pp="${p}"]`); await page.click(`.ov.on [data-pp="${p}"]`); };
+    await check("Home: one small period button top right (Today), its sheet lists Today, 7, 30 days, 12 months, dates", async () => {
+      const btn = page.locator("#home [data-a=perpick]");
+      if ((await btn.textContent()).trim() !== "Today") throw new Error(await btn.textContent());
+      const [b, h] = await Promise.all([btn.boundingBox(), page.locator("#home h1").boundingBox()]);
+      if (!(b.x > h.x + 150 && b.y < h.y + h.height)) throw new Error(`not top right: ${JSON.stringify(b)}`);
+      if (await page.locator("#home .perseg").count()) throw new Error("the old row of buttons is still there");
+      await page.click("#home [data-a=perpick]");
+      const names = (await page.locator(".ov.on [data-pp]").allTextContents()).map(x => x.replace("✓", "").trim());
+      await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelectorAll(".ov").forEach(o => o.remove()));
+      if (names.join("|") !== "Today|Last 7 days|Last 30 days|Last 12 months|Choose dates") throw new Error(names.join("|"));
       return /Today/.test(await page.locator("#home h1").textContent()) && (await page.locator("#home .hero p").first().textContent()) === "Net today";
     });
-    await check("Home: 7D asks the server for the last 7 days; title and label follow; money in matches the server", async () => {
+    await check("Home: 7 days asks the server for the last 7 days; title, label and button follow; money in matches", async () => {
       const resp = page.waitForResponse(r => /\/api\/v2\/book\?period=7$/.test(r.url()));
-      await page.click('#home [data-per="7"]');
+      await pick("7");
       const d = await (await resp).json();
       await page.waitForFunction(() => /Last 7 days/.test(document.querySelector("#home h1").textContent));
       if ((await page.locator("#home .hero p").first().textContent()) !== "Net, last 7 days") throw new Error("label");
+      if ((await page.locator("#home [data-a=perpick]").textContent()).trim() !== "7D") throw new Error("button");
       if (!(await page.locator("#home .hero").textContent()).includes(naira(d.in))) throw new Error("money in " + d.in);
       if (d.period !== "7") throw new Error(JSON.stringify(d).slice(0, 80));
     });
-    await check("Home: Custom asks for the days (From, To); Cancel changes nothing", async () => {
-      await page.click('#home [data-per="custom"]');
+    await check("Home: Choose dates asks for the days (From, To); Cancel changes nothing", async () => {
+      await pick("custom");
       await page.waitForSelector(".ov.on #pa");
       if (await page.locator(".ov.on #pa").getAttribute("type") !== "date") throw new Error("not a date field");
       await page.click(".ov.on #px");
       await page.waitForFunction(() => !document.querySelector(".ov.on #pa"));
       return (await page.locator("#home .hero p").first().textContent()) === "Net, last 7 days";
     });
-    await check("Home: Custom 1 Sep to 30 Sep: the server adds up those days; title '1 Sep to 30 Sep'", async () => {
-      await page.click('#home [data-per="custom"]');
+    await check("Home: dates 1 Sep to 30 Sep: the server adds up those days; title '1 Sep to 30 Sep'", async () => {
+      await pick("custom");
       await page.waitForSelector(".ov.on #pa");
       await page.fill(".ov.on #pa", "2026-09-30");     // the wrong way round on purpose: put in order
       await page.fill(".ov.on #pb", "2026-09-01");
@@ -245,7 +255,7 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
     await check("Home: the choice is kept (with its days); back to Today", async () => {
       if (await page.evaluate(() => localStorage.getItem("tv-per")) !== "custom") throw new Error("not kept");
       if (!/2026-09-01/.test(await page.evaluate(() => localStorage.getItem("tv-per-range")))) throw new Error("days not kept");
-      await page.click('#home [data-per="today"]');
+      await pick("today");
       await page.waitForFunction(() => document.querySelector("#home .hero p").textContent === "Net today");
     });
 
@@ -482,6 +492,42 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       const back = ((await book()).customers.find(c => c.n === "Iya Bisi") || {}).b;
       if (back !== before) throw new Error(`undo left ${back}`);
     });
+    await check("Customers: a + to add a customer by hand: name, number, what they owe, what for, pay by", async () => {
+      await tab("cust");
+      await page.click("#cust [data-a=addcust]");
+      await page.waitForSelector(".ov.on #cn");
+      await page.click(".ov.on #cs");
+      if (!/name/.test(await page.locator(".ov.on #cn-e").textContent())) throw new Error("no name: no error");
+      await page.fill(".ov.on #cn", "Baba Kunle");
+      await page.fill(".ov.on #cp", "12345");
+      await page.click(".ov.on #cs");
+      if (!/valid Nigerian number/.test(await page.locator(".ov.on #cp-e").textContent())) throw new Error("bad number accepted");
+      await page.fill(".ov.on #cp", "803 555 0199");
+      await page.fill(".ov.on #ca", "12500");
+      if (await page.inputValue(".ov.on #ca") !== "12,500") throw new Error("amount not shown with commas");
+      await page.fill(".ov.on #ci", "2 cartons of indomie");
+      await page.click(".ov.on #cs");
+      await gone(".ov.on #cn");
+      const c = (await book()).customers.find(x => x.n === "Baba Kunle");
+      if (!c || c.b !== 12500) throw new Error(JSON.stringify(c));
+      await page.waitForFunction(() => /Baba Kunle/.test(document.querySelector("#cust").textContent));
+    });
+    await check("Customers: + with a name already in the book adds to that customer (no second Baba Kunle)", async () => {
+      await page.click("#cust [data-a=addcust]");
+      await page.waitForSelector(".ov.on #cn");
+      await page.fill(".ov.on #cn", "baba kunle");
+      await page.fill(".ov.on #ca", "500");
+      await page.click(".ov.on #cs");
+      await gone(".ov.on #cn");
+      const all = (await book()).customers.filter(x => x.n.toLowerCase() === "baba kunle");
+      if (all.length !== 1 || all[0].b !== 13000) throw new Error(JSON.stringify(all));
+      // back as it was for the checks below: the two records and Baba Kunle removed
+      await page.evaluate(async () => { for (const _ of [1, 2]) await fetch("/api/v2/undo_last", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); });
+      const id = all[0].id;
+      await page.evaluate(id => fetch(`/api/customers/${id}`, { method: "DELETE" }), id);
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForFunction(() => window.TVL && TVL.A && !document.querySelector("#gate"));
+    });
     await check("Customers filter: '₦10,000 to ₦100,000' shows the right people, with a removable chip", async () => {
       await tab("cust");
       await page.click("#cust [data-a=filt]");
@@ -576,6 +622,6 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
     server.kill();
   }
   console.log(`\n${passed}/${passed + failed.length} browser checks pass${todos.length ? `, ${todos.length} designer to-do` : ""}   ${failed.length ? `(screenshots + server log: ${TMP})` : ""}`);
-  if (!failed.length) fs.rmSync(TMP, { recursive: true, force: true });   // keep the screenshots + server log only on failure
+  if (!failed.length && !process.env.SHOT_ALL) fs.rmSync(TMP, { recursive: true, force: true });   // kept on failure (or SHOT_ALL=1)
   process.exit(failed.length ? 1 : 0);
 })();

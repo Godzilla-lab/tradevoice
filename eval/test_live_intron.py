@@ -152,6 +152,14 @@ for text in ["Done. Dino will pay you twenty thousand naira. All together, Dino 
 check("'Done.' joins the next sentence (Intron needs 10+)", intron_live.pieces("Done. Dino will pay you.")[0]
       == "Done. Dino will pay you.")
 
+check("the voice never reads punctuation: 'owes you the most: ₦45,000' -> a pause, not 'colon'",
+      tts.speakable("Iya Bisi owes you the most: ₦45,000.") == "Iya Bisi owes you the most, naira 45,000.",
+      tts.speakable("Iya Bisi owes you the most: ₦45,000."))
+check("…brackets, semicolons and + too; a time like 10:30 stays",
+      tts.speakable("Came in: ₦10,000 (₦0 cash + ₦10,000 debts); come at 10:30.") ==
+      "Came in, naira 10,000, naira 0 cash and naira 10,000 debts, come at 10:30.",
+      tts.speakable("Came in: ₦10,000 (₦0 cash + ₦10,000 debts); come at 10:30."))
+
 # 2. hearing while you talk: our server passes the mic to Intron and the words back
 check("/api/warm says live hearing is on (key set)", c.post("/api/warm", json={}).json().get("live") is True)
 with c.websocket_connect("/api/live/hear?lang=Yoruba&consent=yes") as ws:

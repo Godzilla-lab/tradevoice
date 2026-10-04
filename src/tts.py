@@ -301,6 +301,11 @@ def speakable(text):
     text = re.sub(r"https?://\S+", "", text or "")
     text = re.sub(r"₦\s?", "naira ", text)
     text = re.sub(r"[*_~`#>|•]", " ", text)
+    # written punctuation is a pause, never a word: "owes you the most: ₦45,000" was read out as "colon/semicolon"
+    text = re.sub(r"(?<!\d)[:;](?!\d)|[:;](?=\s)|[()\[\]{}·=]", ", ", text)   # (10:30 stays a time)
+    text = re.sub(r"\s*,(\s*,)+", ",", re.sub(r"\s+,", ",", text))
+    text = re.sub(r"(^|[.?!]\s*),\s*", r"\1", text)
+    text = re.sub(r",\s*([.?!])", r"\1", re.sub(r"\s\+\s", " and ", text))
     text = "".join(c for c in text if not (0x1F000 <= ord(c) <= 0x1FAFF or 0x2600 <= ord(c) <= 0x27BF or ord(c) in (0xFE0F, 0x200D)))
     return re.sub(r"\s+", " ", text).strip()
 

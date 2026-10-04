@@ -72,7 +72,16 @@
   if (per == "custom" && !(range && range.a && range.b)) per = "today";
   const pi = () => PER.indexOf(per), lk = () => (PER_SEG[L] ? L : "en");
   const rangeText = () => `${dayMonth(range.a)} ${RANGE_WORDS[lk()][5]} ${dayMonth(range.b)}`;
-  { const s = document.createElement("style"); s.textContent = ".perseg{margin:0 0 var(--s3)}.perseg button{flex:1;padding:4px 6px}"; document.head.append(s); }
+  // the period picker: one small button top right of Home (the design's title + round-button header, like Ask's);
+  // it opens the design's sheet with the choices
+  { const s = document.createElement("style"); s.textContent = ".perh{padding:0;align-items:center}.perpick{flex:none;display:inline-flex;align-items:center;gap:4px;height:36px;padding:0 var(--s3);border-radius:var(--pill);background:var(--fill);color:var(--label);font-size:.875rem;font-weight:500}.perpick svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}.perlist{list-style:none;margin:var(--s3) 0 0;padding:0}.perlist button{width:100%;display:flex;justify-content:space-between;align-items:center;min-height:52px;padding:0 var(--s2);border-bottom:1px solid var(--hair);font-size:1rem;color:var(--label)}.perlist li:last-child button{border-bottom:0}.perlist .on{font-weight:600;color:var(--accent)}"; document.head.append(s); }
+  const PER_NAME = { en: ["Today", "Last 7 days", "Last 30 days", "Last 12 months", "Choose dates"], yo: ["Òní", "Ọjọ́ 7 sẹ́yìn", "Ọjọ́ 30 sẹ́yìn", "Oṣù 12 sẹ́yìn", "Yan ọjọ́"],
+    ha: ["Yau", "Kwanaki 7", "Kwanaki 30", "Watanni 12", "Zaɓi kwanaki"], ig: ["Taa", "Ụbọchị 7", "Ụbọchị 30", "Ọnwa 12", "Họrọ ụbọchị"] };
+  function perSheet() {
+    const names = PER_NAME[lk()];
+    const o = sheet(`<h3>${{ en: "Show money for", yo: "Fi owó hàn fún", ha: "Nuna kuɗi na", ig: "Gosi ego maka" }[lk()]}</h3><ul class="perlist">${PER.map((p, i) => `<li><button data-pp="${p}" class="${p == per ? "on" : ""}" aria-pressed="${p == per}">${names[i]}${p == per ? "<span aria-hidden=\"true\">✓</span>" : ""}</button></li>`).join("")}</ul>`);
+    $$("[data-pp]", o).forEach(b => b.onclick = () => { shut(o); if (b.dataset.pp == "custom") setTimeout(customSheet, 300); else setPer(b.dataset.pp); });
+  }
   const setPer = p => { per = p; try { localStorage.setItem("tv-per", per); if (range) localStorage.setItem("tv-per-range", JSON.stringify(range)); } catch (x) {} all(); loadBook(); };
   function customSheet() {
     const w = RANGE_WORDS[lk()], today = iso(new Date()), month = iso(new Date(Date.now() - 29 * 864e5));
@@ -87,11 +96,53 @@
       range = { a, b }; shut(o); setPer("custom");
     };
   }
-  document.addEventListener("click", e => {
-    const b = e.target.closest("[data-per]"); if (!b) return;
-    if (b.dataset.per == "custom") return customSheet();   // asks for the days; Home changes only on Show
-    setPer(b.dataset.per);
-  });
+  document.addEventListener("click", e => { if (e.target.closest("[data-a=perpick]")) perSheet(); });
+
+  /* Customers: a "+" to add a customer by hand (for traders who would rather type than talk): name, phone, what they
+     owe, what for, pay-by date. Uses the server's own customer + record endpoints; a name already in the book adds to
+     that customer instead of making a second one. */
+  { const s = document.createElement("style"); s.textContent = ".addfab{position:absolute;right:var(--s4);bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:3;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-fg);box-shadow:0 10px 28px -10px var(--accent)}.addfab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2}"; document.head.append(s); }
+  const custDesign = cust;
+  cust = function (...a) {
+    custDesign(...a);
+    const c = $("#cust");
+    if (c && !$(".addfab", c)) c.insertAdjacentHTML("beforeend", `<button class="addfab" data-a="addcust" aria-label="Add a customer">${IC.plus}</button>`);
+  };
+  document.addEventListener("click", e => { if (e.target.closest("[data-a=addcust]")) addCustomer(); });
+  function addCustomer() {
+    const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+    const o = sheet(`<h3>Add a customer</h3>${fld("cn", "Name", { ph: "Mama Ngozi", ac: "off" })}${fld("cp", "WhatsApp number (optional)", { pre: "+234", im: "tel", ph: "803 123 4567", max: 14 })}` +
+      `${fld("ca", "They owe you (optional)", { pre: "₦", im: "numeric", ph: "0" })}${fld("ci", "For what (optional)", { ph: "2 bags of rice" })}${fld("cd", "Pay by (optional)", { t: "date" })}` +
+      `<div class="btns two"><button class="btn" id="cx">Cancel</button><button class="btn p" id="cs">Save</button></div>`);
+    $("#cd", o).min = today;
+    $("#cn", o).focus();
+    $("#ca", o).oninput = e => { const d = e.target.value.replace(/\D/g, ""); e.target.value = d ? Number(d).toLocaleString("en-NG") : ""; };
+    $("#cx", o).onclick = () => shut(o);
+    let anyway = false;
+    $("#cs", o).onclick = async () => {
+      ["cn", "cp", "ca"].forEach(k => err(k, ""));
+      const name = $("#cn", o).value.trim().replace(/\s+/g, " "), rawPhone = $("#cp", o).value.trim();
+      const amount = +$("#ca", o).value.replace(/\D/g, "") || 0, item = $("#ci", o).value.trim(), due = $("#cd", o).value;
+      if (!name) return err("cn", "Enter the customer's name.");
+      const phone = rawPhone ? normPhone(rawPhone) : "";
+      if (rawPhone && !okPhone(phone)) return err("cp", "Enter a valid Nigerian number, like 803 123 4567.");
+      if ($("#ca", o).value && !amount) return err("ca", "Enter the amount in naira.");
+      $("#cs", o).disabled = true;
+      let c = C.find(x => (x.n || "").toLowerCase() == name.toLowerCase());   // already in the book: add to them
+      if (!c) {
+        const r = await api("/api/customers", { body: { name, phone: phone ? "234" + phone : null } });
+        if (!r.ok) { $("#cs", o).disabled = false; return err("cn", r.status === 0 ? "No network. Check your data and try again." : "Couldn't add the customer. Try again."); }
+        c = { id: r.data.id, n: r.data.name || name, isNew: true };
+      }
+      if (amount) {
+        const r = await api(`/api/customers/${c.id}/record`, { body: { type: "credit_sale", amount, item: item || null, due_date: due || null, over_limit_ok: anyway, raw_text: "(added by hand)" } });
+        if (r.status === 409 && r.data.warning) { anyway = true; $("#cs", o).disabled = false; $("#cs", o).textContent = "Save anyway"; return err("ca", esc(r.data.warning)); }
+        if (!r.ok) { $("#cs", o).disabled = false; return err("ca", "Couldn't save what they owe. Try again."); }
+      }
+      shut(o); await loadBook();
+      toast(amount ? `${c.isNew ? "Added" : "Updated"} ${esc(c.n)}: owes you ${f(amount)}${c.isNew ? "" : " more"}` : `Added ${esc(c.n)}`);
+    };
+  }
 
   async function loadBook() {
     const r = await api("/api/v2/book?period=" + per + (per == "custom" ? `&start=${range.a}&end=${range.b}` : ""));
@@ -116,7 +167,7 @@
     demo, A: null, voiceOn, say,
     perTitle: () => per == "custom" ? rangeText() : pi() ? PER_TITLE[lk()][pi()] : t("today"),
     netLabel: () => per == "custom" ? "Net, " + rangeText() : NET[pi()],
-    perSeg: () => `<div class="seg perseg" role="group" aria-label="Period">${PER.map((p, i) => `<button data-per="${p}" class="${p == per ? "on" : ""}" aria-pressed="${p == per}">${PER_SEG[lk()][i]}</button>`).join("")}</div>`,
+    perPick: () => `<button class="perpick" data-a="perpick" aria-haspopup="dialog" aria-label="Period: ${per == "custom" ? rangeText() : PER_NAME[lk()][pi()]}">${per == "custom" ? "Custom" : PER_SEG[lk()][pi()]}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`,
     async boot() {
       const r = await api("/api/v2/me");
       if (r.ok) {
