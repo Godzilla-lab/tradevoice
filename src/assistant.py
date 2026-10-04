@@ -24,7 +24,10 @@ SCREENS = {"today": "Book (today's sales, spending and money that came in)",
 PROMPT = """You are TradeVoice, a kind helper for a Nigerian market trader who may not read well. You are speaking
 out loud, so write the way a friendly person talks: short sentences, simple everyday words, no lists, no symbols
 except ₦. Answer ONLY in __LANG__ (Nigerian Pidgin if __LANG__ is Pidgin). Use ONLY the numbers in the FACTS; never
-invent a number, a name or a date. If the facts don't have the answer, say you don't have that record yet.
+invent a number, a name or a date. If the facts don't have the answer, say you don't have that record yet. Be calm: no praise, no exclamation marks, and
+don't ask the trader questions. If the message is not a question about their book (small talk, a list they shared,
+something you can't see), say in one sentence what you can do: write down sales, debts and spending, and answer
+questions about their book.
 No investment or legal advice; for loans say a lender decides. For tax, you may repeat TAX_FACTS in simple words,
 but never say how much tax they owe or whether they must pay: say their state revenue service decides. At most __N__ sentences.
 No emojis. __TRADER__
@@ -66,6 +69,21 @@ def spoken(text):
     return re.sub(r"\b\d[\d,]{2,}\b", lambda m: number_words(float(m.group(0).replace(",", ""))), text)
 
 
+CHEER = re.compile(r"\b(great|awesome|wonderful|amazing|fantastic|excellent|congrat\w*|well done|nice one|good job|"
+                   r"keep it up|kudos|bravo)\b|!", re.I)
+
+
+def calm_ok(answer):
+    """The AI's free answer may be used only if it is calm and to the point: no cheering, no praise, and no question
+    back to the trader that carries no fact ("That's great! How many new customers did you add?" is refused)."""
+    a = (answer or "").strip()
+    if not a or CHEER.search(a):
+        return False
+    if a.endswith("?") and not re.search(r"\d", a):
+        return False
+    return True
+
+
 def _numbers_ok(answer, facts):
     """Every number of 3+ digits in the answer must be somewhere in the facts (with or without commas)."""
     blob = re.sub(r"[,\s]", "", json.dumps(facts, default=str))
@@ -93,7 +111,7 @@ def free(question, lang, today=None):
             return None
         facts = insights.book_facts(today)
         ans, _ = _ask_ai(question, "talk", lang, facts, sentences=3)
-        return ans if ans and _numbers_ok(ans, facts) else None
+        return ans if ans and _numbers_ok(ans, facts) and calm_ok(ans) else None
     except Exception as e:  # noqa: BLE001
         print(f"assistant free fell back: {type(e).__name__}: {e}")
         return None
@@ -127,6 +145,9 @@ def explain(screen, lang="English", today=None):
 
 # Questions the book answers exactly (no AI): the example questions on each screen, in the five languages.
 INTENTS = [
+    ("customers", r"\bhow many (customers?|buyers?|people|clients?)\b(?!.{0,25}\b(owe|late|paid|pay|buy|bought)\b)|"
+                  r"\bnumber of (my )?(customers|buyers|clients)\b|\b(customers|clients) (do )?i (get|have)\b|"
+                  r"\bonibaara (melo|meloo)\b|\bkwastomomi nawa\b|\bmasu siya nawa\b|\bndi ahia ole\b"),
     ("cheapest", r"cheap|best price|lowest price|which supplier|who (dey )?sell .{0,20}(less|lower)|where (i|to) (go )?buy|"
                  r"wo ni o din|mafi arha|kacha ọnụ ala|onye na-ere .{0,10}ọnụ ala"),
     ("margin", r"\bmargins?\b|profit (on|for|per|from)|most profit|gain (on|for|per)|wetin i dey gain|which item .{0,20}(profit|gain)|"
@@ -170,6 +191,15 @@ SAYS = {
                    "Yoruba": "Kí n tó fi àwọn olùtajà wé ara wọn, sọ ẹni tí o rà lọ́wọ́ rẹ̀ àti iye: \"Mo ra àpò ìrẹsì 10 lọ́wọ́ Alhaji Sani\".",
                    "Hausa": "Don in kwatanta masu sayarwa, faɗi wanda ka saya daga gare shi da yawa: \"Na sayi buhun shinkafa 10 daga Alhaji Sani\".",
                    "Igbo": "Ka m tụnyere ndị na-ere, kwuo onye ị zụtara n'aka ya na ole: \"Azụrụ m akpa osikapa 10 n'aka Alhaji Sani\"."},
+    "customers": {"English": "You have {n} customers. {owe}", "Pidgin": "You get {n} customers. {owe}",
+                  "Yoruba": "O ní oníbàárà {n}. {owe}", "Hausa": "Kana da masu siya {n}. {owe}",
+                  "Igbo": "I nwere ndị ahịa {n}. {owe}"},
+    "customers_owe": {"English": "{c} of them owe you {m}.", "Pidgin": "{c} for dem dey owe you {m}.",
+                      "Yoruba": "{c} nínú wọn jẹ ọ́ ní {m}.", "Hausa": "{c} daga cikinsu suna binka {m}.",
+                      "Igbo": "{c} n'ime ha ji gị {m}."},
+    "customers_none_owe": {"English": "Nobody owes you now.", "Pidgin": "Nobody dey owe you now.",
+                           "Yoruba": "Kò sí ẹni tó jẹ ọ́ báyìí.", "Hausa": "Babu wanda ke binka yanzu.",
+                           "Igbo": "Onweghị onye ji gị ụgwọ ugbu a."},
     "owe_most": {"English": "{name} owes you the most: {m}.", "Pidgin": "{name} dey owe you pass: {m}.",
                  "Yoruba": "{name} ló jẹ ọ́ jù: {m}.", "Hausa": "{name} ne ke da bashinka mafi yawa: {m}.",
                  "Igbo": "{name} ji gị ụgwọ kacha: {m}."},
@@ -211,6 +241,14 @@ def book_answer(question, lang="English", today=None):
         return None
     say = lambda k, **kw: SAYS[k].get(lang, SAYS[k]["English"]).format(**kw)  # noqa: E731
     money = lambda x: f"₦{x:,.0f}"  # noqa: E731
+    if intent == "customers":    # counted from the book: everyone with a page, and who of them owes
+        n = len(ledger.conversations(today))
+        d = ledger.debtors(today)
+        owe = say("customers_owe", c=len(d), m=money(sum(x["balance"] for x in d))) if d else say("customers_none_owe")
+        out = say("customers", n=n, owe=owe)
+        if lang in ("English", "Pidgin"):   # "1 customer", "1 of them owes"
+            out = re.sub(r"\b1 customers\b", "1 customer", out).replace("1 of them owe you", "1 of them owes you")
+        return out
     if intent == "owed_total":   # code adds it up; the three biggest named, "and N more" for the rest
         d = sorted(ledger.debtors(today), key=lambda x: -x["balance"])
         if not d:

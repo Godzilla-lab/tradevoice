@@ -448,6 +448,7 @@ def handle(msg):
             return None
         # 5) everything else: the same brain as the web chat (record / yes-no / question / reminder)
         _due_once(phone, st, u["lang"])
+        st["queue_ok"] = True   # a chat: drafts said one after the other wait together ("save it all")
         r = converse.reply(text, st, shop=os.getenv("SHOP_NAME", "my shop"))
         if kind == "text" and r["lang"] in ("Yoruba", "Hausa", "Igbo") and r["lang"] != u["lang"]:
             set_user(phone, lang=r["lang"])  # they wrote in another of our languages: hear voice notes in it too

@@ -27,12 +27,23 @@ from extract import parse_customer as extract_customer
 LANGS = askbook.LANGS
 
 # spoken answers come with a little more ("yes please, save it", "no, leave it"): the extra words may only be these
-_YES_MORE = r"(?:[\s,.!]+(?:please|save( it| am)?|go ahead|do it|write it|correct|that'?s (right|correct)|na so|e correct|" \
+_YES_MORE = r"(?:[\s,.!]+(?:please|save( it| am| them| dem)?|all|both|everything|all of (them|dem)|go ahead|do it|write it|" \
+            r"correct|that'?s (right|correct)|na so|e correct|" \
             r"o|sir|ma|abeg|thank you|thanks|o to|o dara|kosi wahala|haka ne|rubuta|o di mma|dee ya))*"
-YES = re.compile(r"^\s*(yes|yeah|yep|ok|okay|save|save am|save it|correct|na so|e correct|sure|ehn|ee+h?|eh|"
+YES = re.compile(r"^\s*(yes|yeah|yep|ok|okay|save|save am|save it|save them|save all|save both|save everything|go ahead|"
+                 r"do it|correct|na so|e correct|sure|ehn|ee+h?|eh|"
                  r"beeni|o to|o dara|to|haka ne|eh to|i|ee|o di mma|ozi|confirm)" + _YES_MORE + r"\W*$")
 NO = re.compile(r"^\s*(no|nope|cancel|no be so|leave am|forget am|rara|ko to|a'?a|ba haka ba|mba|o bughi ya)"
                 r"(?:[\s,.!]+(?:thanks?|thank you|leave (it|am)|forget (it|am)|don'?t save( it)?|cancel( it)?|o|sir|ma|abeg))*\W*$")
+EVENT_MONEY = re.compile(r"\b(spent|spend|sold|sell|paid|pay|owe|owes|bought|buy|collect|took|carry)\b")
+ONLY = re.compile(r"^\s*(?:yes\W+)?(?:save|keep)\b.*\bonly\b|^\s*only\b")   # "save Dino only" / "only Mike"
+AND_MORE = re.compile(r"^\s*(and|also|plus|then|another one|another|again|&|\+)\b")    # "and Mike owes me 300k"
+PROFIT_SAID = re.compile(r"\b(profit|profits|gain|gained|ere|riba|uru)\b")
+PROFIT_ASKED = re.compile(r"\bhow much\b|\bwhat\b|\bwetin\b|\?|\bmelo\b|\belo\b|\bnawa\b|\bole\b")
+CANT_SEE = re.compile(r"\bi (just |don |have |'ve )?(share|shared|send|sent|upload|uploaded|forward|forwarded|attach|attached)"
+                      r"\b.{0,30}\b(list|file|excel|sheet|picture|pic|photo|screenshot|document|message|it|am)\b"
+                      r"|\b(check|see|look at|read) (my|the) (whatsapp|messages?|list|file|excel|sheet|email|status|picture|pic|photo|"
+                      r"screenshot|image|document)\b")
 REMIND = re.compile(r"\bremind\b|\bran .{0,40}\bleti\b|\bleti\b|\btunatar\b|\btuna wa\b|\bcheta(ra)?\b|\bchetara\b")
 QUESTION = re.compile(r"\?|\bhow (much|many)\b|\bwho\b|\bwhat\b|\bwetin\b|\babi\b|\bdo i\b|\bdid\b|\bse\b|\bmelo\b|"
                       r"\belo\b|\bnawa\b|\bshin\b|\bole\b|\bkedu\b|\bani\b|\bna who\b")
@@ -53,8 +64,8 @@ EVENT = re.compile(r"\b(sell|sold|owe|owes|pay|paid|buy|bought|spend|spent|colle
                    r"sayar|biya|saya|rere|kwuru|zutara|ji m)\b")
 
 SAY = {
-    "heard": {"English": "I heard: {s} Say *yes* to save, or tell me what to change.",
-              "Pidgin": "I hear say: {s} Talk *yes* make I save am, or tell me wetin to change.",
+    "heard": {"English": "I heard: {s} Should I save it? Say *yes*, or tell me what to change.",
+              "Pidgin": "I hear say: {s} Make I save am? Talk *yes*, or tell me wetin to change.",
               "Yoruba": "Ohun tí mo gbọ́: {s} Sọ *bẹ́ẹ̀ni* kí n kọ ọ́ sílẹ̀, tàbí sọ ohun tí kò tọ̀nà.",
               "Hausa": "Abin da na ji: {s} Ka ce *eh* in adana, ko ka faɗi abin da za a gyara.",
               "Igbo": "Ihe m nụrụ: {s} Kwuo *ee* ka m chekwaa ya, ma ọ bụ gwa m ihe m ga-agbanwe."},
@@ -90,6 +101,53 @@ SAY = {
     "dropped": {"English": "(The one before was not saved.)", "Pidgin": "(The one wey dey before, I no save am.)",
                 "Yoruba": "(Èyí tó ṣáájú, mi ò kọ ọ́ sílẹ̀.)", "Hausa": "(Na baya, ban adana shi ba.)",
                 "Igbo": "(Nke gara aga, echekwaghị m ya.)"},
+    # several drafts waiting (a list said one after the other): one "yes" saves them all
+    "waiting": {"English": "{n} waiting to save: {list}. Say *yes* to save all.",
+                "Pidgin": "{n} dey wait make I save: {list}. Talk *yes* make I save all.",
+                "Yoruba": "{n} ló ń dúró: {list}. Sọ *bẹ́ẹ̀ni* kí n kọ gbogbo wọn sílẹ̀.",
+                "Hausa": "{n} suna jira: {list}. Ka ce *eh* in adana duka.",
+                "Igbo": "{n} na-eche: {list}. Kwuo *ee* ka m chekwaa ha niile."},
+    "saved_n": {"English": "Saved {n}.", "Pidgin": "I don save {n}.", "Yoruba": "Mo ti kọ {n} sílẹ̀.",
+                "Hausa": "An adana {n}.", "Igbo": "Echekwala m {n}."},
+    "cancelled_n": {"English": "OK, I didn't save any of them.", "Pidgin": "No wahala, I no save any of dem.",
+                    "Yoruba": "Ó dáa, mi ò kọ ìkankan sílẹ̀.", "Hausa": "To, ban adana ko ɗaya ba.",
+                    "Igbo": "Ọ dị mma, echekwaghị m nke ọ bụla."},
+    "still_waiting": {"English": "Still waiting: {list}. Say *yes* to save, or *no* to drop.",
+                      "Pidgin": "E still dey wait: {list}. Talk *yes* make I save, or *no* make I leave am.",
+                      "Yoruba": "Ó ṣì ń dúró: {list}. Sọ *bẹ́ẹ̀ni* tàbí *rárá*.",
+                      "Hausa": "Har yanzu suna jira: {list}. Ka ce *eh* ko *a'a*.",
+                      "Igbo": "Ka na-eche: {list}. Kwuo *ee* ma ọ bụ *mba*."},
+    # a very big amount: read back in words, once, before it can be saved
+    "big": {"English": "That is {w}. Is that right?", "Pidgin": "Na {w} be that. E correct?",
+            "Yoruba": "Ìyẹn ni {w}. Ṣé bẹ́ẹ̀ ni?", "Hausa": "Wato {w}. Haka ne?", "Igbo": "Nke ahụ bụ {w}. Ọ bụ eziokwu?"},
+    # profit is worked out by the book, never written in as a line
+    "profit_info": {"English": "I work out your profit from what you sold and spent, so I don't save it as a line. Today your "
+                               "book says: sales {s}, spending {e}, so {p}. Tell me what you sold and spent, and I will add them.",
+                    "Pidgin": "Na me dey calculate your profit from wetin you sell and spend, so I no go save am as one line. "
+                              "Today your book talk: sales {s}, spending {e}, so {p}. Tell me wetin you sell and spend, I go add am.",
+                    "Yoruba": "Èmi ni mo ń ṣírò èrè rẹ láti inú ohun tí o tà àti ohun tí o ná, nítorí náà mi ò kọ ọ́ sílẹ̀ "
+                              "bí ìlà kan. Lónìí ìwé rẹ sọ pé: títà {s}, ìnáwó {e}, èrè {p}. Sọ ohun tí o tà àti ohun tí o ná.",
+                    "Hausa": "Ni nake lissafa ribarka daga abin da ka sayar da abin da ka kashe, don haka ban adana ta a "
+                             "matsayin layi ba. Yau littafinka ya ce: ciniki {s}, kashewa {e}, saura {p}. Faɗa min abin da ka "
+                             "sayar da abin da ka kashe.",
+                    "Igbo": "Ana m agbakọ uru gị site n'ihe i rere na ihe i mefuru, ya mere anaghị m echekwa ya dị ka otu "
+                            "ahịrị. Taa akwụkwọ gị na-ekwu: ahịa {s}, mmefu {e}, ya bụ {p}. Gwa m ihe i rere na ihe i mefuru."},
+    # things TradeVoice can't see from here
+    "cant_see": {"English": "I can't see that here. Send a photo of it with the + button, or tell me each one, like: "
+                            "Mama Ngozi owes ₦5,000.",
+                 "Pidgin": "I no fit see am for here. Send photo of am with the + button, or tell me one by one, like: "
+                           "Mama Ngozi dey owe ₦5,000.",
+                 "Yoruba": "Mi ò lè rí i níbí. Fi fọ́tò rẹ̀ ránṣẹ́ pẹ̀lú bọ́tìnnì +, tàbí sọ wọ́n lọ́kọ̀ọ̀kan, bíi: "
+                           "Mama Ngozi jẹ mí ₦5,000.",
+                 "Hausa": "Ba zan iya ganin sa a nan ba. Aiko hotonsa da maɓallin +, ko ka faɗa min ɗaya bayan ɗaya, kamar: "
+                          "Mama Ngozi tana bina ₦5,000.",
+                 "Igbo": "Enweghị m ike ịhụ ya ebe a. Ziga foto ya site na bọtịnụ +, ma ọ bụ gwa m otu otu, dị ka: "
+                         "Mama Ngozi ji m ₦5,000."},
+    "left_out": {"English": "I left out the other amount ({a} or {b}?). Say it on its own if you want it saved.",
+                 "Pidgin": "I no use the other money ({a} or {b}?). Talk am alone if you wan make I save am.",
+                 "Yoruba": "Mi ò lo owó kejì ({a} tàbí {b}?). Sọ ọ́ lọ́tọ̀ tí o bá fẹ́ kí n kọ ọ́ sílẹ̀.",
+                 "Hausa": "Ban yi amfani da ɗayan kuɗin ba ({a} ko {b}?). Faɗe shi shi kaɗai idan kana so in adana.",
+                 "Igbo": "Ejighị m ego nke ọzọ ({a} ma ọ bụ {b}?). Kwuo ya naanị ya ma ị chọrọ ka m chekwaa ya."},
     "check_amount": {"English": "Please check the amount.", "Pidgin": "Abeg check the money well.",
                      "Yoruba": "Jọ̀wọ́ ṣàyẹ̀wò iye owó náà.", "Hausa": "Da fatan ka duba adadin kuɗin.",
                      "Igbo": "Biko lelee ego ole ahụ."},
@@ -141,8 +199,8 @@ SAY = {
     "due": {"English": "Today: collect {m} from {who}.", "Pidgin": "Today: collect {m} from {who}.",
             "Yoruba": "Lónìí: gba {m} lọ́wọ́ {who}.", "Hausa": "Yau: karɓi {m} daga {who}.",
             "Igbo": "Taa: nata {m} n'aka {who}."},
-    "not_sure": {"English": "Sorry, I didn't get that. Tell me a sale, a debt, or ask about your book.",
-                 "Pidgin": "Abeg, I no understand. Tell me wetin you sell, who owe you, or ask me about your book.",
+    "not_sure": {"English": "Sorry, I didn't catch that. Try: Mama Tunde took 2 bags of rice, ₦45,000, she will pay Friday.",
+                 "Pidgin": "Abeg, I no catch am. Try: Mama Tunde carry 2 bags of rice, ₦45,000, she go pay Friday.",
                  "Yoruba": "Má bínú, kò yé mi. Sọ ọjà tí o tà, gbèsè, tàbí béèrè nípa ìwé rẹ.",
                  "Hausa": "Yi haƙuri, ban gane ba. Faɗi abin da ka sayar, bashi, ko ka tambayi littafinka.",
                  "Igbo": "Ndo, aghọtaghị m. Gwa m ihe i rere, ụgwọ, ma ọ bụ jụọ maka akwụkwọ gị."},
@@ -434,8 +492,25 @@ def _is_correction(text, t, state):
 
 
 def _record(text, lang, state, vocab, today, heard=None):
-    had_draft = bool(state.get("pending") and state["pending"].get("amount") not in (None, ""))
-    rec, meta = extract(text, today=today, vocab=vocab)
+    old = state.get("pending") if state.get("pending") and state["pending"].get("amount") not in (None, "") else None
+    # a list said one after the other waits together ("Dino owes me 5m" … "and Mike owes me 300k" … "save it all");
+    # on the card screen (one card at a time) a new note still replaces a card nobody answered
+    keep = bool(old) and (state.get("queue_ok") or AND_MORE.search(fold(text)))
+    had_draft = bool(old) and not keep
+    if keep:
+        state["queue"] = ((state.get("queue") or []) + [old])[-5:]
+    said = re.sub(r"^\s*(and|also|plus|then|another one|another|again|&|\+)\b[\s,]*", "", text, flags=re.I) or text
+    cands = amount_doubt(said)   # "50,0000" / "20000k": two readings, ask instead of guessing
+    if cands and _other_amount(said, cands):
+        # "No 500,000k and spent 130,000": the clear part is the record; the garbled number is said to be left out
+        said = _without_doubt(said)
+    rec, meta = extract(said, today=today, vocab=vocab)
+    if cands:
+        if rec.get("amount") in (None, "") or float(rec["amount"]) in cands:
+            rec["amount"] = rec.get("amount") or cands[0]
+            heard = dict(heard or {}, amounts=sorted(set(cands) | set((heard or {}).get("amounts") or [])))
+        else:
+            rec["_left_out"] = cands      # the record used another number: say the doubtful one was left out
     if not rec.get("customer"):
         rec["customer"] = _pronoun_person(text, state, today=today)  # "she don pay 10k" = who we talked about
     rec["_engine"] = meta.get("engine", "chat")
@@ -443,13 +518,139 @@ def _record(text, lang, state, vocab, today, heard=None):
     _mention(state, rec.get("customer"))
     ask = _pick_customer(rec, state, lang, today, text)
     if ask:
-        return ask
+        return _with_waiting(ask, state, lang)
     if rec.get("amount") in (None, ""):
-        return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
+        return _with_waiting(_out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"]), state, lang)
     again = _ask_again(rec, heard, lang)
     if again:
-        return again
-    return _heard(rec, lang, note=rec.get("note"), dropped=had_draft)
+        return _with_waiting(again, state, lang)
+    out = _heard(rec, lang, note=rec.get("note"), dropped=had_draft)
+    left = rec.pop("_left_out", None)
+    if left:
+        kw = {"a": _money(left[0]), "b": _money(left[-1])}
+        out["text"] += "\n" + SAY["left_out"][lang].format(**kw)
+        out["english"] = (out.get("english") or "") + "\n" + SAY["left_out"]["English"].format(**kw) if out.get("english") else None
+    return _with_waiting(out, state, lang)
+
+
+# ---------------------------------------------------------------- several drafts, profit, garbled and big amounts
+
+def _drafts(state):
+    """Everything waiting for "yes", oldest first (the queue, then the draft being worked on)."""
+    q = [d for d in state.get("queue") or [] if d.get("amount") not in (None, "")]
+    p = state.get("pending")
+    return q + ([p] if p and p.get("amount") not in (None, "") else [])
+
+
+def _label(rec):
+    return f"{rec.get('customer') or rec.get('item') or ''} {_money(rec['amount'])}".strip()
+
+
+def _with_waiting(out, state, lang):
+    """When earlier drafts wait too, the reply ends with the whole list: '2 waiting to save: Dino ₦5,000,000, …'."""
+    if not state.get("queue"):
+        return out
+    ds = _drafts(state)
+    kw = {"n": len(ds), "list": ", ".join(_label(d) for d in ds)}
+    out["text"] += "\n" + SAY["waiting"][lang].format(**kw)
+    if out.get("english"):
+        out["english"] += "\n" + SAY["waiting"]["English"].format(**kw)
+    out["spoken"] = (out.get("spoken") or "") + " " + _say_amounts(SAY["waiting"][lang].format(**kw).replace("*", ""))
+    return out
+
+
+def _combine(outs, lang):
+    if len(outs) == 1:
+        return outs[0]
+    head = SAY["saved"][lang].split("{s}")[0]
+    head_en = SAY["saved"]["English"].split("{s}")[0]
+    lines = [o["text"][len(head):] if o["text"].startswith(head) else o["text"] for o in outs]
+    lines_en = [(o.get("english") or o["text"]) for o in outs]
+    lines_en = [x[len(head_en):] if x.startswith(head_en) else x for x in lines_en]
+    out = _out(SAY["saved_n"][lang].format(n=len(outs)) + "\n" + "\n".join(lines), lang,
+               spoken=" ".join(o.get("spoken") or "" for o in outs),
+               english=SAY["saved_n"]["English"].format(n=len(outs)) + "\n" + "\n".join(lines_en))
+    out["saved"] = True
+    return out
+
+
+def _save_all(state, today):
+    """'yes' / 'save it all': every waiting draft is saved, in the order it was said."""
+    lang = state["lang"]
+    p = state.get("pending")
+    unfinished = p if p and p.get("amount") in (None, "") else None   # still needs "How much?": keeps waiting
+    ds, outs = _drafts(state), []
+    state["queue"] = []
+    for d in ds:
+        state["pending"] = d
+        outs.append(_confirm(state, today))
+    state["pending"] = unfinished
+    return _combine(outs, lang)
+
+
+def _save_only(t, state, today):
+    lang, ds = state["lang"], _drafts(state)
+    hit = [d for d in ds if d.get("customer") and fold(d["customer"]) in t] or \
+          [d for d in ds if d.get("item") and fold(d["item"]) in t]
+    if not hit:
+        return None
+    rest = [d for d in ds if all(d is not h for h in hit)]
+    outs = []
+    for d in hit:
+        state["pending"] = d
+        outs.append(_confirm(state, today))
+    state["queue"], state["pending"] = rest[:-1], (rest[-1] if rest else None)
+    out = _combine(outs, lang)
+    if rest:
+        kw = {"list": ", ".join(_label(d) for d in rest)}
+        out["text"] += "\n" + SAY["still_waiting"][lang].format(**kw)
+        if out.get("english"):
+            out["english"] += "\n" + SAY["still_waiting"]["English"].format(**kw)
+    return out
+
+
+def _profit_info(lang, today):
+    d = ledger.day_summary(today)
+    kw = {"s": _money(d["sales"]), "e": _money(d["expenses"]), "p": _money(d["profit"])}
+    return _out(SAY["profit_info"][lang].format(**kw), lang, spoken=_say_amounts(SAY["profit_info"][lang].format(**kw)),
+                english=SAY["profit_info"]["English"].format(**kw))
+
+
+def amount_doubt(text):
+    """Two honest readings of a garbled amount, or None: '50,0000' -> ₦500,000 or ₦50,000 (one zero too many?);
+    '20000k' / '500,000k' -> the number or a thousand times it (k after a full number)."""
+    m = re.search(r"(?<![\d,.])(\d{1,3}),(\d{4,})(?![\d,])", text or "")
+    if m:
+        whole = float(m.group(1) + m.group(2))
+        cut = float(m.group(1) + m.group(2)[:3])
+        return sorted({whole, cut}, reverse=True)
+    m = re.search(r"(?<![\d,.])(\d{1,3}(?:,\d{3})+|\d{4,})\s*k\b", text or "", re.I)
+    if m:
+        n = float(m.group(1).replace(",", ""))
+        return sorted({n, n * 1000}, reverse=True)
+    return None
+
+
+_DOUBT = r"(?<![\d,.])(?:\d{1,3},\d{4,}(?![\d,])|(?:\d{1,3}(?:,\d{3})+|\d{4,})\s*k\b)"
+
+
+def _without_doubt(text):
+    return re.sub(r"\s+", " ", re.sub(_DOUBT, " ", text, count=1, flags=re.I)).strip()
+
+
+def _other_amount(text, cands):
+    """Is there another, clear amount in the message besides the garbled one?"""
+    from extract import _amount_values
+    return bool(_amount_values(_without_doubt(text)) - set(cands))
+
+
+def _big(rec):
+    """Above ₦1,000,000 and more than 10 times the biggest line in the book: read it back in words first."""
+    try:
+        a = float(rec.get("amount") or 0)
+    except (TypeError, ValueError):
+        return False
+    return a >= 1_000_000 and a > 10 * ledger.biggest_amount()
 
 
 def _ask_again(rec, heard, lang):
@@ -579,6 +780,12 @@ def _heard(rec, lang, note=None, updated=False, dropped=False):
         warn = over_limit_text(lim, lang)
         written += "\n" + warn
         spoken = _say_amounts(warn) + " " + spoken
+    big = not price_check(rec) and _big(rec)
+    rec["_big"] = big
+    if big:   # "That is five million naira. Is that right?" (yes keeps it; the card marks the amount)
+        w = tts.naira_words(float(rec["amount"])) if lang in ("English", "Pidgin") else _money(rec["amount"])
+        written += "\n" + SAY["big"][lang].format(w=w)
+        spoken = spoken + " " + SAY["big"][lang].format(w=w if lang in ("English", "Pidgin") else _say_amounts(w))
     chk = price_check(rec)
     rec["_price"] = chk
     if chk:   # "You said ₦4,500 … Did you mean ₦45,000?": the trader says the right amount, or yes to keep it
@@ -594,6 +801,8 @@ def _heard(rec, lang, note=None, updated=False, dropped=False):
         english += "\n" + over_limit_text(lim, "English")
     if chk:
         english += "\n" + _price_text(rec, chk, "English")
+    if big:
+        english += "\n" + SAY["big"]["English"].format(w=tts.naira_words(float(rec["amount"])))
     return _out(written, lang, spoken=spoken, english=english)
 
 
@@ -701,12 +910,18 @@ def reply(text, state=None, today=None, shop="your shop"):
                     return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
                 return _heard(pending, lang)
     if YES.match(t):
-        if pending and pending.get("amount") not in (None, ""):
-            return _confirm(state, today)
+        if _drafts(state):
+            return _save_all(state, today)    # one draft, or a list said one after the other: "save it all"
         return _out(SAY["nothing_pending"][lang], lang, english=SAY["nothing_pending"]["English"])
+    if ONLY.search(t) and len(_drafts(state)) > 1:
+        out = _save_only(t, state, today)    # "save Dino only": that one, the others keep waiting
+        if out:
+            return out
     if NO.match(t):
-        state["pending"] = None
-        return _out(SAY["cancelled"][lang], lang, english=SAY["cancelled"]["English"])
+        n = len(_drafts(state))
+        state["pending"], state["queue"] = None, []
+        key = "cancelled_n" if n > 1 else "cancelled"
+        return _out(SAY[key][lang], lang, english=SAY[key]["English"])
     if pending and pending.get("amount") in (None, "") and parse_amount(text) and len(t.split()) <= 4:
         pending["amount"] = parse_amount(text)  # answer to "How much?"
         return _heard(pending, lang)
@@ -723,6 +938,8 @@ def reply(text, state=None, today=None, shop="your shop"):
     if STATEMENT_RX.search(t):
         return _statement(text, lang, state, vocab, shop)
     amount = parse_amount(text)
+    if amount is not None and PROFIT_SAID.search(t) and not PROFIT_ASKED.search(t) and not EVENT_MONEY.search(t):
+        return _profit_info(lang, today)   # "today we make 50k profit": profit is worked out, never written in
     asked = clock.asked(t)  # "what time is it?" / "what day is today?": Nigeria time, said by code
     if asked and amount is None:
         kind, said = asked
@@ -744,6 +961,8 @@ def reply(text, state=None, today=None, shop="your shop"):
         lang = state["lang"] = said or lang  # "Bawo ni" = Yoruba, whatever was picked
 
         return _out(_named(ui_text.t("hello", lang)), lang, english=_named(ui_text.t("hello", "English")))
+    if CANT_SEE.search(t) and amount is None:   # "I just shared a list": say what to do instead of guessing
+        return _out(SAY["cant_see"][lang], lang, english=SAY["cant_see"]["English"])
     if TAX.search(t) and amount is None:  # "do I pay tax?": the plain facts + their own year, never "you owe ₦X"
         import tax
 

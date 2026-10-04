@@ -147,6 +147,12 @@ def recall(kind, key=None):
 _LOAN_WORDS = ("loan", "borrow", "lend", "cash")
 
 
+def biggest_amount():
+    """The biggest single line in this book (0 if empty): what counts as a 'very big amount' for this trader."""
+    with conn() as c:
+        return float(c.execute("SELECT COALESCE(MAX(amount), 0) FROM entries").fetchone()[0] or 0)
+
+
 def kind(r):
     if r["type"] == "credit_purchase" and any(w in (r.get("item") or "").lower() for w in _LOAN_WORDS):
         return "loan_taken"

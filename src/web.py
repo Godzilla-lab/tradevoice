@@ -153,7 +153,7 @@ def _draft(state):
     if not rec or state.get("choose"):
         return None
     unsure = []
-    if rec.get("amount") in (None, "") or rec.get("_price") or rec.get("_reask") == "amount":
+    if rec.get("amount") in (None, "") or rec.get("_price") or rec.get("_big") or rec.get("_reask") == "amount":
         unsure.append("amount")   # no amount, far from their usual price, or not heard clearly
     if (rec.get("confidence") or 0) < 0.5 and rec.get("amount") not in (None, ""):
         unsure.append("type")
@@ -292,6 +292,8 @@ HEARD_CHECKS = {}   # (book, words heard) -> (time, what the hearing models were
 def _say(text, session, lang, shop, live):
     """Words -> the reply (the conversation moves on: a draft, a question, or a save), its voice started at once."""
     state = _state(session, lang)
+    if live:
+        state["queue_ok"] = True    # the live conversation: several things said one after the other wait together
     check = HEARD_CHECKS.pop((ledger.book_path(), text), (0, None))[1]
     if check:
         state["heard_check"] = check   # the chat asks again for just the unclear part
@@ -402,6 +404,7 @@ def ask_chat(b: AskIn):
     if not text:
         raise HTTPException(400, "nothing was asked")
     state = _state("ask:" + b.session, b.lang)
+    state["queue_ok"] = True    # a chat: drafts said one after the other wait together ("save it all")
     check = HEARD_CHECKS.pop((ledger.book_path(), text), (0, None))[1]
     if check:
         state["heard_check"] = check

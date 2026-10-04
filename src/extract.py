@@ -127,7 +127,7 @@ _CREDIT_KW = ("owe", "owes", "owing", "go pay", "will pay", "on credit", "na cre
               "bashi", "za ta biya", "za ya biya", "zai biya", "za ta pay", "za ya pay", "zai pay",  # ha: debt, will pay
               "ugwo", "ji m", "ga-akwu", "ga akwu")         # ig: debt, owes me, will pay
 _EXPENSE_RE = re.compile(r"\b(i|we)\s+(buy|bought|pay for|paid for|spend|spent|restock|restocked)\b"
-                         r"|^\s*(?:today\s+)?(?:bought|buy|spent|spend|restocked)\b"   # "Bought 2 paints of crayfish…"
+                         r"|^\s*(?:(?:and|no|also|then|so|ok|okay|plus|oh)[\s,]+)*(?:today\s+)?(?:bought|buy|spent|spend|restocked)\b"
                          r"|\bmo ra\b|\bna say[ia]\b|\b(?:a?zuru|zutara) m\b"        # yo / ha / ig: I bought
                          r"|\b(i|we)\s+(pay|paid)\s+(n|₦)?\d"
                          r"|\b(transport|motor fare|rent|levy|fuel|diesel|salary|shop rent|market levy|restock|tax|taxes|dues)\b"

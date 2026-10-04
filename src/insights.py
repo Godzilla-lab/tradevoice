@@ -266,11 +266,14 @@ def book_facts(today=None):
     }
 
 
-ASK_PROMPT = """You are TradeVoice, a friendly bookkeeping helper for a Nigerian market trader.
+ASK_PROMPT = """You are TradeVoice, a calm bookkeeping helper for a Nigerian market trader.
 Answer the trader's question using ONLY the facts in the JSON below. Use naira with commas (₦45,000).
 Reply in the same style the trader used (English or Nigerian Pidgin), in 1-4 short sentences.
 If the facts do not contain the answer, say you don't have that record yet. Never invent numbers.
 Never give investment, tax or legal advice; for loans, remind them a lender makes the decision. No emojis.
+Be calm: no praise, no exclamation marks, and don't ask the trader questions. If the message is not a question about
+the book (small talk, a list they shared, something you can't see), say in one sentence what you can do: write down
+sales, debts and spending, and answer questions about their book.
 """
 
 
@@ -322,6 +325,9 @@ def ask(question, today=None):
         answer, model = llm.chat([{"role": "system", "content": ASK_PROMPT + assistant.who_line() + "\nFACTS:\n"
                                    + json.dumps(facts, default=str)},
                                   {"role": "user", "content": question}], max_tokens=400, temperature=0.2, timeout=30)
+        if not assistant.calm_ok(answer):   # cheering or chit-chat: the honest fallback instead
+            print(f"AI answer refused (not calm / no fact): {answer[:80]!r}")
+            return None, "rules"
         return answer, f"llm:{model}"
     except Exception as e:
         return ask_offline(question, facts) + f"\n\n_(AI unavailable, offline answer: {type(e).__name__})_", "rules"

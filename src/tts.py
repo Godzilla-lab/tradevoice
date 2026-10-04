@@ -88,63 +88,63 @@ def _day(due):
 # {she}/{her} (English/Pidgin) and {ya}/{za} (Hausa) follow the customer's title (Mama/Iya/Aunty -> she).
 TEMPLATES = {
     "English": {
-        "sale": "You sold {item}for {amount}. Nice one!",
+        "sale": "You sold {item}for {amount}.",
         "credit_sale": "{customer} will pay you {amount}{due}.",
-        "payment_received": "{customer} has paid you {amount}. Good news!",
+        "payment_received": "{customer} has paid you {amount}.",
         "expense": "You spent {amount}{item_for}.",
         "due": ", on {day}", "balance": " All together, {she} is still owing you {balance}.",
         "cleared": " {She} is not owing you anything again.",
         "credit_purchase": "You will pay {customer} {amount}{due}.",
-        "payment_made": "You have paid {customer} {amount}. Well done!",
+        "payment_made": "You have paid {customer} {amount}.",
         "i_owe": " All together, you still owe {customer} {balance}.",
-        "i_cleared": " You don't owe {customer} anything again. Your name is clean!",
+        "i_cleared": " You don't owe {customer} anything again.",
     },
     "Pidgin": {
-        "sale": "You don sell {item}for {amount}. Market dey move!",
+        "sale": "You don sell {item}for {amount}.",
         "credit_sale": "{customer} go pay you {amount}{due}.",
-        "payment_received": "{customer} don pay you {amount}. Correct!",
+        "payment_received": "{customer} don pay you {amount}.",
         "expense": "You spend {amount}{item_for}.",
         "due": ", for {day}", "balance": " Now, {she} still dey owe you {balance}.",
-        "cleared": " {She} no dey owe you again. E don clear!",
+        "cleared": " {She} no dey owe you again.",
         "credit_purchase": "You go pay {customer} {amount}{due}.",
-        "payment_made": "You don pay {customer} {amount}. Correct!",
+        "payment_made": "You don pay {customer} {amount}.",
         "i_owe": " Now, you still dey owe {customer} {balance}.",
-        "i_cleared": " You no dey owe {customer} again. Your name clean!",
+        "i_cleared": " You no dey owe {customer} again.",
     },
     "Yoruba": {
-        "sale": "O ta ọjà ní {amount}. Ọjà ń tà!",
+        "sale": "O ta ọjà ní {amount}.",
         "credit_sale": "{customer} jẹ ọ́ ní {amount}{due}.",
-        "payment_received": "{customer} ti san {amount}. Ó dáa!",
+        "payment_received": "{customer} ti san {amount}.",
         "expense": "O ná {amount}.",
         "due": ", yóò san ní {day}", "balance": " Gbogbo gbèsè {customer} báyìí jẹ́ {balance}.",
         "cleared": " {customer} kò jẹ ọ́ ní gbèsè mọ́.",
         "credit_purchase": "O jẹ {customer} ní {amount}{due}.",
-        "payment_made": "O ti san {amount} fún {customer}. Ó dáa!",
+        "payment_made": "O ti san {amount} fún {customer}.",
         "i_owe": " Gbogbo gbèsè tí o jẹ {customer} báyìí jẹ́ {balance}.",
         "i_cleared": " O kò jẹ {customer} ní gbèsè mọ́.",
     },
     "Hausa": {
         # "An ..." (impersonal) avoids guessing the trader's gender
-        "sale": "An sayar da kaya na {amount}. Kasuwa na tafiya!",
+        "sale": "An sayar da kaya na {amount}.",
         "credit_sale": "{customer} {ya} ci bashin {amount}{due}.",
-        "payment_received": "{customer} {ya} biya {amount}. Madalla!",
+        "payment_received": "{customer} {ya} biya {amount}.",
         "expense": "An kashe {amount}.",
         "due": ", {za} biya ranar {day}", "balance": " Yanzu, jimlar bashin {customer} {balance} ne.",
         "cleared": " {customer} ba {ya} da sauran bashi.",
         "credit_purchase": "An karɓi kaya bashi daga {customer}, na {amount}{due}.",
-        "payment_made": "An biya {customer} {amount}. Madalla!",
+        "payment_made": "An biya {customer} {amount}.",
         "i_owe": " Yanzu, jimlar bashin {customer} {balance} ne.",
         "i_cleared": " An gama biyan bashin {customer}.",
     },
     "Igbo": {
-        "sale": "I rere ahịa {amount}. Ahịa na-aga!",
+        "sale": "I rere ahịa {amount}.",
         "credit_sale": "{customer} ji gị ụgwọ {amount}{due}.",
-        "payment_received": "{customer} akwụọla {amount}. Ọ dị mma!",
+        "payment_received": "{customer} akwụọla {amount}.",
         "expense": "I mefuru {amount}.",
         "due": ", ọ ga-akwụ na {day}", "balance": " Ugbu a, ụgwọ {customer} niile bụ {balance}.",
         "cleared": " {customer} anaghị ji gị ụgwọ ọzọ.",
         "credit_purchase": "I ji {customer} ụgwọ {amount}{due}.",
-        "payment_made": "I kwụọla {customer} {amount}. Ọ dị mma!",
+        "payment_made": "I kwụọla {customer} {amount}.",
         "i_owe": " Ugbu a, ụgwọ niile i ji {customer} bụ {balance}.",
         "i_cleared": " I jighị {customer} ụgwọ ọzọ.",
     },
@@ -153,17 +153,17 @@ TEMPLATES = {
 
 # "heard" = read back BEFORE saving so the trader can check it; "saved" = after saving. Openers are rotated.
 PREFIX = {
-    "English": {"heard": ["Okay, I heard: ", "Alright, so: "], "saved": ["Done! ", "Okay, written down. ",
-                                                                        "Got it! "],
+    "English": {"heard": ["Okay, I heard: ", "Alright, so: "], "saved": ["Done. ", "Okay, written down. ",
+                                                                        "Got it. "],
                 "ask": [" Is that correct? Press save."]},
     "Pidgin": {"heard": ["Ehen, I hear say: ", "Okay o, na this one: "],
-               "saved": ["I don write am! ", "E don enter book! ", "Sharp sharp, I don write am. "],
+               "saved": ["I don write am. ", "E don enter book. ", "Sharp sharp, I don write am. "],
                "ask": [" Na so? If e correct, press save."]},
-    "Yoruba": {"heard": ["Ó dáa, mo gbọ́ pé: "], "saved": ["Mo ti kọ ọ́ sílẹ̀! ", "Ó ti wọ ìwé! "],
+    "Yoruba": {"heard": ["Ó dáa, mo gbọ́ pé: "], "saved": ["Mo ti kọ ọ́ sílẹ̀. ", "Ó ti wọ ìwé. "],
                "ask": [" Ṣé bẹ́ẹ̀ ni? Tí ó bá tọ̀nà, tẹ save."]},
-    "Hausa": {"heard": ["To, na ji cewa: "], "saved": ["To, na rubuta! ", "Shikenan, na rubuta. "],
+    "Hausa": {"heard": ["To, na ji cewa: "], "saved": ["To, na rubuta. ", "Shikenan, na rubuta. "],
               "ask": [" Haka ne? Idan daidai ne, danna save."]},
-    "Igbo": {"heard": ["Ọ dị mma, anụrụ m na: "], "saved": ["Edeela m ya! ", "O banyela n'akwụkwọ! "],
+    "Igbo": {"heard": ["Ọ dị mma, anụrụ m na: "], "saved": ["Edeela m ya. ", "O banyela n'akwụkwọ. "],
              "ask": [" Ọ bụ otu a? Ọ bụrụ na ọ dị mma, pịa save."]},
 }
 
@@ -196,6 +196,11 @@ def _female(name):
     return bool(name) and name.split()[0].lower().rstrip(".") in _FEMALE
 
 
+# words that are not an item ("I spent 130,000 on expenses", "50,000 profit"): never read back as one
+GENERIC_ITEMS = {"expense", "expenses", "profit", "profits", "money", "cash", "goods", "things", "thing", "stuff",
+                 "item", "items", "sales", "sale", "spending", "business", "market", "transaction"}
+
+
 def entry_sentence(rec, language="English", money=None):
     """The core sentence for one entry ("Mama Tunde go pay you forty-five thousand naira, for Friday.").
     money: how to write amounts (default: English words, for speaking)."""
@@ -212,9 +217,12 @@ def _sentence(rec, language, money):
          "Pidgin": "your supplier"}.get(language, "your supplier"))
     female = _female(rec.get("customer"))
     item = rec.get("item")
+    if item and item.strip().lower() in GENERIC_ITEMS:   # "spent 130,000 on expenses" -> "You spent ₦130,000."
+        item = None
+    en = language in ("English", "Pidgin")
     slots = dict(amount=money(rec.get("amount") or 0), customer=customer,
-                 item=f"{item} " if item and language in ("English", "Pidgin") else "",
-                 item_for=f" on {item}" if item and language in ("English", "Pidgin") else "",
+                 item=f"{item} " if item and en else ("goods " if en and rec.get("type") in (None, "sale") else ""),
+                 item_for=f" on {item}" if item and en else "",
                  she="she" if female else "he", She="She" if female else "He", ya="ta" if female else "ya", za="za ta" if female else "zai")
     due = t["due"].format(day=day, **slots) if day else ""
     if rec.get("type") == "credit_purchase":  # "due" phrases say "SHE will pay"; for the trader's own debt use "on <day>"
