@@ -173,7 +173,10 @@ def _intron_transcribe(path, language, vocab=None):
         with open(wav or path, "rb") as f:
             name = os.path.basename(wav or path)
             r = requests.post(INTRON_URL, headers={"Authorization": f"Bearer {os.environ['INTRON_API_KEY']}"},
-                              data={"audio_file_name": name, "use_language_asr_input": INTRON_LANG.get(language, "pcm")},
+                              # general, not Intron's default telehealth (medical) post-processing, and no
+                              # Intron AI rewriting: a market note must never come back as a medical sentence
+                              data={"audio_file_name": name, "use_language_asr_input": INTRON_LANG.get(language, "pcm"),
+                                    "use_category": "file_category_general", "use_disable_llm_corrections": "TRUE"},
                               files={"audio_file_blob": (name, f, "audio/wav")}, timeout=60)
         if r.status_code in (401, 403):
             raise RuntimeError("Intron: key rejected (check INTRON_API_KEY)")

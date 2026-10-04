@@ -36,6 +36,27 @@ YES = re.compile(r"^\s*(yes|yeah|yep|ok|okay|save|save am|save it|save them|save
                  r"beeni|o to|o dara|to|haka ne|eh to|i|ee|o di mma|ozi|confirm)" + _YES_MORE + r"\W*$")
 NO = re.compile(r"^\s*(no|nope|cancel|no be so|leave am|forget am|rara|ko to|a'?a|ba haka ba|mba|o bughi ya)"
                 r"(?:[\s,.!]+(?:thanks?|thank you|leave (it|am)|forget (it|am)|don'?t save( it)?|cancel( it)?|o|sir|ma|abeg))*\W*$")
+# words of a trader's book in our 5 languages (folded): a free AI answer is only ever given to a message about the shop
+ON_TOPIC = re.compile(r"\b(sell|sold|sale|sales|selling|buy|bought|buying|price|prices|cost|costs|customer|customers|"
+                      r"owe|owes|owing|debt|debts|credit|pay|paid|payment|money|naira|kobo|cash|profit|loss|gain|"
+                      r"spend|spent|spending|expense|expenses|stock|goods|item|items|product|shop|store|market|"
+                      r"business|book|record|records|trade|trader|supplier|suppliers|loan|lender|save|saved|balance|"
+                      r"remind|reminder|week|month|today|yesterday|year|bag|bags|carton|crate|best|most|least|"
+                      r"wetin i|how much|how many|"
+                      r"ta|ra|owo|gbese|onibaara|oja|ere|ise|"                     # yo
+                      r"sayar|saya|kudi|bashi|kasuwa|riba|kaya|ciniki|"            # ha
+                      r"rere|zuru|ego|ugwo|ahia|uru|ngwa|ole)\b")
+
+
+def on_topic(text, vocab=None):
+    """About the trader's shop: a shop word (5 languages), a number, or the name of someone in their book."""
+    t = fold(text or "")
+    if ON_TOPIC.search(t) or re.search(r"\d", t):
+        return True
+    names = (vocab or ledger.known_words(200)).get("names") or []
+    return bool(askbook.find_name(text, names))
+
+
 EVENT_MONEY = re.compile(r"\b(spent|spend|sold|sell|paid|pay|owe|owes|bought|buy|collect|took|carry)\b")
 ONLY = re.compile(r"^\s*(?:yes\W+)?(?:save|keep)\b.*\bonly\b|^\s*only\b")   # "save Dino only" / "only Mike"
 AND_MORE = re.compile(r"^\s*(and|also|plus|then|another one|another|again|&|\+)\b")    # "and Mike owes me 300k"
@@ -196,6 +217,16 @@ SAY = {
                    "Yoruba": "Ẹ má bínú. Mo ti kọ ọ́ sílẹ̀: {s} Sọ *undo* kí n yọ ọ́ kúrò, tàbí sọ bí ó ṣe yẹ kó rí.",
                    "Hausa": "Yi haƙuri. Na ajiye: {s} Ka ce *undo* in cire shi, ko ka faɗi yadda ya kamata.",
                    "Igbo": "Ndo. Edebere m: {s} Kwuo *undo* ka m wepụ ya, ma ọ bụ gwa m otu o kwesịrị ịdị."},
+    "off_topic": {"English": "I can only help with your shop: what you sold or spent, who owes you, and your customers. "
+                             "Try: How much did I sell today?",
+                  "Pidgin": "Na only your shop matter I fit help: wetin you sell or spend, who dey owe you, and your "
+                            "customers. Try: How much I sell today?",
+                  "Yoruba": "Ọ̀rọ̀ ṣọ́ọ̀bù rẹ nìkan ni mo lè ràn ọ́ lọ́wọ́ lé lórí: ohun tí o tà tàbí ná, ẹni tó jẹ ọ́, àti "
+                            "àwọn oníbàárà rẹ. Gbìyànjú: Èló ni mo tà lónìí?",
+                  "Hausa": "Harkokin shagonka kawai zan iya taimaka maka da su: abin da ka sayar ko ka kashe, wanda ke "
+                           "bin ka bashi, da abokan cinikinka. Gwada: Nawa na sayar yau?",
+                  "Igbo": "Naanị ihe gbasara ụlọ ahịa gị ka m nwere ike inyere gị aka: ihe i rere ma ọ bụ i mefuru, "
+                          "onye ji gị ụgwọ, na ndị ahịa gị. Nwaa: Ole ka m rere taa?"},
     "nothing_pending": {"English": "There is nothing waiting to be saved.", "Pidgin": "Nothing dey wait to save.",
                         "Yoruba": "Kò sí nǹkan tó ń dúró de ìkọsílẹ̀.", "Hausa": "Babu abin da ke jiran adanawa.",
                         "Igbo": "Ọ dịghị ihe na-eche ka e chekwaa ya."},
@@ -1101,12 +1132,20 @@ def reply(text, state=None, today=None, shop="your shop"):
         fixed = assistant.book_answer(text, lang, today)  # "who owes me the most?" etc.: exact, from the book
         if fixed:
             return _out(fixed, lang)
+    if amount is None and not EVENT.search(t) and not on_topic(text, vocab):
+        # not about the shop (a mishearing, small talk, health, news…): no AI sees it, not even to search the book.
+        # A misheard note once came back as advice on mental health; TradeVoice only knows this trader's book.
+        tools.unanswered(lang)
+        return _out(SAY["off_topic"][lang], lang, english=SAY["off_topic"]["English"])
     if QUESTION.search(t) or (amount is None and not EVENT.search(t)):
         out = _question(text, lang, state, vocab, today)
         if out:
             return out
     if amount is not None or EVENT.search(t):
         return _record(text, lang, state, vocab, today, heard)
+    if not on_topic(text, vocab):   # (a record word with no amount, said off topic)
+        tools.unanswered(lang)
+        return _out(SAY["off_topic"][lang], lang, english=SAY["off_topic"]["English"])
     done = tools.ai_answer(text, lang, today)   # N-ATLaS picks a tool for what the rules didn't catch; code runs it
     if done:
         return done

@@ -107,7 +107,7 @@ def free(question, lang, today=None):
     try:
         import llm
 
-        if not llm.available():
+        if not llm.available() or not insights.on_topic(question):
             return None
         facts = insights.book_facts(today)
         ans, _ = _ask_ai(question, "talk", lang, facts, sentences=3)
@@ -326,6 +326,11 @@ def answer(question, screen, lang="English", state=None, today=None, shop="my sh
     fixed = book_answer(question, lang, today)
     if fixed:  # the example questions: answered straight from the book
         return {"text": fixed, "spoken": spoken(fixed), "lang": lang, "engine": "book:exact"}
+    if not insights.on_topic(question):   # not about the shop: the fixed line; no AI sees it, not even to search
+        import converse
+
+        said = converse.SAY["off_topic"].get(lang, converse.SAY["off_topic"]["English"])
+        return {"text": said, "spoken": said, "lang": lang, "engine": "rules:off_topic"}
     exact = askbook.ask_book(question, today, language=lang)
     if exact:  # counts and totals: added up from the book, not guessed
         return {"text": exact[0], "spoken": exact[1], "lang": lang, "engine": f"book:{exact[4]}"}

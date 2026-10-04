@@ -309,6 +309,14 @@ def ask_offline(question, facts):
             f"sales minus expenses {naira(t['profit'])}.")
 
 
+def on_topic(question):
+    """Is this about the trader's shop (selling, buying, money, debts, customers, goods, the market, someone in their
+    book) or does it carry a number? Only then may an AI write a free answer (converse.on_topic)."""
+    import converse
+
+    return converse.on_topic(question)
+
+
 def ask(question, today=None):
     import askbook
 
@@ -316,6 +324,8 @@ def ask(question, today=None):
     if exact:
         return exact[0], exact[4]
     facts = book_facts(today)
+    if not on_topic(question):   # never an AI answer about health, news, jokes…: only this trader's shop
+        return None, "rules"
     import llm
 
     if not llm.available():

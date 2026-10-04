@@ -173,7 +173,8 @@ ans, eng = insights.ask("I just added some customers")
 check("insights.ask: a cheering AI answer is replaced (the chat says the honest line)", ans is None and eng == "rules",
       (ans, eng))
 r = converse.reply("tell me something nice", converse.new_state())["text"]
-check("…and the chat answers with the copy guide's line", r.startswith("Sorry, I didn't catch that. Try:"), r)
+check("…and the chat says what it can help with (not about the shop: no AI answer at all)",
+      r.startswith("I can only help with your shop"), r)
 os.environ.pop("NATLAS_URL")
 
 # ---------------------------------------------------------------- 9. calm wording everywhere
@@ -299,6 +300,78 @@ rec, _ = extract.extract("mike owes me 3 million")
 check("N-ATLaS reading 'millions' as the item: cleared, amount not multiplied", rec["item"] is None
       and rec["quantity"] is None and rec["amount"] == 3000000, rec)
 os.environ.pop("NATLAS_URL")
+
+# ---------------------------------------------------------------- 13. never out of context (the live test, 4 Oct night)
+# A misheard note came back as an answer about mental health. The AI is never asked about anything but the shop.
+os.environ["NATLAS_URL"] = "http://natlas/v1"
+ASKED = []
+
+
+def medical_ai(messages, **k):
+    ASKED.append(messages[-1]["content"])
+    return ("To reduce stigma around seeking mental health support, it is important to educate people.", "natlas")
+
+
+llm.chat = medical_ai
+for said in ["How can we reduce stigma around seeking mental health support?", "tell me a joke",
+             "who is the president of nigeria", "my head is aching, what drug should I take?"]:
+    ASKED.clear()
+    r = converse.reply(said, converse.new_state())["text"]
+    check(f"off topic, the AI is not asked: '{said[:40]}'", r.startswith("I can only help with your shop") and not ASKED
+          and "mental" not in r, (r, ASKED))
+for lang, said, start in [("Yoruba", "Báwo ni mo ṣe lè sùn dáadáa?", "Ọ̀rọ̀ ṣọ́ọ̀bù rẹ nìkan"),
+                          ("Hausa", "Yaya zan rage ciwon kai?", "Harkokin shagonka kawai")]:
+    st = converse.new_state()
+    st["lang"] = st["prefer"] = lang
+    ASKED.clear()
+    r = converse.reply(said, st)["text"]
+    check(f"off topic in {lang}: said in {lang}, AI not asked", r.startswith(start) and not ASKED, (r, ASKED))
+ASKED.clear()
+r = assistant.answer("How can we reduce stigma around mental health?", "home", "English")
+check("the screen assistant too: the fixed line, the AI not asked", r["text"].startswith("I can only help with your shop")
+      and not ASKED, (r, ASKED))
+check("insights.ask (any other caller): no answer for it", insights.ask("how do I treat malaria?") == (None, "rules"))
+ASKED.clear()
+converse.reply("which goods should I stock more for next month?", converse.new_state())
+check("a shop question still reaches the AI", bool(ASKED), ASKED)
+os.environ.pop("NATLAS_URL")
+import asr  # noqa: E402
+
+SENT = {}
+
+
+class _R:
+    status_code = 200
+
+    def json(self):
+        return {"data": {"transcript": "Mama Ngozi took rice"}}
+
+    def raise_for_status(self):
+        pass
+
+
+import requests  # noqa: E402
+
+real_post = requests.post
+requests.post = lambda url, headers=None, data=None, files=None, timeout=None: SENT.update(data or {}) or _R()
+os.environ["INTRON_API_KEY"] = "k"
+import wave  # noqa: E402
+
+f = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+f.close()
+with wave.open(f.name, "wb") as w:
+    w.setnchannels(1)
+    w.setsampwidth(2)
+    w.setframerate(16000)
+    w.writeframes(b"\0\0" * 8000)
+try:
+    asr._intron_transcribe(f.name, "Yoruba")
+except Exception as e:  # noqa: BLE001
+    print("intron file call:", e)
+requests.post = real_post
+os.environ.pop("INTRON_API_KEY")
+check("Intron file hearing: general, not its default telehealth (medical) mode, and no Intron AI rewriting",
+      SENT.get("use_category") == "file_category_general" and SENT.get("use_disable_llm_corrections") == "TRUE", SENT)
 
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)
