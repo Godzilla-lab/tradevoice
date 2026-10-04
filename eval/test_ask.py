@@ -80,13 +80,19 @@ check("'Which Mama Titi?' with the choices as numbered lines", "\n1. Mama Titi" 
 r = ask("2", session="which")
 check("…'2' picks the second one and reads the record back", r["pending"] and "Mama Titi" in r["t"], r)
 
-# 5. the voice note: made at once after a voice question, on request after a typed one
+# 5. the voice note: never made by itself (Intron costs money), only when the trader taps play
 made = []
 web._start_voice = lambda sid: made.append(sid)
+import tts  # noqa: E402
+calls = []
+tts.speak = lambda text, lang="English", **k: calls.append(text)
 r = ask("Who is late?", voice=True)
-check("asked by voice: autoplay, and its voice is made at once", r["autoplay"] and r["speak"] in made, r)
+check("asked by voice: the answer is words, no voice made", r["t"].startswith("Nobody is late") and not made
+      and not calls and "autoplay" not in r, r)
 r = ask("Who is late?")
-check("typed: no autoplay, no voice made until a tap", not r["autoplay"] and r["speak"] not in made, r)
+check("typed: no voice made either", not made and not calls, r)
+c.get(f"/api/speak/{r['speak']}")
+check("…the voice is made only when its play button asks for it", len(calls) == 1, calls)
 s = c.post("/api/ask/say", json={"text": "Iya Bisi owes you ₦45,000.", "lang": "English"}).json()
 check("play again: a fresh id, the amount said in words", s["speak"] and "forty-five thousand" in web.SPEAK[s["speak"]][0]
       or "forty five thousand" in web.SPEAK[s["speak"]][0], web.SPEAK.get(s.get("speak")))

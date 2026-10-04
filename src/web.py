@@ -388,14 +388,16 @@ class AskIn(BaseModel):
     session: str = "anon"
     text: str
     lang: str = "English"
-    voice: bool = False     # asked by voice: the answer is spoken at once (typed: on a tap)
+    voice: bool = False     # asked by voice (the answer is still words: its voice is made only on a tap)
     shop: str = ""
 
 
 @app.post("/api/ask")
 def ask_chat(b: AskIn):
-    """One question in the Ask chat -> {n, t, lang, say, speak, autoplay}. The same brain as everywhere (the book,
-    the tools, 5 languages, N-ATLaS); a record said here waits for "yes" like anywhere else."""
+    """One question in the Ask chat -> {n, t, lang, say, speak}. The same brain as everywhere (the book, the tools,
+    5 languages, N-ATLaS); a record said here waits for "yes" like anywhere else.
+    The chat answers in words, even to a voice question. The spoken answer costs an Intron call, so it is made only
+    when the trader taps its play button (/api/speak/<speak>), never by itself."""
     text = (b.text or "").strip()[:1000]
     if not text:
         raise HTTPException(400, "nothing was asked")
@@ -409,11 +411,8 @@ def ask_chat(b: AskIn):
     events.log("understand", channel="web", lang=b.lang, ms=(time.perf_counter() - t0) * 1000)
     words = _ask_text(r, out)
     said = SPEAK.get(out["speak"], (None,))[0] if out.get("speak") else None
-    if b.voice and out.get("speak"):
-        _start_voice(out["speak"])     # ready by the time the page asks for it
     return {"t": words, "n": _headline(words), "lang": out["lang"], "english": out.get("english"),
-            "say": said, "speak": out.get("speak"), "autoplay": b.voice, "pending": out["pending"],
-            "link": out.get("link")}
+            "say": said, "speak": out.get("speak"), "pending": out["pending"], "link": out.get("link")}
 
 
 @app.post("/api/ask/photo")

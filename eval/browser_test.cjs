@@ -250,7 +250,7 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (says < 1 || speaks < 1) throw new Error(`say ${says}, speak ${speaks}`);
     });
     await page.route("**/api/hear", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ heard: "Who owes me the most?" }) }));
-    await check("Ask: a voice question: recorded, heard, asked, shown with the mic mark, and the answer speaks by itself", async () => {
+    await check("Ask: a voice question: recorded, heard, asked, shown with the mic mark; the answer comes as words", async () => {
       const n = await answers().count(), s0 = speaks;
       await page.click("#amic"); await page.waitForSelector("#cmp.rec", { timeout: 5000 });
       for (let i = 0; i < 30 && await page.locator("#cmp.rec").count(); i++) await sleep(200);   // stops itself after the voice
@@ -258,8 +258,8 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       const a = await nextAnswer(n); if (!/Iya Bisi/.test(a)) throw new Error(a);
       const u = page.locator("#thr .ab.u").last();
       if (!(await u.locator(".vtag").count()) || !/Who owes me the most/.test(await u.textContent())) throw new Error("question bubble");
-      for (let i = 0; i < 20 && speaks === s0; i++) await sleep(250);
-      if (speaks === s0) throw new Error("the answer didn't play");
+      await sleep(1500);
+      if (speaks !== s0) throw new Error("the answer spoke by itself (Intron costs money: only on a tap)");
     });
     await page.unroute("**/api/hear");
     const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");

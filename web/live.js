@@ -638,8 +638,8 @@ button.tvc-say{text-decoration:none}
      The design keeps the questions and answers on this phone (its history, its Clear button). Here they get real
      answers: words go to /api/ask (the same brain as everywhere: the book, the tools, 5 languages, N-ATLaS), a
      voice question is recorded and heard by N-ATLaS (never the browser's own speech service), a photo is read by
-     /api/ask/photo and its lines are checked before anything is saved. Each answer is also a voice note: it plays
-     by itself after a voice question, on a tap after a typed one. */
+     /api/ask/photo and its lines are checked before anything is saved. The chat answers in words, also to a voice
+     question; each answer has a voice-note button, and its voice (an Intron call) is made only when it is tapped. */
   {   // the voice note in an answer bubble: the design's own colours, sizes and motion only
     const s = document.createElement("style");
     s.textContent = ".vn{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s3)}" +
@@ -703,8 +703,6 @@ button.tvc-say{text-decoration:none}
     if (!r.ok) return { t: r.status === 0 ? noNet : "Sorry, something went wrong. Try again." };
     const d = r.data, rep = { t: d.t, l: d.lang, sv: d.say || "" };
     if (d.n) rep.n = d.n;
-    if (voice && d.speak && voiceOn())   // asked by voice: the answer plays by itself, once it is in the chat
-      setTimeout(() => { const m = AH[AH.length - 1]; if (m && m.r == "a") playMsg(m, d.speak); }, 0);
     if (!d.pending) loadBook();          // a "yes" in the chat may have saved a record: Home and Customers update
     return rep;
   };
