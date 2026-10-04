@@ -91,6 +91,10 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG", permissions: ["microphone"] });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());   // no internet needed
     page = await ctx.newPage();
+    let wsFake = null;
+    // live hearing sockets: Playwright fakes WebSockets with a script put in at page load, so the route is set here,
+    // before the app opens. Normally they go to the real server; a check can put in a fake Intron (wsFake)
+    await page.routeWebSocket(/\/api\/live\/hear/, ws => (wsFake ? wsFake(ws) : ws.connectToServer()));
     page.on("pageerror", e => errors.push(e.message));
     page.on("console", m => m.type() === "error" && !/Failed to load resource|ERR_FAILED/.test(m.text()) && errors.push(m.text()));
     page.on("response", r => r.url().startsWith(BASE) && r.status() >= 500 && bad.push(`${r.status()} ${r.url()}`));
@@ -288,6 +292,13 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       const a = await nextAnswer(n); await page.unroute("**/api/ask");
       if (!/slow right now/.test(a) || /No network/.test(a)) throw new Error(a);
     });
+    await check("Ask: a book refresh while you type keeps your words (it used to wipe the box)", async () => {
+      await page.fill("#aq", "How much does Iya");
+      await page.evaluate(() => all());   // what every answer does (the book reloads, every tab redraws)
+      const v = await page.inputValue("#aq");
+      await page.fill("#aq", "");
+      if (v !== "How much does Iya") throw new Error(`box now: "${v}"`);
+    });
     await check("Ask: a typed answer doesn't speak by itself", async () => { await sleep(500); return speaks === 0; });
     await check("Ask: every answer is a voice note, play button in the design's accent colour", async () => {
       const vp = answers().last().locator(".vn .vp");
@@ -437,6 +448,39 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       const got = ((await book()).customers.find(c => c.n === "Mama Ngozi") || {}).b;
       if (got !== 3000) throw new Error(`Mama Ngozi owes ${got}, not 3000`);
       if (replies !== 2) throw new Error(`${replies} replies ("that's all" ends it without one)`);
+    });
+    await check("Talk (live, Intron stream): the mic streams as 16-bit audio, your words show while you talk, the reply saves", async () => {
+      // Intron isn't here: a fake hearing socket answers like Intron's stream (partial words, then the final words
+      // on commit); the reply is the real server (/api/say), its voice in pieces (/api/speak/<id>/<n>)
+      const said = ["Iya Bisi took garri 4500 on credit", "yes", "that's all"]; let turn = 0, frames = 0, odd = 0, pieces = 0;
+      await page.route("**/api/warm", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ live: true }) }));
+      await page.route(/\/api\/speak\/[0-9a-f]+\/\d+$/, route => { pieces++; route.fulfill({ status: 200, contentType: "audio/wav", body: wav }); });
+      const before = ((await book()).customers.find(c => c.n === "Iya Bisi") || {}).b || 0;
+      wsFake = ws => {
+        let told = false;
+        ws.onMessage(m => {
+          if (typeof m != "string") { frames++; if (m.length % 2) odd++; if (!told) { told = true; ws.send(JSON.stringify({ type: "partial", text: said[turn].split(" ").slice(0, 2).join(" ") })); } return; }
+          if (JSON.parse(m).type == "commit") ws.send(JSON.stringify({ type: "final", text: said[turn++] || "" }));
+        });
+      };
+      await page.click("#tabs [data-a=talk]");
+      await page.waitForSelector(".ov.on .tvc[data-st=listen]");
+      await page.waitForFunction(() => /Iya Bisi/.test(document.querySelector(".ov.on #cap")?.textContent || ""), null, { timeout: 8000 });   // words while you talk
+      const tap = async () => { await page.waitForSelector(".ov.on .tvc[data-st=listen]"); await sleep(700); await page.click(".ov.on #orb"); };
+      await tap();
+      await page.waitForFunction(() => /4,500 · Iya Bisi/.test(document.querySelector(".ov.on #cap")?.textContent || ""), null, { timeout: 8000 });
+      await tap();
+      await page.waitForFunction(() => /Saved/.test(document.querySelector(".ov.on #cap")?.textContent || ""), null, { timeout: 8000 });
+      await tap();
+      await gone(".ov .tvc");
+      wsFake = null; await page.unroute("**/api/warm"); await page.unroute(/\/api\/speak\/[0-9a-f]+\/\d+$/);
+      if (!frames || odd) throw new Error(`${frames} audio frames, ${odd} not 16-bit`);
+      if (pieces < 2) throw new Error(`${pieces} voice pieces played`);
+      const got = ((await book()).customers.find(c => c.n === "Iya Bisi") || {}).b;
+      await page.evaluate(() => fetch("/api/v2/undo_last", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }));
+      if (got !== before + 4500) throw new Error(`Iya Bisi owes ${got}, not ${before} + 4500`);
+      const back = ((await book()).customers.find(c => c.n === "Iya Bisi") || {}).b;
+      if (back !== before) throw new Error(`undo left ${back}`);
     });
     await check("Customers filter: '₦10,000 to ₦100,000' shows the right people, with a removable chip", async () => {
       await tab("cust");

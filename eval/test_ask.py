@@ -4,6 +4,7 @@ No keys needed: the brain is the offline rules, the photo reader and the voice a
 python eval/test_ask.py
 """
 import os
+import re
 import sys
 import tempfile
 
@@ -216,20 +217,20 @@ os.environ.pop("NATLAS_URL")
 started = []
 web._start_voice = lambda sid: started.append(sid)
 d = c.post("/api/say", json={"session": "two", "text": "Mama Ngozi took rice 20000 on credit", "lang": "English"}).json()
-check("live talk: the reply comes as two voice parts, both made at once (first sentence, then the rest)",
-      d["speak"] and d["speak2"] and started == [d["speak"], d["speak2"]], (d.get("speak"), d.get("speak2"), started))
-first, rest = web.SPEAK[d["speak"]][0], web.SPEAK[d["speak2"]][0]
-check("…the first part is the record, the second the question", "twenty thousand" in first and rest.endswith("?")
-      and not first.endswith("?"), (first, rest))
+ps = web.VOICES[d["speak"]].parts if d.get("speak") in web.VOICES else []
+check("live talk: the reply's voice comes in pieces (the first plays while the rest is made)",
+      d["parts"] == len(ps) >= 2 and not started, (d.get("parts"), ps, started))
+check("…the first piece is the record, the last the question", "twenty thousand" in ps[0] and ps[-1].endswith("?"), ps)
 d = c.post("/api/say", json={"session": "two", "text": "yes", "lang": "English"}).json()
-check("…'yes': 'Done.' first (from the voice cache, at once), then the saved line",
-      web.SPEAK[d["speak"]][0] == "Done." and d["speak2"] and "twenty thousand" in web.SPEAK[d["speak2"]][0],
-      (web.SPEAK[d["speak"]], d["speak2"] and web.SPEAK[d["speak2"]]))
+ps = web.VOICES[d["speak"]].parts
+check("…'yes': every piece is 10+ characters (a short opener like 'Done.' rides with the saved line)",
+      all(len(p) >= 10 for p in ps) and "twenty thousand" in " ".join(ps[:2]), ps)
 d = c.post("/api/say", json={"session": "two2", "text": "How much does Oga Emeka owe me?", "lang": "English"}).json()
-check("…a one-sentence reply stays one part", d["speak2"] is None and "Oga Emeka" in web.SPEAK[d["speak"]][0],
-      (web.SPEAK[d["speak"]], d["speak2"]))
+check("…a one-sentence reply is one piece", d["parts"] == 1 and "Oga Emeka" in web.VOICES[d["speak"]].parts[0],
+      web.VOICES[d["speak"]].parts)
 r = c.post("/api/ask", json={"session": "two-ask", "text": "Who is late?", "lang": "English"}).json()
-check("the Ask chat's voice note stays one clip (no second part)", "speak2" not in r and r["say"], r)
+check("the Ask chat's voice note stays one clip (made only on a tap)", "parts" not in r and r["say"]
+      and r["speak"] not in web.VOICES, r)
 
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)

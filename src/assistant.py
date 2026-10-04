@@ -205,7 +205,7 @@ SAYS = {
                  "Igbo": "{name} ji gị ụgwọ kacha: {m}."},
     "late": {"English": "Late: {list}.", "Pidgin": "Dem wey don pass date: {list}.", "Yoruba": "Àwọn tó ti pẹ́: {list}.",
              "Hausa": "Waɗanda suka makara: {list}.", "Igbo": "Ndị egbuola oge: {list}."},
-    "late_none": {"English": "Nobody is late. Well done.", "Pidgin": "Nobody late. Well done.", "Yoruba": "Kò sí ẹni tó pẹ́.",
+    "late_none": {"English": "Nobody is late.", "Pidgin": "Nobody late.", "Yoruba": "Kò sí ẹni tó pẹ́.",
                   "Hausa": "Babu wanda ya makara.", "Igbo": "Ọ dịghị onye egbuola oge."},
     "i_owe": {"English": "You owe: {list}.", "Pidgin": "You dey owe: {list}.", "Yoruba": "O jẹ: {list}.",
               "Hausa": "Ana binka bashi: {list}.", "Igbo": "Ị ji ụgwọ: {list}."},

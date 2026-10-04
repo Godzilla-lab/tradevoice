@@ -265,7 +265,7 @@ function filt(){let D={...F,sort:SORT,time:[...F.time],amt:[...F.amt]};const s0=
   const[g,v0]=k.split("|"),v=g=="amt"?+v0:v0;if(g=="time"||g=="amt")D[g]=D[g].includes(v)?D[g].filter(z=>z!==v):[...D[g],v];else D[g]=v;draw()});
  box.addEventListener("input",e=>{const id=e.target.id;if(id=="fmin"||id=="fmax"){e.target.value=e.target.value.replace(/\D/g,"").slice(0,10);D[id=="fmin"?"min":"max"]=e.target.value;upd()}});draw()}
 function det(){const c=C[cur];if(!c)return;$("#det").innerHTML=`<button class="back" data-a="back">‹ ${t("tabs")[1]}</button><div class="who">${av(c)}<h1>${c.n}</h1><div class="money big ${c.b?"neg":"pos"}">${f(c.b)}</div><p style="color:var(--label2);font-size:.9375rem">${c.b?(c.late?`<span class="chip late">${c.late} days late</span>`:c.due?"Pay by "+c.due:"Owes you"):"All paid. Nothing owed."}</p></div><div class="btns">${c.b?`<button class="btn p w" data-a="remind">Prepare reminder</button>`:""}<div class="btns two" style="margin:0"><button class="btn" data-a="gave">You gave</button><button class="btn" data-a="got">You got</button></div></div><h2>History</h2><ul class="list">${c.h.map(([k,a,d])=>`<li><div class="row"><span class="t"><b>${k}</b><span>${d}</span></span><b class="money ${a>0?"neg":"pos"}">${a>0?"↑":"↓"} ${f(a)}</b></div></li>`).join("")}</ul>`}
-function ask(){window.ask2&&ask2()}
+function ask(){window.arefresh?arefresh():window.ask2&&ask2()}
 const SC=[["ok","Normal"],["noisy","Noisy market (re-ask)"],["quiet","Too quiet to hear"],["nomic","Microphone blocked"],["slow","Slow AI"],["payfail","Payment fails"],["expired","Link expired"],["nocode","Code doesn't arrive"]];
 function me(){window.me2&&me2()}
 const R0={home,cust:()=>cust(),ask,me};

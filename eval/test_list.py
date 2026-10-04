@@ -132,7 +132,7 @@ web._start_voice = lambda sid: started.append(sid)
 d = c.post("/api/say", json={"session": "live", "text": "Ladi 5,000 naira, Bisi 6,000 naira, Kunle 7,000 naira",
                              "lang": "English"}).json()
 check("live voice: a list said in one go comes back as lines to check (spoken summary, nothing saved, no draft)",
-      len(d["rows"]) == 3 and d["act"] == "scan" and not d["pending"] and d["speak"] and started
+      len(d["rows"]) == 3 and d["act"] == "scan" and not d["pending"] and d["speak"] and d["parts"] >= 1
       and d["text"].startswith("I found 3 people who owe you, ₦18,000 in all"), {k: d[k] for k in ("text", "act")})
 
 # 4. WhatsApp: the same lines, numbered; "no 2" skips; "yes" saves

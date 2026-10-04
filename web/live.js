@@ -416,7 +416,7 @@ button.tvc-say{text-decoration:none}
 
   const chat = async function () {
     const w = k => (LW[L] || LW.en)[k];
-    api("/api/warm", { body: {} });   // a sleeping N-ATLaS starts now, while you talk, not after
+    const warm = api("/api/warm", { body: {} });   // a sleeping N-ATLaS starts now, while you talk, not after
     // during the tap (phones allow sound and audio meters only from a tap): the reply's player and the meters
     let ac = null; try { ac = new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch (e) {}
     const voice = new Audio();
@@ -507,6 +507,88 @@ button.tvc-say{text-decoration:none}
         .then(x => (e.result = x));
       return e;
     }
+    // ---- live hearing on Intron's stream: the mic goes out as 16 kHz 16-bit pieces while you talk, the words come
+    // back while you talk, and when you stop the final words are back at once. The recording runs alongside: if the
+    // stream fails, that recording is heard the old way (nothing you said is lost).
+    let live = false, sink = null, pre = [], preLen = 0;
+    async function tapPcm() {   // once per conversation
+      if (!ac || !ac.audioWorklet) return false;
+      try {
+        const code = 'class P extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true}}registerProcessor("tv-pcm",P)';
+        await ac.audioWorklet.addModule(URL.createObjectURL(new Blob([code], { type: "text/javascript" })));
+        const node = new AudioWorkletNode(ac, "tv-pcm"), mute = ac.createGain();
+        mute.gain.value = 0; ac.createMediaStreamSource(stream).connect(node); node.connect(mute); mute.connect(ac.destination);
+        const ratio = ac.sampleRate / 16000; let acc = 0, n = 0, pos = 0;
+        node.port.onmessage = e => {   // 48 kHz floats -> 16 kHz 16-bit (each output sample = the average of its inputs)
+          const x = e.data, out = new Int16Array(Math.ceil(x.length / ratio) + 1); let k = 0;
+          for (let j = 0; j < x.length; j++) {
+            acc += x[j]; n++; pos++;
+            if (pos >= ratio) { const v = Math.max(-1, Math.min(1, acc / n)); out[k++] = v < 0 ? v * 0x8000 : v * 0x7fff; acc = 0; n = 0; pos -= ratio; }
+          }
+          const b = out.slice(0, k).buffer;
+          if (box.dataset.st == "speak") { pre = []; preLen = 0; return; }   // never its own voice
+          pre.push(b); preLen += b.byteLength;   // the last 0.5 s, so the first word is never cut
+          while (preLen > 16000 && pre.length > 1) preLen -= pre.shift().byteLength;
+          if (sink) sink(b);
+        };
+        return true;
+      } catch (e) { return false; }
+    }
+    function streamHear() {   // one turn of hearing: {spoke, partial, done (promise of the words), commit(), stop()}
+      const S = { t0: Date.now(), spoke: false, partial: "", rec: record(), onpartial: null };
+      const ws = new WebSocket(`${location.protocol == "https:" ? "wss" : "ws"}://${location.host}/api/live/hear?lang=${encodeURIComponent(lang())}&consent=yes`);
+      ws.binaryType = "arraybuffer";
+      let q = pre.slice(); pre = []; preLen = 0;
+      const put = b => { if (ws.readyState == 1) ws.send(b); else if (q) q.push(b); };
+      sink = put;
+      ws.onopen = () => { (q || []).forEach(b => ws.send(b)); q = null; };
+      S.done = new Promise(res => {
+        ws.onmessage = e => {
+          let m = {}; try { m = JSON.parse(e.data); } catch (x) {}
+          if (m.type == "partial") { S.partial = m.text; if (S.onpartial) S.onpartial(m.text); }
+          else if (m.type == "final") res({ ok: true, data: { heard: m.text || "" } });
+          else if (m.type == "error") res(null);
+        };
+        ws.onclose = () => res(null); ws.onerror = () => res(null);
+      });
+      S.commit = () => { if (sink === put) sink = null; if (ws.readyState == 1) ws.send(JSON.stringify({ type: "commit" })); };
+      S.stop = () => { if (sink === put) sink = null; try { ws.close(); } catch (e) {} return S.rec.stop(); };
+      return S;
+    }
+    // one turn with live hearing: your words on screen while you talk; answered after a real stop (1 s of quiet)
+    function listenLive(carry) {
+      set("listen");
+      const S = carry || streamHear();
+      let spoke = !!(carry && carry.spoke), tapped = false;
+      S.onpartial = x => { if (box.dataset.st == "listen" && x) caption(`“${esc(x.length > 120 ? "…" + x.slice(-117) : x)}”`); };
+      if (S.partial) S.onpartial(S.partial);
+      cutIn = () => { tapped = true; };
+      return new Promise(done => {
+        const finish = async () => {
+          cutIn = null;
+          if (!spoke && !tapped) { S.stop(); return done(null); }
+          set("think");
+          S.commit();
+          const r = await Promise.race([S.done, sleep(8000).then(() => null)]);
+          await S.rec.stop();
+          S.stop();
+          if (r && r.data.heard) return done(r);
+          if (r) return done({ ok: false, status: 422, data: {} });   // the stream heard nothing
+          const e = hearNow(S.rec.blob());   // the stream failed: the recording, heard the old way
+          done(await e.promise);
+        };
+        (function watch() {
+          if (!o.isConnected || stopAll) { S.stop(); cutIn = null; return done(null); }
+          const now = Date.now();
+          if (V.talking) { spoke = true; if (box.dataset.st != "listen") { set("listen"); $("#hint", o).textContent = ""; } }
+          const quiet = spoke && !V.talking ? now - V.lastLoud : 0;
+          if (tapped || now - S.t0 > MAX) return finish();
+          if (spoke && quiet >= 1000) return finish();
+          if (!spoke && now - S.t0 > NOTHING) return finish();
+          requestAnimationFrame(watch);
+        })();
+      });
+    }
     // one turn: returns what you said ({ok, data:{heard}}), or null if nothing was said
     function listen(carry) {
       set("listen");
@@ -547,13 +629,13 @@ button.tvc-say{text-decoration:none}
     // TradeVoice's answer, out loud (made on the server while the words were being worked out)
     // The clip is fetched first: no voice (off, or Intron failed) moves on at once (a player left to find a missing
     // clip by itself waits 5 to 10 s before giving up, while you wait in silence)
-    async function speak(sid) {
+    const fetchClip = url => fetch(url).then(r => (r.ok ? r.blob() : null)).catch(() => null);
+    async function speak(sid, clipP) {
       if (!sid || !o.isConnected) return;
       set("speak"); wire();
       let stop = false;
       cutIn = () => { stop = true; voice.pause(); };
-      const r = await fetch(`/api/speak/${sid}`).catch(() => null);
-      const clip = r && r.ok ? await r.blob().catch(() => null) : null;
+      const clip = await (clipP || fetchClip(`/api/speak/${sid}`));
       if (!clip || stop || !o.isConnected) { cutIn = null; return !stop && o.isConnected; }
       const url = URL.createObjectURL(clip);
       return new Promise(done => {   // true: said to the end; false: you talked over it
@@ -564,8 +646,17 @@ button.tvc-say{text-decoration:none}
         const p = voice.play(); if (p) p.catch(() => fin(true));
       });
     }
-    // the reply in two parts: the first sentence plays while the rest is made (live talk starts talking sooner)
-    const sayAll = async d => { if (await speak(d.speak) && d.speak2) await speak(d.speak2); };
+    // the reply in pieces: piece 1 plays as soon as it is made; the next is fetched while one plays
+    const sayAll = async d => {
+      if (!d.parts) return speak(d.speak);
+      let next = fetchClip(`/api/speak/${d.speak}/0`);
+      for (let i = 0; i < d.parts; i++) {
+        const clip = next;
+        next = i + 1 < d.parts ? fetchClip(`/api/speak/${d.speak}/${i + 1}`) : null;
+        if (!await speak(d.speak, clip)) return false;   // you talked over it: the rest is not said
+      }
+      return true;
+    };
     // one quiet line: the key facts of what's waiting to be saved, or the short answer
     function line(d) {
       const dr = d.draft;
@@ -584,10 +675,11 @@ button.tvc-say{text-decoration:none}
     async function run() {
       if (running) return; running = true;
       let quiet = 0, fails = 0, carry = null;
+      if (!live) { const wr = await warm; live = !!(wr.ok && wr.data.live) && await tapPcm(); }
       const nm = A && callName(A.name), hi = w("hello");
       caption(nm ? `${esc(nm)}, ${hi[0].toLowerCase()}${hi.slice(1)}` : hi);   // "Ada, go ahead, I'm listening."
       while (o.isConnected && !stopAll) {
-        const h = await listen(carry); carry = null;
+        const h = await (live ? listenLive(carry) : listen(carry)); carry = null;
         if (!o.isConnected || stopAll) break;
         if (!h || h.status == 422) {   // nothing said: once, ask again; twice, rest (tap the orb to go on)
           if (++quiet >= 2) { caption(w("stop")); set("rest"); break; }
@@ -601,8 +693,9 @@ button.tvc-say{text-decoration:none}
         if (BYE.test(heard) && heard.split(/\s+/).length <= 5) { caption(w("bye")); set("rest"); setTimeout(() => shut(o), 900); break; }
         // the reply. The mic stays open meanwhile: if you go on talking, that's kept for your next turn
         set("think"); caption(`“${esc(said.length > 120 ? said.slice(0, 117) + "…" : said)}”`);
-        const next = micAn ? record() : null;
-        const minding = setInterval(() => { if (next && V.talking) next.spoke = true; }, 50);
+        // live hearing: a new stream opens only if you start talking again (the last 0.5 s is kept, so no word is lost)
+        let next = micAn && !live ? record() : null;
+        const minding = setInterval(() => { if (V.talking && micAn) { if (!next) next = streamHear(); next.spoke = true; } }, 50);
         const slow = setTimeout(() => $("#hint", o).textContent = w("slow"), 12000);
         const r = await api("/api/say", { body: { session: SID, text: said, lang: lang(), shop: A ? A.biz : "" } });
         clearTimeout(slow); clearInterval(minding); $("#hint", o).textContent = "";

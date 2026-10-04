@@ -476,6 +476,37 @@ def _event(engine, ok, language, ms=None):
 _CACHE_DIR = os.path.join(tempfile.gettempdir(), "tradevoice-voice-cache")
 
 
+def _cache_file(text, language):
+    import hashlib
+
+    key = hashlib.sha256(f"{INTRON_VOICES[language]}|{language}|{speakable(text)}".encode()).hexdigest()[:32]
+    return os.path.join(_CACHE_DIR, key + ".wav")
+
+
+def cached(text, language):
+    """A copy of this text's voice if it was said before (free, at once), else None."""
+    import shutil
+
+    if language not in INTRON_VOICES or not os.path.exists(_cache_file(text, language)):
+        return None
+    out = _tmp(".wav")
+    shutil.copyfile(_cache_file(text, language), out)
+    _event("cache", True, language)
+    return out
+
+
+def keep(text, language, audio, ext=".wav"):
+    """Audio Intron streamed for this text: kept in the voice cache (WAV only), and a copy returned to play."""
+    if ext == ".wav" and audio[:4] == b"RIFF":
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        with open(_cache_file(text, language), "wb") as f:
+            f.write(audio)
+    out = _tmp(ext if ext.startswith(".") else "." + ext)
+    with open(out, "wb") as f:
+        f.write(audio)
+    return out
+
+
 def speak(text, language="English", fmt="wav", voice=None, speed=None):
     """Return {path, engine} for an Intron audio file of `text`, or None (voice off, no key, or Intron failed:
     the caller then sends text only). The path is a fresh copy the caller may delete.
@@ -485,8 +516,7 @@ def speak(text, language="English", fmt="wav", voice=None, speed=None):
 
     if backend() != "intron" or language not in INTRON_VOICES or time.time() < _INTRON_DOWN["until"]:
         return None
-    key = hashlib.sha256(f"{INTRON_VOICES[language]}|{language}|{speakable(text)}".encode()).hexdigest()[:32]
-    cached = os.path.join(_CACHE_DIR, key + ".wav")
+    cached = _cache_file(text, language)
     try:
         fresh, t0 = not os.path.exists(cached), time.perf_counter()
         if fresh:

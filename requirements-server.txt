@@ -9,3 +9,4 @@ requests==2.33.1
 openai==3.19.2
 pillow==12.3.0
 httpx==0.28.1
+websockets==17.2        # live talk: the mic streamed to Intron, and the server's WebSocket (/api/live/hear)

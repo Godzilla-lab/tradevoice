@@ -6,6 +6,7 @@
 The API only moves data; every number still comes from ledger.py / insights.py, every reply from converse.py.
 """
 import datetime as dt
+import json
 import os
 import re
 import shutil
@@ -16,7 +17,7 @@ import urllib.parse
 import uuid
 
 import settings  # noqa: F401  (loads .env before the other modules read it)
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -60,6 +61,19 @@ class BookPerTrader:
         self.inner = inner
 
     async def __call__(self, scope, receive, send):
+        if scope["type"] == "websocket":   # live hearing: only who it is (it reads no book); refused when logged out
+            cookies = {}
+            for k, v in scope.get("headers", []):
+                if k == b"cookie":
+                    for part in v.decode("latin-1").split(";"):
+                        name, _, val = part.strip().partition("=")
+                        cookies[name] = val
+            phone = accounts.phone_for(cookies.get(COOKIE))
+            if AUTH_REQUIRED and not phone:
+                await receive()
+                return await send({"type": "websocket.close", "code": 4401})
+            scope.setdefault("state", {})["phone"] = phone
+            return await self.inner(scope, receive, send)
         if scope["type"] != "http":
             return await self.inner(scope, receive, send)
         cookies = {}
@@ -91,6 +105,7 @@ SESSIONS = {}   # (book, browser session id) -> conversation state (who "her" is
 SPEAK = {}      # speak id -> (text, language) ; audio is made only when the page asks for it
 AUDIO = {}      # speak id -> audio file path
 MAKING = {}     # speak id -> threading.Event while its voice is being made (after a voice note: started at once)
+VOICES = {}     # speak id -> intron_live.Voice: a live reply's voice, piece by piece
 
 
 def _state(session, lang=None):
@@ -304,15 +319,17 @@ def _say(text, session, lang, shop, live):
         r = _safe_reply(text, state, shop, lang)
     out = _reply_json(r, state, heard=text, live=live)
     events.log("understand", channel="web", lang=lang, ms=(time.perf_counter() - t0) * 1000)   # speed check (E6)
-    out["speak2"] = None
-    if live and out.get("speak"):   # the first sentence is spoken while the rest is still being made
+    out["parts"] = 0
+    if live and out.get("speak"):   # live talk: the voice in short pieces, the first plays while the rest is made
+        import intron_live
+
         words, said_in = SPEAK[out["speak"]]
-        first, rest = tts.first_and_rest(words)
-        if rest:
-            SPEAK[out["speak"]] = (first, said_in)
-            out["speak2"] = _speak_id(rest, said_in)
-    _start_voice(out.get("speak"))
-    _start_voice(out["speak2"])
+        VOICES[out["speak"]] = v = intron_live.Voice(words, said_in).start()
+        out["parts"] = len(v.parts)
+        for k in list(VOICES)[:-200]:   # keep the last 200 replies' pieces
+            VOICES.pop(k, None)
+    else:
+        _start_voice(out.get("speak"))
     return out
 
 
@@ -491,7 +508,9 @@ def warm():
     """Talk was opened: wake the N-ATLaS servers now, so they are up by the time the voice note arrives."""
     import natlas_watch
 
-    return {"waking": natlas_watch.wake()}
+    import intron_live
+
+    return {"waking": natlas_watch.wake(), "live": intron_live.hearing_on()}   # live: hear with Intron's stream
 
 
 @app.get("/api/voice_check")
@@ -515,6 +534,35 @@ def voice_check(lang: str = "Yoruba", fmt: str = "wav"):
                 "why_not_intron": None if out["engine"].startswith("intron") else tts.why_not_intron()}
     except Exception as e:  # noqa: BLE001
         return {"lang": lang, "ok": False, "error": f"{type(e).__name__}: {e}"[:500]}
+
+
+@app.get("/api/speak/{sid}/{i}")
+def speak_piece(sid: str, i: int):
+    """Live talk: piece i of a reply's voice, as soon as it is made (piece 1 plays while piece 2 is being made)."""
+    v = VOICES.get(sid)
+    if not v or not 0 <= i < len(v.parts):
+        raise HTTPException(404)
+    v.ready[i].wait(45)
+    if not v.files[i]:
+        raise HTTPException(404, "no voice for this piece")
+    return FileResponse(v.files[i], media_type="audio/wav")
+
+
+@app.websocket("/api/live/hear")
+async def live_hear(ws: WebSocket, lang: str = "English", consent: str = ""):
+    """Live talk, hearing while you talk: the page streams the mic (16 kHz, 16-bit), we pass it to Intron's streaming
+    speech-to-text and send the words back as they come; {"type": "commit"} gives the final words."""
+    import intron_live
+
+    await ws.accept()
+    if consent != "yes" or not intron_live.hearing_on():
+        await ws.send_text(json.dumps({"type": "error", "message": "consent needed" if consent != "yes" else "off"}))
+        return await ws.close()
+    await intron_live.relay_hearing(ws, lang)
+    try:
+        await ws.close()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @app.get("/api/speak/{sid}")

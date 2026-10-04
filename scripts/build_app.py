@@ -141,6 +141,8 @@ PATCHES = [
     ("ask check lines", '${m.act?`<button class="btn p" data-a="achk"', '${m.act?`<button class="btn p" data-a="achk" data-ts="${m.ts}"'),
     ("ask listen", '${m.t?`<p>${esc(m.t)}</p>`:""}', '${m.t?`<p>${esc(m.t)}</p>`:""}${m.r=="a"&&m.t?TVL.listenBtn(m):""}'),
     ("ask clear", '()=>{AH=[];asave();arefresh()}', '()=>{AH=[];asave();arefresh();TVL.askReset()}'),
+    # --- a book refresh (after every answer) redraws every tab: the Ask box keeps what you are typing (and the cursor)
+    ("ask keeps typing", 'function ask(){window.ask2&&ask2()}', 'function ask(){window.arefresh?arefresh():window.ask2&&ask2()}'),
     # --- the design's test tools (scenarios, empty book, design editor): only with ?demo=1
     ("demo tools", '<h2>Make it yours</h2>', '${TVL.demo?`<h2>Make it yours</h2>'),
     ("demo tools 2", '${R("Empty book","See the first-time screens",sw("empty",!C.length,"Empty book"))}',
