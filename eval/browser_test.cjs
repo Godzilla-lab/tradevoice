@@ -202,24 +202,45 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
     await page.keyboard.press("Escape");
     await page.evaluate(() => document.querySelectorAll(".ov").forEach(o => o.remove()));
 
-    /* ------------------------------------------------------------ Home: Today / Week / Month / Year / 60 days */
+    /* ------------------------------------------------------------ Home: Today / 7D / 30D / 1Y / Custom */
     await tab("home");
-    await check("Home: the period switch (Today, Week, Month, Year, 60 days), Today first", async () => {
+    await check("Home: the period switch (Today, 7D, 30D, 1Y, Custom), Today first", async () => {
       const labels = await page.locator("#home .perseg button").allTextContents();
-      if (labels.join("|") !== "Today|Week|Month|Year|60 days") throw new Error(labels.join("|"));
+      if (labels.join("|") !== "Today|7D|30D|1Y|Custom") throw new Error(labels.join("|"));
       return /Today/.test(await page.locator("#home h1").textContent()) && (await page.locator("#home .hero p").first().textContent()) === "Net today";
     });
-    await check("Home: Week asks the server for this week; title and label follow; money in matches the server", async () => {
-      const resp = page.waitForResponse(r => /\/api\/v2\/book\?period=week/.test(r.url()));
-      await page.click('#home [data-per="week"]');
+    await check("Home: 7D asks the server for the last 7 days; title and label follow; money in matches the server", async () => {
+      const resp = page.waitForResponse(r => /\/api\/v2\/book\?period=7$/.test(r.url()));
+      await page.click('#home [data-per="7"]');
       const d = await (await resp).json();
-      await page.waitForFunction(() => /This week/.test(document.querySelector("#home h1").textContent));
-      if ((await page.locator("#home .hero p").first().textContent()) !== "Net this week") throw new Error("label");
+      await page.waitForFunction(() => /Last 7 days/.test(document.querySelector("#home h1").textContent));
+      if ((await page.locator("#home .hero p").first().textContent()) !== "Net, last 7 days") throw new Error("label");
       if (!(await page.locator("#home .hero").textContent()).includes(naira(d.in))) throw new Error("money in " + d.in);
-      if (d.period !== "week") throw new Error(JSON.stringify(d).slice(0, 80));
+      if (d.period !== "7") throw new Error(JSON.stringify(d).slice(0, 80));
     });
-    await check("Home: the choice is kept; back to Today", async () => {
-      if (await page.evaluate(() => localStorage.getItem("tv-per")) !== "week") throw new Error("not kept");
+    await check("Home: Custom asks for the days (From, To); Cancel changes nothing", async () => {
+      await page.click('#home [data-per="custom"]');
+      await page.waitForSelector(".ov.on #pa");
+      if (await page.locator(".ov.on #pa").getAttribute("type") !== "date") throw new Error("not a date field");
+      await page.click(".ov.on #px");
+      await page.waitForFunction(() => !document.querySelector(".ov.on #pa"));
+      return (await page.locator("#home .hero p").first().textContent()) === "Net, last 7 days";
+    });
+    await check("Home: Custom 1 Sep to 30 Sep: the server adds up those days; title '1 Sep to 30 Sep'", async () => {
+      await page.click('#home [data-per="custom"]');
+      await page.waitForSelector(".ov.on #pa");
+      await page.fill(".ov.on #pa", "2026-09-30");     // the wrong way round on purpose: put in order
+      await page.fill(".ov.on #pb", "2026-09-01");
+      const resp = page.waitForResponse(r => /period=custom&start=2026-09-01&end=2026-09-30/.test(r.url()));
+      await page.click(".ov.on #pg");
+      const d = await (await resp).json();
+      if (d.from !== "2026-09-01" || d.to !== "2026-09-30") throw new Error(JSON.stringify(d).slice(-90));
+      await page.waitForFunction(() => /1 Sep to 30 Sep/.test(document.querySelector("#home h1").textContent));
+      return (await page.locator("#home .hero p").first().textContent()) === "Net, 1 Sep to 30 Sep";
+    });
+    await check("Home: the choice is kept (with its days); back to Today", async () => {
+      if (await page.evaluate(() => localStorage.getItem("tv-per")) !== "custom") throw new Error("not kept");
+      if (!/2026-09-01/.test(await page.evaluate(() => localStorage.getItem("tv-per-range")))) throw new Error("days not kept");
       await page.click('#home [data-per="today"]');
       await page.waitForFunction(() => document.querySelector("#home .hero p").textContent === "Net today");
     });

@@ -50,27 +50,51 @@
       delAt: m.delAt ? Date.parse(m.delAt) : undefined, created: Date.parse(m.created) || Date.now() };
   }
 
-  /* Home's period: Today / Week / Month / Year / 60 days (kept on this phone). Money in and out are added up by the
-     server for that period; the customers and what they owe never depend on it. */
-  const PER = ["today", "week", "month", "year", "60"];
-  const PER_SEG = { en: ["Today", "Week", "Month", "Year", "60 days"], yo: ["Òní", "Ọ̀sẹ̀", "Oṣù", "Ọdún", "Ọjọ́ 60"],
-    ha: ["Yau", "Mako", "Wata", "Shekara", "Kwana 60"], ig: ["Taa", "Izu", "Ọnwa", "Afọ", "Ụbọchị 60"] };
-  const PER_TITLE = { en: [null, "This week", "This month", "This year", "Last 60 days"],
-    yo: [null, "Ọ̀sẹ̀ yìí", "Oṣù yìí", "Ọdún yìí", "Ọjọ́ 60 sẹ́yìn"], ha: [null, "Wannan mako", "Wannan wata", "Bana", "Kwanaki 60 da suka wuce"],
-    ig: [null, "Izu a", "Ọnwa a", "Afọ a", "Ụbọchị 60 gara aga"] };
-  const NET = ["Net today", "Net this week", "Net this month", "Net this year", "Net, last 60 days"];
-  let per = "today";
-  try { per = PER.includes(localStorage.getItem("tv-per")) ? localStorage.getItem("tv-per") : "today"; } catch (e) {}
+  /* Home's period: Today / 7D / 30D / 1Y / Custom (kept on this phone). Money in and out are added up by the server
+     for that span; the customers and what they owe never depend on it. Custom asks for a from and a to date. */
+  const PER = ["today", "7", "30", "365", "custom"];
+  const PER_SEG = { en: ["Today", "7D", "30D", "1Y", "Custom"], yo: ["Òní", "7D", "30D", "1Y", "Yàn ọjọ́"],
+    ha: ["Yau", "7D", "30D", "1Y", "Zaɓi kwana"], ig: ["Taa", "7D", "30D", "1Y", "Họrọ ụbọchị"] };
+  const PER_TITLE = { en: [null, "Last 7 days", "Last 30 days", "Last 12 months"],
+    yo: [null, "Ọjọ́ 7 sẹ́yìn", "Ọjọ́ 30 sẹ́yìn", "Oṣù 12 sẹ́yìn"], ha: [null, "Kwanaki 7 da suka wuce", "Kwanaki 30 da suka wuce", "Watanni 12 da suka wuce"],
+    ig: [null, "Ụbọchị 7 gara aga", "Ụbọchị 30 gara aga", "Ọnwa 12 gara aga"] };
+  const NET = ["Net today", "Net, last 7 days", "Net, last 30 days", "Net, last 12 months"];
+  const RANGE_WORDS = { en: ["Choose the days", "From", "To", "Show", "Cancel", "to"], yo: ["Yan àwọn ọjọ́", "Láti", "Títí dé", "Fi hàn", "Fagilé", "sí"],
+    ha: ["Zaɓi kwanaki", "Daga", "Zuwa", "Nuna", "Soke", "zuwa"], ig: ["Họrọ ụbọchị", "Site", "Ruo", "Gosi", "Kagbuo", "ruo"] };
+  const iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const dayMonth = s => `${+s.slice(8, 10)} ${MON[+s.slice(5, 7) - 1]}`;   // "2026-09-01" -> "1 Sep" (same on every phone)
+  let per = "today", range = null;
+  try {
+    per = PER.includes(localStorage.getItem("tv-per")) ? localStorage.getItem("tv-per") : "today";
+    range = JSON.parse(localStorage.getItem("tv-per-range") || "null");
+  } catch (e) {}
+  if (per == "custom" && !(range && range.a && range.b)) per = "today";
   const pi = () => PER.indexOf(per), lk = () => (PER_SEG[L] ? L : "en");
-  { const s = document.createElement("style"); s.textContent = ".perseg{margin:0 0 var(--s3)}.perseg button{flex:1}"; document.head.append(s); }
+  const rangeText = () => `${dayMonth(range.a)} ${RANGE_WORDS[lk()][5]} ${dayMonth(range.b)}`;
+  { const s = document.createElement("style"); s.textContent = ".perseg{margin:0 0 var(--s3)}.perseg button{flex:1;padding:4px 6px}"; document.head.append(s); }
+  const setPer = p => { per = p; try { localStorage.setItem("tv-per", per); if (range) localStorage.setItem("tv-per-range", JSON.stringify(range)); } catch (x) {} all(); loadBook(); };
+  function customSheet() {
+    const w = RANGE_WORDS[lk()], today = iso(new Date()), month = iso(new Date(Date.now() - 29 * 864e5));
+    const o = sheet(`<h3>${w[0]}</h3>${fld("pa", w[1], { t: "date", v: range ? range.a : month })}${fld("pb", w[2], { t: "date", v: range ? range.b : today })}<div class="btns two"><button class="btn" id="px">${w[4]}</button><button class="btn p" id="pg">${w[3]}</button></div>`);
+    $("#pa", o).max = $("#pb", o).max = today;
+    $("#px", o).onclick = () => shut(o);
+    $("#pg", o).onclick = () => {
+      let a = $("#pa", o).value, b = $("#pb", o).value;
+      if (!a || !b) return ($(a ? "#pb" : "#pa", o)).focus();
+      if (a > b) [a, b] = [b, a];
+      if (b > today) b = today;
+      range = { a, b }; shut(o); setPer("custom");
+    };
+  }
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-per]"); if (!b) return;
-    per = b.dataset.per; try { localStorage.setItem("tv-per", per); } catch (x) {}
-    all(); loadBook();
+    if (b.dataset.per == "custom") return customSheet();   // asks for the days; Home changes only on Show
+    setPer(b.dataset.per);
   });
 
   async function loadBook() {
-    const r = await api("/api/v2/book?period=" + per);
+    const r = await api("/api/v2/book?period=" + per + (per == "custom" ? `&start=${range.a}&end=${range.b}` : ""));
     if (!r.ok) return;
     const openId = C[cur] && C[cur].id, hist = {};
     C.forEach(c => { if (c.id && c.full) hist[c.id] = c.h; });   // full histories already opened stay
@@ -90,8 +114,8 @@
 
   const TVL = window.TVL = {
     demo, A: null, voiceOn, say,
-    perTitle: () => pi() ? PER_TITLE[lk()][pi()] : t("today"),
-    netLabel: () => NET[pi()],
+    perTitle: () => per == "custom" ? rangeText() : pi() ? PER_TITLE[lk()][pi()] : t("today"),
+    netLabel: () => per == "custom" ? "Net, " + rangeText() : NET[pi()],
     perSeg: () => `<div class="seg perseg" role="group" aria-label="Period">${PER.map((p, i) => `<button data-per="${p}" class="${p == per ? "on" : ""}" aria-pressed="${p == per}">${PER_SEG[lk()][i]}</button>`).join("")}</div>`,
     async boot() {
       const r = await api("/api/v2/me");

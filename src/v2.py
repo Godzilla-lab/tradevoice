@@ -484,14 +484,29 @@ def _due_label(iso, today):
     return f"{d.day} {d.strftime('%b')}"
 
 
-PERIODS = {"today": lambda d: d, "week": lambda d: d - dt.timedelta(days=d.weekday()), "month": lambda d: d.replace(day=1),
-           "year": lambda d: d.replace(month=1, day=1), "60": lambda d: d - dt.timedelta(days=59)}
+PERIODS = {"today": 0, "7": 6, "30": 29, "365": 364}   # Today / 7D / 30D / 1Y: days back from today (inclusive)
+
+
+def _span(period, start, end, today):
+    """The dates Home adds up: a fixed span back from today, or the trader's own from-to (Custom). Bad or future
+    dates fall back to today; a custom span is at most 3 years."""
+    if period == "custom":
+        try:
+            a, b = dt.date.fromisoformat(start or ""), dt.date.fromisoformat(end or "")
+        except ValueError:
+            return "today", today, today
+        a, b = min(a, b), min(max(a, b), today)
+        if a > today:
+            return "today", today, today
+        return "custom", max(a, b - dt.timedelta(days=3 * 366)), b
+    period = period if period in PERIODS else "today"
+    return period, today - dt.timedelta(days=PERIODS[period]), today
 
 
 @router.get("/api/v2/book")
-def book(request: Request, period: str = "today"):
-    """The customers and Home's money in / money out for the period the trader picked (Today, Week, Month, Year,
-    60 days; weeks start on Monday)."""
+def book(request: Request, period: str = "today", start: str = "", end: str = ""):
+    """The customers and Home's money in / money out for the period the trader picked (Today, 7D, 30D, 1Y, or
+    Custom with start and end dates)."""
     _phone(request)
     today = dt.date.today()
     out = []
@@ -512,10 +527,10 @@ def book(request: Request, period: str = "today"):
         e = last.get(r["id"])
         out.append({"id": r["id"], "n": r["name"], "b": round(r.get("owes_me") or 0), "late": r.get("days_late") or 0,
                     "due": due, "h": [], "last": _h_row(e, today) if e else None})
-    start = PERIODS.get(period, PERIODS["today"])(today)
-    s = ledger.money_between(start, today)
+    period, a, b = _span(period, start, end, today)
+    s = ledger.money_between(a, b)
     return {"customers": out, "in": round(s["money_in"]), "out": round(s["money_out"]), "count": s["count"],
-            "period": period if period in PERIODS else "today", "from": start.isoformat()}
+            "period": period, "from": a.isoformat(), "to": b.isoformat()}
 
 
 @router.get("/api/v2/customer/{cid}")

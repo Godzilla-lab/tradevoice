@@ -133,5 +133,26 @@ check("photo reader down: an honest line, no error page", r["t"] == "I can't rea
 check("photo needs consent", c.post("/api/ask/photo", files={"file": ("p.jpg", b"x")}).status_code == 400)
 check("an empty question is refused", c.post("/api/ask", json={"text": "  "}).status_code == 400)
 
+# 9. Home's period (Today / 7D / 30D / 1Y / Custom): money in and out for those days only (v2 /api/v2/book)
+import datetime as dt  # noqa: E402
+
+import v2  # noqa: E402
+
+T = dt.date.today()
+ledger.add_entry({"type": "sale", "amount": 1000, "item": "salt"}, created_at=dt.datetime.combine(T - dt.timedelta(days=20),
+                                                                                                    dt.time(10)))
+money = lambda *q: ledger.money_between(*v2._span(*q, T)[1:])["money_in"]  # noqa: E731
+check("Today: the old sale is not counted", money("today", "", "") == 10000, money("today", "", ""))
+check("7D: still not, from 6 days ago", money("7", "", "") == 10000 and v2._span("7", "", "", T)[1] == T - dt.timedelta(days=6))
+check("30D: counted (₦11,000)", money("30", "", "") == 11000, money("30", "", ""))
+check("1Y: from 364 days ago", v2._span("365", "", "", T)[1] == T - dt.timedelta(days=364))
+a, b = str(T - dt.timedelta(days=21)), str(T - dt.timedelta(days=19))
+d = v2._span("custom", b, a, T)
+check("Custom, dates the wrong way round: put in order, only those days (₦1,000)",
+      d == ("custom", dt.date.fromisoformat(a), dt.date.fromisoformat(b)) and money("custom", b, a) == 1000, d)
+check("Custom into the future: ends today", v2._span("custom", str(T), str(T + dt.timedelta(days=40)), T)[2] == T)
+check("Custom with bad dates: Today", v2._span("custom", "x", "", T) == ("today", T, T))
+check("an unknown period: Today", v2._span("week", "", "", T)[0] == "today")
+
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)
