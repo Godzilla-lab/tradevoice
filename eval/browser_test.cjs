@@ -273,6 +273,21 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       const u = (await page.locator("#thr .ab.u").last().textContent()).trim();
       if (u !== "How much does Oga Emeka owe me?") throw new Error("question bubble: " + u);
     });
+    await check("Ask: a dropped line is tried again once (the answer still comes)", async () => {
+      let tries = 0;
+      await page.route("**/api/ask", r => (++tries === 1 ? r.abort() : r.continue()));
+      const n = await answers().count();
+      await page.fill("#aq", "Who is late?"); await page.press("#aq", "Enter");
+      const a = await nextAnswer(n); await page.unroute("**/api/ask");
+      if (!/Nobody is late/.test(a) || tries !== 2) throw new Error(`${tries} tries: ${a}`);
+    });
+    await check("Ask: the server can't be reached but the phone is online: 'slow', never 'No network'", async () => {
+      await page.route("**/api/ask", r => r.abort());
+      const n = await answers().count();
+      await page.fill("#aq", "Who is late?"); await page.press("#aq", "Enter");
+      const a = await nextAnswer(n); await page.unroute("**/api/ask");
+      if (!/slow right now/.test(a) || /No network/.test(a)) throw new Error(a);
+    });
     await check("Ask: a typed answer doesn't speak by itself", async () => { await sleep(500); return speaks === 0; });
     await check("Ask: every answer is a voice note, play button in the design's accent colour", async () => {
       const vp = answers().last().locator(".vn .vp");

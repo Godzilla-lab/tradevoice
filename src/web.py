@@ -409,7 +409,10 @@ def ask_chat(b: AskIn):
     if check:
         state["heard_check"] = check
     t0 = time.perf_counter()
-    r = _safe_reply(text, state, b.shop, b.lang)
+    import llm
+
+    with llm.budget(float(os.getenv("ASK_AI_SECONDS", "20"))):   # an answer in time, even while N-ATLaS wakes up
+        r = _safe_reply(text, state, b.shop, b.lang)
     out = _reply_json(r, state, heard=text if b.voice else None, live=True)   # no buttons in a chat: "Should I save it?"
     events.log("understand", channel="web", lang=b.lang, ms=(time.perf_counter() - t0) * 1000)
     words = _ask_text(r, out)

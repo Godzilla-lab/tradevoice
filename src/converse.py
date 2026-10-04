@@ -14,6 +14,7 @@ Yoruba / Hausa / Igbo sentences need a native-speaker check.
 import datetime as dt
 import os
 import re
+import time
 import urllib.parse
 
 import askbook
@@ -183,6 +184,18 @@ SAY = {
               "Igbo": " Ugbu a i ji {who} {m} n'ozuzu."},
     "cancelled": {"English": "OK, I didn't save it.", "Pidgin": "No wahala, I no save am.",
                   "Yoruba": "Ó dáa, mi ò kọ ọ́ sílẹ̀.", "Hausa": "To, ban adana ba.", "Igbo": "Ọ dị mma, echekwaghị m ya."},
+    "undone": {"English": "Removed: {s}", "Pidgin": "I don remove am: {s}", "Yoruba": "Mo ti yọ ọ́ kúrò: {s}",
+               "Hausa": "Na cire: {s}", "Igbo": "Ewepụla m ya: {s}"},
+    "nothing_to_undo": {"English": "There is nothing to undo. I can only remove what I saved in the last 10 minutes.",
+                        "Pidgin": "Nothing dey to remove. Na only wetin I save for the last 10 minutes I fit remove.",
+                        "Yoruba": "Kò sí nǹkan láti yọ kúrò. Ohun tí mo kọ sílẹ̀ ní ìṣẹ́jú 10 sẹ́yìn nìkan ni mo lè yọ.",
+                        "Hausa": "Babu abin da zan cire. Abin da na ajiye a cikin minti 10 da suka wuce kawai zan iya cirewa.",
+                        "Igbo": "Ọ dịghị ihe m ga-ewepụ. Naanị ihe m debere n'ime nkeji 10 gara aga ka m nwere ike iwepụ."},
+    "after_save": {"English": "Sorry. I saved: {s} Say *undo* to remove it, or tell me what it should be.",
+                   "Pidgin": "Sorry. I don save: {s} Talk *undo* make I remove am, or tell me how e suppose be.",
+                   "Yoruba": "Ẹ má bínú. Mo ti kọ ọ́ sílẹ̀: {s} Sọ *undo* kí n yọ ọ́ kúrò, tàbí sọ bí ó ṣe yẹ kó rí.",
+                   "Hausa": "Yi haƙuri. Na ajiye: {s} Ka ce *undo* in cire shi, ko ka faɗi yadda ya kamata.",
+                   "Igbo": "Ndo. Edebere m: {s} Kwuo *undo* ka m wepụ ya, ma ọ bụ gwa m otu o kwesịrị ịdị."},
     "nothing_pending": {"English": "There is nothing waiting to be saved.", "Pidgin": "Nothing dey wait to save.",
                         "Yoruba": "Kò sí nǹkan tó ń dúró de ìkọsílẹ̀.", "Hausa": "Babu abin da ke jiran adanawa.",
                         "Igbo": "Ọ dịghị ihe na-eche ka e chekwaa ya."},
@@ -425,7 +438,9 @@ def _confirm(state, today):
         rec["customer_id"] = (ledger.create_customer(rec["customer"]) if rec.get("_new_forced")
                               else ledger.resolve_customer(rec["customer"]))
     rec.pop("_new_forced", None)
-    ledger.add_entry(rec, raw_text=state.get("pending_text", ""), engine=rec.pop("_engine", "chat"))
+    said = rec.pop("_said", None)
+    rid = ledger.add_entry(rec, raw_text=said if said is not None else state.get("pending_text", ""),
+                           engine=rec.pop("_engine", "chat"))
     state["pending"], lang = None, state["lang"]
     theirs = mine = None
     if rec.get("customer"):
@@ -444,7 +459,49 @@ def _confirm(state, today):
                spoken=tts.confirmation_text(rec, lang, balance=bal, saved=True),
                english=SAY["saved"]["English"].format(s=tts.entry_sentence(rec, "English", money=_money)) + extra_en)
     out["saved"] = True   # the page shows "Saved" with Undo (it never guesses from the words)
+    # "undo" / "no, that's wrong" later in the chat: what this message saved (all of a "save it all")
+    state["last_saved"] = [s for s in state.get("last_saved") or [] if s["turn"] == state.get("turn")][-9:] + [
+        {"id": rid, "turn": state.get("turn"), "at": time.time(), "line": sentence, "rec": dict(rec)}]
     return out
+
+
+# ---------------------------------------------------------------- after a save: undo, "no, that's wrong"
+UNDO = re.compile(r"^\s*(?:please\s+|abeg\s+)?(undo|undo (it|that|am|the last one)|delete (it|that|am|the last one|last one|"
+                  r"that one)|remove (it|that|am|the last one|the last|last one|that one)|cancel (that one|the last one|"
+                  r"last one|the last)|take (it|am) (back|out)|comot am|comot (that|the last) one|pa a re|yo o kuro|"
+                  r"cire shi|soke shi|wepu ya|hapu ya)\W*$")
+WRONG_AFTER = re.compile(r"^\s*(no|nope|wrong|not correct|not right|mistake|that'?s (wrong|not right|not correct|a mistake)|"
+                         r"you (made a mistake|got it wrong|saved it wrong)|no be so|no be am|rara|ko ri bee|a'?a|"
+                         r"ba haka ba|mba|o bughi ya)\b")
+UNDO_MINUTES = 10
+
+
+def _last_saved(state):
+    ls = [s for s in state.get("last_saved") or [] if time.time() - s["at"] < UNDO_MINUTES * 60]
+    return ls
+
+
+def _after_save(text, t, lang, state, today):
+    """Right after a save: "undo" removes it; "no, it's 3 million" takes it back to change it; "no, that's wrong" says
+    what was saved and how to fix it (never a sales summary)."""
+    last = _last_saved(state)
+    if UNDO.match(t):
+        if not last:
+            return _out(SAY["nothing_to_undo"][lang], lang, english=SAY["nothing_to_undo"]["English"])
+        for s in last:
+            ledger.delete_entry(s["id"])
+        state["last_saved"] = []
+        s_ = " ".join(x["line"] for x in last)
+        return _out(SAY["undone"][lang].format(s=s_), lang)
+    if not last or not WRONG_AFTER.match(t):
+        return None
+    if parse_amount(text) is not None and len(last) == 1:   # "no, 3 million": the saved line comes back to change
+        ledger.delete_entry(last[0]["id"])
+        rec = {k: v for k, v in last[0]["rec"].items() if not k.startswith("_")}
+        state["last_saved"], state["pending"], state["pending_text"] = [], rec, ""
+        return _correct(text, lang, state, today)
+    s_ = " ".join(x["line"] for x in last)
+    return _out(SAY["after_save"][lang].format(s=s_), lang, english=SAY["after_save"]["English"].format(s=s_))
 
 
 # a message that fixes the draft waiting for "yes" (not a new record): "2000 no be 20000", "I mean 25k", "make am rice"
@@ -475,6 +532,45 @@ def _correct(text, lang, state, today):
     return _heard(rec, lang, updated=True)
 
 
+_NUM_WORDS = {"one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "twenty", "fifty", "hundred",
+              "thousand", "million", "millions", "k", "naira", "too", "also", "sef", "own", "for", "of"}
+
+
+def _next_person(text, rec):
+    """'Tayo 3 million' / 'tayo 3m' (a known customer) while someone else's draft waits: the name of a new person,
+    not a fix. Lower-case words that aren't a customer yet stay a fix ("rice 3000" changes the item)."""
+    m = re.match(r"\s*([^\W\d_][^\W\d_']*(?:\s+[^\W\d_][^\W\d_']*)?)\s+(?:too\s+|also\s+)?[₦n]?\s?\d", text or "", re.I)
+    if not m or not rec.get("customer") or CORRECT.search(fold(m.group(1))) or fold(m.group(1)).split()[0] in _NUM_WORDS:
+        return False
+    who = m.group(1)
+    if _same(who, rec["customer"]):
+        return False
+    known = {fold(n) for n in ledger.known_words(200)["names"]}
+    return who[:1].isupper() or fold(who) in known
+
+
+def _like_before(rec, old, said):
+    """A short "and …" with no verb copies the kind of record before it: the words before the amount are the next
+    person (when the one before had a person) or the next item ("sold rice 15k" … "and beans 3k")."""
+    rec["type"] = old["type"]
+    words = []
+    for w in said.split():
+        if re.match(r"[₦n]?\d", w, re.I) or fold(w) in _NUM_WORDS:
+            break
+        words.append(w.strip(",.;:"))
+    words = [w for w in words if w][:3]
+    if not words:
+        return
+    if old.get("customer") and not rec.get("customer"):
+        rec["customer"] = " ".join(w if w[:1].isupper() else w.title() for w in words)
+        rec["customer_id"] = None
+        for k in ("item", "quantity", "unit"):    # "tayo" is the person, not what was sold
+            if rec.get(k) and fold(str(rec[k])) in {fold(w) for w in words}:
+                rec[k] = None
+    elif not old.get("customer") and not rec.get("item"):
+        rec["item"] = " ".join(words).lower()
+
+
 def _same(a, b):
     return bool(askbook.same_person(a, b) or askbook.same_person(b, a))
 
@@ -483,6 +579,10 @@ def _is_correction(text, t, state):
     rec = state.get("pending")
     if not rec:
         return False
+    if AND_MORE.search(t) and not CORRECT.search(t):
+        return False     # "and Tayo 3 million": one more record, not a fix of the one waiting
+    if _next_person(text, rec):
+        return False     # "Tayo 3 million" while Mike's draft waits: Tayo is someone else
     new_customer = rule_extract(text).get("customer")
     other_person = bool(new_customer and rec.get("customer") and not _same(new_customer, rec["customer"]))
     # "Mama Tunde has not paid 20k" while Iya Bisi's draft waits = a new record, not a fix
@@ -499,6 +599,7 @@ def _record(text, lang, state, vocab, today, heard=None):
     keep = bool(old) and (state.get("queue_ok") or AND_MORE.search(fold(text)))
     had_draft = bool(old) and not keep
     if keep:
+        old["_said"] = state.get("pending_text", "")    # each record keeps the words it was said in
         state["queue"] = ((state.get("queue") or []) + [old])[-5:]
     said = re.sub(r"^\s*(and|also|plus|then|another one|another|again|&|\+)\b[\s,]*", "", text, flags=re.I) or text
     cands = amount_doubt(said)   # "50,0000" / "20000k": two readings, ask instead of guessing
@@ -506,6 +607,8 @@ def _record(text, lang, state, vocab, today, heard=None):
         # "No 500,000k and spent 130,000": the clear part is the record; the garbled number is said to be left out
         said = _without_doubt(said)
     rec, meta = extract(said, today=today, vocab=vocab)
+    if keep and (AND_MORE.search(fold(text)) or _next_person(text, old)) and not EVENT.search(fold(said)):
+        _like_before(rec, old, said)   # "and Tayo 3 million" after "Mike owes me 2m": the same kind, for Tayo
     if cands:
         if rec.get("amount") in (None, "") or float(rec["amount"]) in cands:
             rec["amount"] = rec.get("amount") or cands[0]
@@ -883,6 +986,7 @@ def _question(text, lang, state, vocab, today):
 def reply(text, state=None, today=None, shop="your shop"):
     """One message in -> one reply out: {text, spoken, lang, english, [message, link]}. `state` is updated."""
     state = state if state is not None else new_state()
+    state["turn"] = (state.get("turn") or 0) + 1   # one number per message: "undo" removes all of one "save it all"
     today = today or dt.date.today()
     text = (text or "").strip()
     lang = _lang(text, state)
@@ -910,6 +1014,10 @@ def reply(text, state=None, today=None, shop="your shop"):
                 if pending.get("amount") in (None, ""):
                     return _out(SAY["how_much"][lang], lang, english=SAY["how_much"]["English"])
                 return _heard(pending, lang)
+    if UNDO.match(t) or (not _drafts(state) and WRONG_AFTER.match(t)):
+        out = _after_save(text, t, lang, state, today)
+        if out:
+            return out
     if YES.match(t):
         if _drafts(state):
             return _save_all(state, today)    # one draft, or a list said one after the other: "save it all"

@@ -183,5 +183,122 @@ check("no praise in a read-back", "!" not in r["text"] and "Nice one" not in r["
 r = converse.reply("yes", st9)
 check("no praise after saving", "!" not in r["text"] and "!" not in r["spoken"], r)
 
+# ---------------------------------------------------------------- 10. the owner's second conversation (4 Oct evening)
+ledger.wipe()
+st = converse.new_state()
+st["queue_ok"] = True
+say = lambda t: converse.reply(t, st)["text"]  # noqa: E731
+r = say("how much have i made in the last month?")
+check("10.1 'the last month' = the last 30 days, with numbers even when empty (never 'no record')",
+      r.startswith("In the last 30 days, you sold ₦0") and "don't see" not in r, r)
+r = say("dino owes me 20k")
+check("10.2 a lower-case name is still a name (rules, N-ATLaS asleep): Dino", "Dino will pay you ₦20,000" in r, r)
+say("yes")
+r = say("mike also owes me 2,000,000")
+check("10.3 'mike also owes me': Mike", "Mike will pay you ₦2,000,000" in r, r)
+r = say("and tayo 3 million")
+check("10.4 'and tayo 3 million' is Tayo's own record (same kind), Mike's keeps waiting, nothing 'changed'",
+      "Tayo will pay you ₦3,000,000" in r and "2 waiting to save: Mike ₦2,000,000, Tayo ₦3,000,000" in r
+      and "changed" not in r, r)
+n0 = entries()
+r = say("save it all")
+check("10.5 'save it all' saves Mike AND Tayo", r.startswith("Saved 2.") and entries() == n0 + 2, r)
+rows = {e["customer"]: e for e in ledger.entries(limit=50)}
+check("…each with its own words (Mike's note is not Tayo's)", rows["Mike"]["raw_text"] == "mike also owes me 2,000,000"
+      and rows["Tayo"]["raw_text"] == "and tayo 3 million", {k: v["raw_text"] for k, v in rows.items()})
+r = say("no mike is diffrent from tayo?")
+check("10.6 'no …' right after a save: says what was saved and how to undo (never a sales summary)",
+      r.startswith("Sorry. I saved:") and "Mike will pay you ₦2,000,000" in r and "Tayo will pay you ₦3,000,000" in r
+      and "undo" in r and "sold" not in r, r)
+n0 = entries()
+r = say("undo")
+check("10.7 'undo' removes everything that one 'save it all' saved", r.startswith("Removed:") and entries() == n0 - 2, r)
+r = say("undo")
+check("…a second 'undo': nothing to undo", r.startswith("There is nothing to undo"), r)
+
+# ---------------------------------------------------------------- 11. lists, names, undo, fixing after a save
+s11 = converse.new_state()
+s11["queue_ok"] = True
+converse.reply("Mama Ngozi took rice 20000 on credit", s11)
+r = converse.reply("Tayo 3k", s11)["text"]
+check("'Tayo 3k' (capital, no 'and') while Mama Ngozi's draft waits: a new person", "2 waiting to save" in r
+      and "Tayo ₦3,000" in r, r)
+r = converse.reply("I mean 25000", s11)["text"]
+check("…'I mean 25000' still fixes the latest", "Tayo will pay you ₦25,000" in r, r)
+r = converse.reply("rice 5000", s11)["text"]
+check("…'rice 5000' (not a person) is a fix, not a customer called Rice", "Rice" not in r, r)
+converse.reply("no", s11)
+s12 = converse.new_state()
+converse.reply("sold rice 15k", s12)
+r = converse.reply("and beans 3k", s12)["text"]
+check("'and beans 3k' after a sale: another sale, of beans", "beans" in r and "₦3,000" in r and "will pay" not in r, r)
+for said, who in [("tobi took 2 bags of rice 30k on credit", "Tobi"), ("emeka never pay 5k", "Emeka"),
+                  ("chidi owes me 4500", "Chidi")]:
+    s13 = converse.new_state()
+    converse.reply(said, s13)
+    check(f"lower-case name: '{said}' -> {who}", (s13.get("pending") or {}).get("customer") == who, s13.get("pending"))
+for said in ["she owes me 5k", "somebody took 2 bags 10k on credit", "customer owe me 3k"]:
+    s14 = converse.new_state()
+    converse.reply(said, s14)
+    check(f"not a name: '{said}'", not (s14.get("pending") or {}).get("customer"), s14.get("pending"))
+dino = lambda: sorted(e["amount"] for e in ledger.entries(limit=500) if e["customer"] == "Dino")  # noqa: E731
+before = dino()
+s15 = converse.new_state()
+converse.reply("dino owes me 20k", s15)
+converse.reply("yes", s15)
+n0 = entries()
+r = converse.reply("no, 25k", s15)["text"]
+check("'no, 25k' right after saving: the saved line comes back to change (not saved twice)",
+      "Dino will pay you ₦25,000" in r and "Should I save it?" in r and entries() == n0 - 1, r)
+converse.reply("yes", s15)
+check("…'yes' saves the fixed one: Dino ₦25,000 once (the ₦20,000 is gone)", dino() == sorted(before + [25000]),
+      (before, dino()))
+for words in ["undo", "delete that", "remove the last one", "cancel that one", "Undo it", "comot am"]:
+    s16 = converse.new_state()
+    converse.reply("Iya Bisi took beans 8000 on credit", s16)
+    converse.reply("yes", s16)
+    n0 = entries()
+    r = converse.reply(words, s16)["text"]
+    check(f"'{words}' removes what was just saved", r.startswith("Removed:") and entries() == n0 - 1, r)
+s17 = converse.new_state()
+converse.reply("Iya Bisi took beans 8000 on credit", s17)
+converse.reply("yes", s17)
+s17["last_saved"][0]["at"] -= 11 * 60
+n0 = entries()
+r = converse.reply("undo", s17)["text"]
+check("after 10 minutes 'undo' removes nothing", r.startswith("There is nothing to undo") and entries() == n0, r)
+r = converse.reply("undo", converse.new_state(), )["text"]
+check("'undo' with nothing saved", r.startswith("There is nothing to undo"), r)
+r = converse.reply("Ko si nkan", converse.new_state())["text"]   # a "no" with nothing saved: unchanged behaviour
+check("'no' with nothing waiting or saved is not the after-save line", not r.startswith("Sorry. I saved"), r)
+
+# ---------------------------------------------------------------- 12. person questions, periods, the voice's 'he'
+ledger.add_entry({"type": "credit_sale", "amount": 7000, "customer": "Kola", "item": "rice"})
+for said in ["kola balance?", "check kola", "How much does Kola owe me?"]:
+    r = converse.reply(said, converse.new_state())["text"]
+    check(f"'{said}': what Kola owes, not what was sold to him", r.startswith("Kola owes you ₦7,000"), r)
+for said in ["how much does zainab owe me?", "zainab balance"]:
+    r = converse.reply(said, converse.new_state())["text"]
+    check(f"'{said}': not in the book, said so (not someone else's debt)", r == "I don't see Zainab in your book yet.", r)
+r = converse.reply("how much did i make last month?", converse.new_state())["text"]
+check("'last month' alone = the calendar month: numbers, ₦0 when empty", r.startswith("Last month, you sold ₦0"), r)
+r = converse.reply("how much have I made in the past 7 days?", converse.new_state())["text"]
+check("'the past 7 days'", r.startswith("In the last 7 days, you sold"), r)
+import tts  # noqa: E402
+
+for who, word in [("Dino", "Dino still owes you"), ("Mama Ngozi", "she still owes you"), ("Alhaji Musa", "he still owes you")]:
+    said = tts.confirmation_text({"type": "credit_sale", "amount": 5000, "customer": who}, "English", balance=9000,
+                                 saved=True)
+    check(f"the voice says '{word}' (no 'he' guessed from a name)", word in said, said)
+os.environ["NATLAS_URL"] = "http://natlas/v1"
+import extract  # noqa: E402
+
+llm.chat = lambda *a, **k: ('{"type": "credit_sale", "item": "millions", "quantity": 2, "amount": 3000000, '
+                            '"customer": "Mike", "each": true}', "natlas")
+rec, _ = extract.extract("mike owes me 3 million")
+check("N-ATLaS reading 'millions' as the item: cleared, amount not multiplied", rec["item"] is None
+      and rec["quantity"] is None and rec["amount"] == 3000000, rec)
+os.environ.pop("NATLAS_URL")
+
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)

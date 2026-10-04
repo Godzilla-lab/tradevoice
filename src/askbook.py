@@ -13,7 +13,8 @@ import ledger
 from extract import _parse_json, fold
 
 LANGS = ("English", "Yoruba", "Hausa", "Igbo")   # Pidgin dropped as a reply language (2 Oct): -> English
-PERIODS = ("today", "yesterday", "this_week", "last_week", "this_month", "last_month", "this_year", "all")
+PERIODS = ("today", "yesterday", "this_week", "last_week", "this_month", "last_month", "this_year", "last_7", "last_30",
+           "all")
 
 # item -> words people say for it (English, Pidgin, yo, ha, ig; no tone marks). First local word is used in answers.
 ITEM_WORDS = {
@@ -43,6 +44,11 @@ PERIOD_WORDS = {
                   "izu gara"],
     "this_week": ["this week", "dis week", "lose yii", "lose yi", "ose yii", "ose yi", "ose yi", "wannan mako", "wannan makon", "makon nan",
                   "satin nan", "izu a", "izu nka"],
+    # "the last month" / "past month" = the last 30 days ("last month" alone = the calendar month before this one)
+    "last_30": ["the last month", "the past month", "past month", "last 30 days", "past 30 days", "last thirty days",
+                "ojo 30 sehin", "ojo 30 to koja", "kwanaki 30", "kwana 30", "ubochi 30"],
+    "last_7": ["last 7 days", "past 7 days", "last seven days", "the past week", "past week", "the last week",
+               "ojo 7 sehin", "kwanaki 7", "kwana 7", "ubochi 7"],
     "last_month": ["last month", "osu to koja", "watan jiya", "watan da ya wuce", "onwa gara aga", "onwa gara"],
     "this_month": ["this month", "dis month", "losu yii", "losu yi", "osu yii", "osu yi", "wannan wata", "wannan watan", "watan nan",
                    "onwa a", "onwa nka"],
@@ -78,14 +84,15 @@ QUERY_PROMPT = """A Nigerian market trader asks a question about their own recor
 Hausa or Igbo. Do NOT answer it. Turn it into this JSON search and nothing else:
 {"kind": "query" or "other", "what": "sold" | "bought" | "spent" | "profit" | "cash_in" | "owed_to_me" | "i_owe",
  "item": one of the book's items below, or null, "customer": one of the book's names below, or null,
- "period": "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "this_year" | "all",
+ "period": "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "this_year" | "last_7" |
+           "last_30" | "all",
  "language": "English" | "Pidgin" | "Yoruba" | "Hausa" | "Igbo"}
 Use "kind": "other" for questions that are not about amounts or counts in the book (e.g. forecasts, advice).
 Map local item words to the book's item (ìrẹsì / shinkafa / osikapa = rice; ẹ̀wà / wake / agwa = beans ...).
 "what": sold = sales (ta / sayar / ere; also "Did Mama Tunde buy…" = what the trader sold to her); bought = goods the
 trader bought (ra / saya / zụrụ); spent = all money spent; profit = "profit / what did I make / èrè / riba / uru";
 cash_in = money that actually came in (cash sales + debts paid back).
-No period said -> "all".
+No period said -> "all". "the last month / past month / last 30 days" -> "last_30"; "last month" alone -> "last_month".
 Items in this trader's book: __ITEMS__
 Names in this trader's book: __NAMES__"""
 
@@ -98,6 +105,7 @@ def _bounds(period, today):
             "this_week": (monday, today), "last_week": (monday - dt.timedelta(days=7), monday - dt.timedelta(days=1)),
             "this_month": (first, today), "last_month": (last_month_end.replace(day=1), last_month_end),
             "this_year": (today.replace(month=1, day=1), today),
+            "last_7": (today - dt.timedelta(days=6), today), "last_30": (today - dt.timedelta(days=29), today),
             "all": (dt.date(2000, 1, 1), today)}.get(period, (dt.date(2000, 1, 1), today))
 
 
@@ -126,6 +134,7 @@ def parse_offline(question, vocab=None):
     hits = [(len(w), p) for p, ws in PERIOD_WORDS.items() for w in ws if re.search(rf"\b{re.escape(w)}\b", t)]
     period = max(hits)[1] if hits else "all"  # longest phrase wins: "watan jiya" (last month) beats "jiya"
     what = next((w for w, pats in WHAT_WORDS if any(re.search(p, t) for p in pats)), None)
+    said_what, person_only = what is not None, False
     item = None
     for canon, per_lang in ITEM_WORDS.items():
         if any(re.search(rf"\b{re.escape(w)}\b", t) for ws in per_lang.values() for w in ws):
@@ -135,6 +144,17 @@ def parse_offline(question, vocab=None):
         if item is None and it and re.search(rf"\b{re.escape(fold(it))}\b", t):
             item = it
     customer = find_name(question, (vocab or {}).get("names"))
+    unknown = None
+    if not customer and what in ("owed_to_me", None):   # "how much does dino owe me?" with no Dino in the book
+        m = re.search(r"\b(?:does|did|is|na|will)\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)\s+(?:still\s+)?(?:owe|dey owe)\b"
+                      r"|^\s*(?:check\s+)?([a-z][a-z']+)\s+(?:balance|account)\W*$", t)
+        who = m and (m.group(1) or m.group(2))
+        from extract import _NOT_PEOPLE
+
+        if who and who.split()[0] not in _NOT_PEOPLE | NOT_A_PERSON | {"anybody", "anyone", "everybody", "nobody"}:
+            unknown, what = who.title(), "owed_to_me"
+    if customer and not said_what and not item:
+        what, person_only = "owed_to_me", True   # "mike balance?", "check Alhaji Musa": what that person owes, not what was sold to them
     if customer and what == "bought" and re.search(rf"{re.escape(fold(customer))}\s+(buy|bought|take|took|collect)", t):
         what = "sold"  # "Did Mama Tunde buy…" = what I sold TO her
     how_many = re.search(r"\bhow (many|much)\b|\bmelo\b|\belo\b|\bnawa\b|\bole\b|\bego ole\b|\bhow e be\b", t)
@@ -146,7 +166,7 @@ def parse_offline(question, vocab=None):
                        or how_many
                        or asks_sales) else "other"
     return {"kind": kind, "what": what or "sold", "item": item, "customer": customer, "period": period,
-            "language": guess_language(question)}
+            "language": guess_language(question), "_person_only": person_only, "unknown_person": unknown}
 
 
 def find_name(text, names):
@@ -201,10 +221,12 @@ def parse(question, vocab=None):
         # "other" (live test 2 Oct), which sent it down the record path ("How much was it?")
         kind = "query" if offline["kind"] == "query" else q.get("kind")
         q = {"kind": kind if kind in ("query", "other") else offline["kind"],
-             "what": q.get("what") if q.get("what") in dict(WHAT_WORDS) else offline["what"],
+             "what": (offline["what"] if offline.get("_person_only") else
+                      q.get("what") if q.get("what") in dict(WHAT_WORDS) else offline["what"]),
              "item": q.get("item") or offline["item"], "customer": _person(q.get("customer")) or offline["customer"],
              "period": q.get("period") if q.get("period") in PERIODS else offline["period"],
-             "language": q.get("language") if q.get("language") in LANGS else offline["language"]}
+             "language": q.get("language") if q.get("language") in LANGS else offline["language"],
+             "unknown_person": offline.get("unknown_person") if not _person(q.get("customer")) else None}
         return q, f"llm:{model}"
     except Exception:  # noqa: BLE001 - the word lists still work
         return offline, "rules (AI unavailable)"
@@ -252,18 +274,23 @@ def run(q, today=None):
 
 PERIOD_SAY = {
     "English": {"today": "Today", "yesterday": "Yesterday", "this_week": "This week", "last_week": "Last week",
-                "this_month": "This month", "last_month": "Last month", "this_year": "This year", "all": "So far"},
+                "this_month": "This month", "last_month": "Last month", "this_year": "This year", "last_7": "In the last 7 days", "last_30": "In the last 30 days",
+               "all": "So far"},
     "Pidgin": {"today": "Today", "yesterday": "Yesterday", "this_week": "This week", "last_week": "Last week",
                "this_month": "This month", "last_month": "Last month", "this_year": "This year",
+               "last_7": "For the last 7 days", "last_30": "For the last 30 days",
                "all": "Since you start"},
     "Yoruba": {"today": "Lónìí", "yesterday": "Lánàá", "this_week": "Ní ọ̀sẹ̀ yìí", "last_week": "Ní ọ̀sẹ̀ tó kọjá",
                "this_month": "Ní oṣù yìí", "last_month": "Ní oṣù tó kọjá", "this_year": "Ní ọdún yìí",
+               "last_7": "Ní ọjọ́ méje sẹ́yìn", "last_30": "Ní ọgbọ̀n ọjọ́ sẹ́yìn",
                "all": "Títí di ìsinsìnyí"},
     "Hausa": {"today": "Yau", "yesterday": "Jiya", "this_week": "A wannan makon", "last_week": "A makon jiya",
               "this_month": "A wannan watan", "last_month": "A watan jiya", "this_year": "A bana",
-              "all": "Zuwa yanzu"},
+              "last_7": "A kwanaki 7 da suka wuce", "last_30": "A kwanaki 30 da suka wuce",
+               "all": "Zuwa yanzu"},
     "Igbo": {"today": "Taa", "yesterday": "Ụnyaahụ", "this_week": "N'izu a", "last_week": "N'izu gara aga",
-             "this_month": "N'ọnwa a", "last_month": "N'ọnwa gara aga", "this_year": "N'afọ a", "all": "Ruo ugbu a"},
+             "this_month": "N'ọnwa a", "last_month": "N'ọnwa gara aga", "this_year": "N'afọ a", "last_7": "N'ụbọchị 7 gara aga", "last_30": "N'ụbọchị 30 gara aga",
+               "all": "Ruo ugbu a"},
 }
 VERB = {  # {p} period, {what} item/quantity, {m} money, {n} entries
     "sold": {"English": "{p}, you sold {what} for {m} ({n}).", "Pidgin": "{p}, you don sell {what} for {m} ({n}).",
@@ -282,6 +309,12 @@ OWED = {"owed_to_me": {"English": "{who} owes you {m}.", "Pidgin": "{who} dey ow
                        "Yoruba": "{who} jẹ ọ́ ní {m}.", "Hausa": "{who}: bashin {m}.", "Igbo": "{who} ji gị {m}."},
         "i_owe": {"English": "You owe {who} {m}.", "Pidgin": "You dey owe {who} {m}.",
                   "Yoruba": "O jẹ {who} ní {m}.", "Hausa": "Bashin {who}: {m}.", "Igbo": "I ji {who} {m}."},
+        "not_in_book": {"English": "I don't see {who} in your book yet.", "Pidgin": "I no see {who} for your book yet.",
+                        "Yoruba": "Mi ò rí {who} nínú ìwé rẹ.", "Hausa": "Ban ga {who} a cikin littafinka ba.",
+                        "Igbo": "Ahụghị m {who} n'akwụkwọ gị."},
+        "none_who": {"English": "{who} doesn't owe you anything.", "Pidgin": "{who} no dey owe you anything.",
+                     "Yoruba": "{who} kò jẹ ọ́ ní nǹkankan.", "Hausa": "{who} ba ya da bashin ka.",
+                     "Igbo": "{who} ejighị gị ihe ọ bụla."},
         "none": {"English": "Nobody.", "Pidgin": "Nobody.", "Yoruba": "Kò sí ẹnikẹ́ni.", "Hausa": "Babu kowa.",
                  "Igbo": "Onweghị onye."}}
 
@@ -307,11 +340,15 @@ def answer(q, res, spoken=False):
              else (lambda x: f"-₦{abs(x):,.0f}" if x < 0 else f"₦{x:,.0f}"))
     count = (lambda x: number_words(x)) if spoken else (lambda x: f"{x:g}")
     if q["what"] in ("owed_to_me", "i_owe"):
+        if q.get("unknown_person") and not q.get("customer"):
+            return OWED["not_in_book"][lang].format(who=q["unknown_person"])
         if not res["people"]:
+            if q.get("customer") and q["what"] == "owed_to_me":
+                return OWED["none_who"][lang].format(who=q["customer"])
             return OWED["none"][lang]
         return " ".join(OWED[q["what"]][lang].format(who=w, m=money(b)) for w, b in res["people"][:5])
     p = PERIOD_SAY[lang][q["period"]]
-    if not res["entries"]:
+    if not res["entries"] and q["what"] not in ("profit", "cash_in"):   # money questions get ₦0, never "no record"
         return NOTHING[lang].format(p=p.lower() if lang in ("English", "Pidgin") else f"({p})")
     if q["what"] == "profit":
         return PROFIT[lang].format(p=p, s=money(res["sales"]), x=money(res["spent"]), m=money(res["money"]))

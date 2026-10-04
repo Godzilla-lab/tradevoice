@@ -92,8 +92,8 @@ TEMPLATES = {
         "credit_sale": "{customer} will pay you {amount}{due}.",
         "payment_received": "{customer} has paid you {amount}.",
         "expense": "You spent {amount}{item_for}.",
-        "due": ", on {day}", "balance": " All together, {she} is still owing you {balance}.",
-        "cleared": " {She} is not owing you anything again.",
+        "due": ", on {day}", "balance": " All together, {she} still owes you {balance}.",
+        "cleared": " {She} doesn't owe you anything now.",
         "credit_purchase": "You will pay {customer} {amount}{due}.",
         "payment_made": "You have paid {customer} {amount}.",
         "i_owe": " All together, you still owe {customer} {balance}.",
@@ -192,8 +192,20 @@ _FEMALE = ("mama", "iya", "aunty", "auntie", "madam", "hajiya", "hajia", "alhaja
 
 
 def _female(name):
-    """Guess from the title (Mama Tunde, Hajiya Amina); unknown -> 'he' forms (English/Pidgin/Hausa)."""
+    """From the title (Mama Tunde, Hajiya Amina) -> 'she' forms; Hausa grammar needs one, so unknown -> 'ya' forms."""
     return bool(name) and name.split()[0].lower().rstrip(".") in _FEMALE
+
+
+_MALE = {"alhaji", "baba", "papa", "mr", "uncle", "bros", "brother", "mallam", "oga"}
+
+
+def _pronoun(name, female):
+    """English/Pidgin: 'she' / 'he' only when the title says so; otherwise the name ("Dino still owes you …")."""
+    if female:
+        return "she"
+    if name and name.split()[0].lower().rstrip(".") in _MALE:
+        return "he"
+    return name or "they"
 
 
 # words that are not an item ("I spent 130,000 on expenses", "50,000 profit"): never read back as one
@@ -223,7 +235,8 @@ def _sentence(rec, language, money):
     slots = dict(amount=money(rec.get("amount") or 0), customer=customer,
                  item=f"{item} " if item and en else ("goods " if en and rec.get("type") in (None, "sale") else ""),
                  item_for=f" on {item}" if item and en else "",
-                 she="she" if female else "he", She="She" if female else "He", ya="ta" if female else "ya", za="za ta" if female else "zai")
+                 she=_pronoun(rec.get("customer"), female), She=_pronoun(rec.get("customer"), female)[:1].upper()
+                 + _pronoun(rec.get("customer"), female)[1:], ya="ta" if female else "ya", za="za ta" if female else "zai")
     due = t["due"].format(day=day, **slots) if day else ""
     if rec.get("type") == "credit_purchase":  # "due" phrases say "SHE will pay"; for the trader's own debt use "on <day>"
         due = {"English": f", on {day}", "Pidgin": f", for {day}"}.get(language, f" ({day})") if day else ""

@@ -93,6 +93,15 @@ _NOT_NAMES = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
               "want", "say", "suppose", "never", "still", "just", "has", "have", "will", "wey", "and", "for"}
 _FILLERS = {"ehn", "abeg", "sha", "um", "so", "okay", "o", "se", "to", "wai", "dai", "ngwa", "kwa", "ni", "fun",
             "don", "go", "no", "na", "ti", "ta", "ya", "has", "paid", "carry", "take", "took"}
+_MONEY_WORDS = {"million", "thousand", "hundred", "billion", "k", "m", "naira", "kobo", "money", "cash", "milli", "mil",
+                "miliyan", "dubu", "puku", "nde", "egberun", "milionu", "owo", "kudi", "ego"}
+# words that come before "owe / took / paid" but are not a person: "she owes me", "somebody took 2 bags"
+_NOT_PEOPLE = {"he", "she", "they", "we", "you", "it", "him", "her", "them", "us", "e", "dem", "una", "who", "my", "your",
+               "his", "this", "that", "which", "what", "how", "somebody", "someone", "person", "nobody", "everybody",
+               "people", "man", "woman", "boy", "girl", "one", "all", "yes", "ok", "okay", "then", "also", "plus",
+               "rice", "beans", "garri", "goods", "money", "cash", "balance", "debt", "price", "bag", "bags"}
+_LOWER_NAME_VERBS = (r"(?:owe|owes|owing|don pay|has paid|paid|took|take|collected|collect|carried|carry|bought|buy|"
+                     r"will pay|go pay|never pay|has not paid|hasn'?t paid|didn'?t pay|no pay)\b")
 _WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 # Weekday names in Yoruba / Hausa / Igbo, written WITHOUT tone marks (text is de-accented before matching).
 # Have native speakers check these lists.
@@ -416,6 +425,11 @@ def parse_customer(text):
     m = re.search(rf"\b({_HONORIFIC})\s+([^\W\d_]+)", text, re.IGNORECASE)
     if m and fold(m.group(2)) not in _NOT_NAMES | _FILLERS and m.group(1).lower() != "customer":
         return f"{m.group(1).title()} {m.group(2).title()}"
+    # a typed or heard name in lower case: "dino owes me 20k", "mike also owes me 2m", "tobi took 2 bags"
+    m = re.match(rf"\s*(?:and|also|plus|then|&)?\s*([^\W\d_][^\W\d_']+)\s+(?:also\s+|too\s+|sef\s+)?{_LOWER_NAME_VERBS}",
+                 text, re.IGNORECASE)
+    if m and fold(m.group(1)) not in _NOT_NAMES | _FILLERS | NOT_NAMES | _NOT_PEOPLE:
+        return m.group(1).title()
     # "Alhaji collect 5 bags…": the title alone is how the trader names this person
     m = re.match(rf"\s*((?i:alhaji|alhaja|oga|madam|hajiya|hajia|mallam|chief|aunty|auntie|uncle|bros))\b(?=\s+[a-z])", text)
     if m:
@@ -692,6 +706,9 @@ def _normalise(rec, text, today):
         out["type"] = parse_type(text)
     if isinstance(out["amount"], str):
         out["amount"] = parse_amount(out["amount"])
+    # "2,000,000" / "2 million" is an amount: never "2 millions" of goods (live, 4 Oct)
+    if any(fold(str(out.get(k) or "")).strip(" .s") in _MONEY_WORDS for k in ("item", "unit")):
+        out["item"] = out["unit"] = out["quantity"] = None
     # the model says the price as heard and whether it was per unit; the multiplying is done here, in code
     if rec.get("each") is True and isinstance(out["amount"], (int, float)) and isinstance(out["quantity"], (int, float)) \
             and out["quantity"] > 0:

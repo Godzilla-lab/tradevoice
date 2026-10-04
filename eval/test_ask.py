@@ -154,5 +154,34 @@ check("Custom into the future: ends today", v2._span("custom", str(T), str(T + d
 check("Custom with bad dates: Today", v2._span("custom", "x", "", T) == ("today", T, T))
 check("an unknown period: Today", v2._span("week", "", "", T)[0] == "today")
 
+# 10. N-ATLaS waking up (slow): one chat message never waits longer than its AI time (ASK_AI_SECONDS)
+import time  # noqa: E402
+
+import llm  # noqa: E402
+
+calls = []
+
+
+def slow_client(kind, timeout, retries=0, model=None):
+    def create(**kw):
+        calls.append(timeout)
+        time.sleep(min(timeout, 4))
+        raise TimeoutError("waking up")
+    from types import SimpleNamespace
+    return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+
+os.environ.update(NATLAS_URL="http://natlas/v1", ASK_AI_SECONDS="6", NATLAS_TIMEOUT="60")
+real_client, llm._client, llm._resting = llm._client, slow_client, {}
+t0 = time.time()
+r = ask("Sold 2 bags of rice for 90000", session="slow")
+took = time.time() - t0
+check(f"a slow AI: answered in {took:.0f} s (limit 6 s + a little), by the rules", took < 10 and r["pending"]
+      and "90,000" in r["t"], (took, r))
+check("…every AI call got only what was left of the 6 s", calls and max(calls) <= 6, calls)
+llm._client = real_client
+for k in ("NATLAS_URL", "ASK_AI_SECONDS", "NATLAS_TIMEOUT"):
+    os.environ.pop(k)
+
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)

@@ -10,6 +10,8 @@ and remember the first one that works. Override with LLM_MODELS / VISION_MODELS 
 Vision order favours multilingual models (Gemma 4, Qwen 3.5) for Yoruba/Igbo/Hausa pages; Llama 3.2 Vision is last
 because Meta supports English only for image+text. See docs/RESEARCH.md → "Nigerian languages".
 """
+import contextlib
+import contextvars
 import os
 import re
 import time
@@ -134,6 +136,21 @@ def _with_shots(messages, shots):
     return head + pairs + messages[len(head):]
 
 
+_budget_end = contextvars.ContextVar("llm_budget_end", default=None)
+
+
+@contextlib.contextmanager
+def budget(seconds):
+    """All AI calls inside share `seconds` (one chat message: reading the record, the book question, the tool pick,
+    the free answer). Past it, chat() gives up at once and the callers use the offline rules, so the trader gets an
+    answer in time even while N-ATLaS is waking up."""
+    token = _budget_end.set(time.time() + seconds)
+    try:
+        yield
+    finally:
+        _budget_end.reset(token)
+
+
 def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, models=None, deadline=None, retries=0,
          shots=None, schema=None):
     """Return (text, model_used). Tries each configured model (or `models`) until one answers.
@@ -160,6 +177,11 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
         if _working.get(kind) in models and "natlas" not in models:   # try the last good model first
             models = [_working[kind]] + [m for m in models if m != _working[kind]]   # (N-ATLaS always leads)
     deadline = float(deadline or os.getenv("LLM_DEADLINE", "30"))
+    if _budget_end.get() is not None:
+        deadline = min(deadline, _budget_end.get() - time.time())
+        if deadline < 3:
+            wake_natlas()
+            raise TimeoutError("this message's time for the AI is used up")
     start = time.perf_counter()
     last = None
     for i, model in enumerate(models):

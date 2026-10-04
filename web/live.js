@@ -740,13 +740,16 @@ button.tvc-say{text-decoration:none}
   TVL.listenBtn = m => `<div class="vn" data-ts="${m.ts}"><button class="vp" data-a="aplay" data-ts="${m.ts}" aria-label="Play the answer">${playing == m.ts && !player.paused ? PAUSE : PLAY}</button><span class="vb" aria-hidden="true">${bars(m.sv || m.t)}</span><span class="vd">${m.dur ? mmss(m.dur) : ""}</span></div>`;
   TVL.askReset = () => { player.pause(); playing = null; api("/api/ask/reset", { body: { session: SID } }); };
   const noNet = "No network. Check your data and try again.";
+  const slow = "TradeVoice is slow right now. Try again in a minute.";   // the phone is online: never blame its data
 
   // the design's askNow() calls these two: a question in words, or a photo
   areply = async function (q, how) {
     if (offline()) return { t: noNet };
     const voice = how == "voice";
-    const r = await api("/api/ask", { body: { session: SID, text: q, lang: lang(), voice, shop: A ? A.biz : "" } });
-    if (!r.ok) return { t: r.status === 0 ? noNet : "Sorry, something went wrong. Try again." };
+    const body = { session: SID, text: q, lang: lang(), voice, shop: A ? A.biz : "" };
+    let r = await api("/api/ask", { body });
+    if (r.status === 0 && !offline()) { await sleep(2000); r = await api("/api/ask", { body }); }   // a dropped line: once more
+    if (!r.ok) return { t: r.status === 0 && offline() ? noNet : r.status === 0 || r.status >= 500 ? slow : "Sorry, something went wrong. Try again." };
     const d = r.data, rep = { t: d.t, l: d.lang, sv: d.say || "" };
     if (d.n) rep.n = d.n;
     if (!d.pending) loadBook();          // a "yes" in the chat may have saved a record: Home and Customers update
