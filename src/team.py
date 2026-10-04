@@ -31,6 +31,18 @@ def _table(title, data, total=None):
     return f"<section><h2>{title}</h2><table>{rows}</table></section>"
 
 
+def _speed():
+    """A voice turn, step by step, last 24 hours (times only): which step makes live talk slow."""
+    t = events.speed(1)
+    if not t:
+        return "<section><h2>Speed of a voice turn (last 24 h)</h2><p class=muted>Nothing yet</p></section>"
+    rows = "".join(f"<tr><td>{html.escape(n)}</td><td class=n>{c}</td><td class=n>{m / 1000:.1f} s</td>"
+                   f"<td class=n>{p / 1000:.1f} s</td><td class=n>{x / 1000:.1f} s</td></tr>" for n, c, m, p, x in t)
+    return ("<section><h2>Speed of a voice turn (last 24 h)</h2><table><tr><td class=muted>step</td>"
+            "<td class='n muted'>count</td><td class='n muted'>typical</td><td class='n muted'>9 in 10</td>"
+            f"<td class='n muted'>slowest</td></tr>{rows}</table></section>")
+
+
 @router.get("/team", response_class=HTMLResponse)
 def team(request: Request):
     _allowed(request)
@@ -63,7 +75,7 @@ background:var(--accent)}} a{{color:var(--accent)}}
 </style></head><body><main>
 <h1>TradeVoice: team dashboard</h1><p class=muted>Counts only: no names, amounts or messages. Traders are anonymous
 codes. Guests (web, not linked): {s['guests_total']}. {f"The team's own {s['team_left_out']} phones are left out (TEAM_PHONES)." if s['team_left_out'] else "Team phones are counted too: list them in TEAM_PHONES to leave them out."}</p>{cap}
-<div class=tiles>{tiles_html}</div><div class=grid>
+<div class=tiles>{tiles_html}</div>{_speed()}<div class=grid>
 {_table("Funnel", s["funnel"], first)}
 {_table("Channel (traders)", s["channels"])}
 {_table("Languages", s["languages"])}

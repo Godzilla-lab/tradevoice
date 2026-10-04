@@ -144,6 +144,17 @@ check("Yoruba note: light prep on, the English model asked for too", POSTS[-1].g
       and POSTS[-1].get("also") == "english" and POSTS[-1].get("lang") == "yoruba", POSTS[-1])
 check("…the merged words are used, and both transcripts are kept for the record",
       out["text"] == REPLY["text"] and out["heard"] == [A, B] and out["engine"].endswith("+english:merged"), out)
+CALLS.clear()
+with hearing.live():
+    out = asr.transcribe(f.name, "Yoruba", VOCAB)
+check("live talk (speed): no N-ATLaS merge call, the Yoruba model's words (the reply is the turn's one N-ATLaS call)",
+      out["text"] == A and out.get("merge") == "live" and not CALLS, (out, CALLS))
+HEARD.update(also={"text": "Iya Bisi bought two bags of rice 9000", "model": "NCAIR1/NigerianAccentedEnglish",
+                   "unsure": []})
+with hearing.live():
+    out = asr.transcribe(f.name, "Yoruba", VOCAB)
+check("…the two models are still compared by code: amounts heard differently are asked again",
+      sorted((out.get("check") or {}).get("amounts") or []) == [9000.0, 90000.0] and not CALLS, out)
 HEARD.clear()
 HEARD.update(text="Mama Ngozi took rice 5000", model="NCAIR1/NigerianAccentedEnglish", seconds=3,
              unsure=[{"word": "5000", "p": 0.21}])
@@ -216,8 +227,15 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 import web  # noqa: E402
 
-asr.transcribe_auto = lambda path, language=None, vocab=None: {
-    "text": "Mama Ngozi took rice 5000 on credit", "engine": "test", "check": {"amounts": [5000.0, 50000.0]}}
+LIVE_SEEN = []
+
+
+def fake_auto(path, language=None, vocab=None):
+    LIVE_SEEN.append(hearing._LIVE.get())
+    return {"text": "Mama Ngozi took rice 5000 on credit", "engine": "test", "check": {"amounts": [5000.0, 50000.0]}}
+
+
+asr.transcribe_auto = fake_auto
 cl = TestClient(web.app)
 h = cl.post("/api/hear", files={"file": ("n.webm", b"0" * 200)}, data={"lang": "English", "consent": "yes"}).json()
 r = cl.post("/api/say", json={"session": "ab", "text": h["heard"], "lang": "English"}).json()
@@ -228,6 +246,7 @@ check("…once only (typed or repeated words don't carry an old check)", "Say th
 r = cl.post("/api/voice", files={"file": ("n.webm", b"0" * 200)},
             data={"session": "ab3", "lang": "English", "consent": "yes"}).json()
 check("voice note card: the same question", "Say the amount again" in json.dumps(r), r)
+check("live talk hears without the merge; a voice note (card, WhatsApp) keeps it", LIVE_SEEN == [True, False], LIVE_SEEN)
 
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)

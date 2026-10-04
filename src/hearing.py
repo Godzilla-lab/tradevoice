@@ -9,9 +9,24 @@
 2. What to ask again: amounts the two models heard differently, and words a model wasn't sure of, go with the
    words to the chat (state["heard_check"]), which asks for just that part ("Say the amount again").
 """
+import contextlib
+import contextvars
 import os
 import re
 import time
+
+_LIVE = contextvars.ContextVar("hearing_live", default=False)
+
+
+@contextlib.contextmanager
+def live():
+    """A live conversation turn: no N-ATLaS merge (one N-ATLaS call per turn is the reply itself). The two models are
+    still compared by code (check()), so an amount they heard differently is still asked again."""
+    token = _LIVE.set(True)
+    try:
+        yield
+    finally:
+        _LIVE.reset(token)
 
 MERGE_PROMPT = """Two speech models heard the same short voice note from a Nigerian market trader who may mix
 __LANG__ and English.
@@ -34,7 +49,7 @@ def _numbers(text):
 
 
 def merge(a, b, lang, vocab=None, timeout=None):
-    """-> (merged words, how): how is "merged", or why A was kept ("same", "no_b", "asleep", "amount", "long",
+    """-> (merged words, how): how is "merged", or why A was kept ("same", "no_b", "live", "asleep", "amount", "long",
     "failed")."""
     a, b = (a or "").strip(), (b or "").strip()
     if not b:
@@ -43,6 +58,8 @@ def merge(a, b, lang, vocab=None, timeout=None):
         return b, "no_a"
     if re.sub(r"\W+", "", a.lower()) == re.sub(r"\W+", "", b.lower()):
         return a, "same"
+    if _LIVE.get():
+        return a, "live"          # speed: the turn's one N-ATLaS call is the reply, not the hearing
     import llm
 
     if not llm.natlas_on() or llm._resting.get("natlas", 0) > time.time():

@@ -183,5 +183,53 @@ llm._client = real_client
 for k in ("NATLAS_URL", "ASK_AI_SECONDS", "NATLAS_TIMEOUT"):
     os.environ.pop(k)
 
+# 11. live voice speed: N-ATLaS writes the record as guided JSON (short), and the reply is spoken in two parts
+import json as _json  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+import extract  # noqa: E402
+
+SEEN = []
+
+
+def json_client(kind, timeout, retries=0, model=None):
+    def create(**kw):
+        SEEN.append(kw)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=_json.dumps(
+            {"type": "credit_sale", "item": "rice", "quantity": None, "unit": None, "amount": 20000, "each": False,
+             "customer": "Mama Ngozi", "due_date": None, "confidence": 0.9, "note": None})))])
+    return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+
+os.environ["NATLAS_URL"] = "http://natlas/v1"
+llm._client, llm._resting = json_client, {}
+rec, meta = extract.extract("Mama Ngozi took rice 20000 on credit")
+kw = SEEN[-1] if SEEN else {}
+check("the record: N-ATLaS must answer in the record's JSON shape (guided, no thinking out loud first)",
+      kw.get("response_format", {}).get("type") == "json_schema" and "credit_sale" in _json.dumps(kw["response_format"]),
+      list(kw))
+check("…and short: at most 250 tokens (each costs ~55 ms on the L4)", kw.get("max_tokens", 999) <= 250, kw.get("max_tokens"))
+check("…the record is still right", rec["customer"] == "Mama Ngozi" and rec["amount"] == 20000
+      and rec["type"] == "credit_sale" and meta["engine"].startswith("llm:"), (rec, meta))
+llm._client = real_client
+os.environ.pop("NATLAS_URL")
+started = []
+web._start_voice = lambda sid: started.append(sid)
+d = c.post("/api/say", json={"session": "two", "text": "Mama Ngozi took rice 20000 on credit", "lang": "English"}).json()
+check("live talk: the reply comes as two voice parts, both made at once (first sentence, then the rest)",
+      d["speak"] and d["speak2"] and started == [d["speak"], d["speak2"]], (d.get("speak"), d.get("speak2"), started))
+first, rest = web.SPEAK[d["speak"]][0], web.SPEAK[d["speak2"]][0]
+check("…the first part is the record, the second the question", "twenty thousand" in first and rest.endswith("?")
+      and not first.endswith("?"), (first, rest))
+d = c.post("/api/say", json={"session": "two", "text": "yes", "lang": "English"}).json()
+check("…'yes': 'Done.' first (from the voice cache, at once), then the saved line",
+      web.SPEAK[d["speak"]][0] == "Done." and d["speak2"] and "twenty thousand" in web.SPEAK[d["speak2"]][0],
+      (web.SPEAK[d["speak"]], d["speak2"] and web.SPEAK[d["speak2"]]))
+d = c.post("/api/say", json={"session": "two2", "text": "How much does Oga Emeka owe me?", "lang": "English"}).json()
+check("…a one-sentence reply stays one part", d["speak2"] is None and "Oga Emeka" in web.SPEAK[d["speak"]][0],
+      (web.SPEAK[d["speak"]], d["speak2"]))
+r = c.post("/api/ask", json={"session": "two-ask", "text": "Who is late?", "lang": "English"}).json()
+check("the Ask chat's voice note stays one clip (no second part)", "speak2" not in r and r["say"], r)
+
 print(f"\n{passed}/{total} checks pass")
 sys.exit(0 if passed == total else 1)

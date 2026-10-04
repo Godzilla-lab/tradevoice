@@ -304,15 +304,27 @@ def _say(text, session, lang, shop, live):
         r = _safe_reply(text, state, shop, lang)
     out = _reply_json(r, state, heard=text, live=live)
     events.log("understand", channel="web", lang=lang, ms=(time.perf_counter() - t0) * 1000)   # speed check (E6)
+    out["speak2"] = None
+    if live and out.get("speak"):   # the first sentence is spoken while the rest is still being made
+        words, said_in = SPEAK[out["speak"]]
+        first, rest = tts.first_and_rest(words)
+        if rest:
+            SPEAK[out["speak"]] = (first, said_in)
+            out["speak2"] = _speak_id(rest, said_in)
     _start_voice(out.get("speak"))
+    _start_voice(out["speak2"])
     return out
 
 
 @app.post("/api/hear")
 def hear(file: UploadFile = File(...), lang: str = Form("English"), consent: str = Form("")):
     """Live talk, step 1: only the words. The page sends this at a short pause while it keeps listening; if the trader
-    goes on talking, it throws this away and sends the whole thing again. Nothing in the book or the chat changes."""
-    heard = _hear(file, lang, consent)
+    goes on talking, it throws this away and sends the whole thing again. Nothing in the book or the chat changes.
+    No N-ATLaS merge of the two hearings here (hearing.live): the reply is this turn's one N-ATLaS call."""
+    import hearing
+
+    with hearing.live():
+        heard = _hear(file, lang, consent)
     if isinstance(heard, JSONResponse):
         return heard
     return {"heard": heard["text"], "engine": heard.get("engine"), "detected": heard.get("detected")}

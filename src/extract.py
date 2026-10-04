@@ -564,14 +564,25 @@ def _vocab_line(vocab):
             f"misspelt), use that exact spelling.") if names else ""
 
 
+# N-ATLaS writes the record as guided JSON (vLLM): the record only, no thinking out loud before it, so it is done in
+# ~80 tokens. On an L4 every token costs ~55 ms (it reads all 16 GB of the model per token), so this is the turn's
+# biggest wait. Kept plain (only "type" is an enum) so every guided-decoding backend accepts it; code checks the rest.
+_NS, _NN = {"type": ["string", "null"]}, {"type": ["number", "null"]}
+REC_SCHEMA = {"type": "object", "required": ["type", "amount", "customer"],
+              "properties": {"type": {"type": "string", "enum": list(TYPES)}, "item": _NS, "quantity": _NN, "unit": _NS,
+                             "amount": _NN, "each": {"type": ["boolean", "null"]}, "customer": _NS, "due_date": _NS,
+                             "confidence": _NN, "note": _NS}}
+REC_MAX_TOKENS = 250
+
+
 def llm_extract(text, today=None, vocab=None):
     """Return (record dict, model used)."""
     today = today or dt.date.today()
     prompt = (SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
               + _vocab_line(vocab))
     content, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
-                              max_tokens=900, timeout=int(os.getenv("LLM_TIMEOUT", "20")),  # then next model
-                              shots=SHOTS)
+                              max_tokens=REC_MAX_TOKENS, timeout=int(os.getenv("LLM_TIMEOUT", "20")),  # then next model
+                              shots=SHOTS, schema=REC_SCHEMA)
     return _parse_json(content), model
 
 

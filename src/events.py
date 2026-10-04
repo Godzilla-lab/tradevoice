@@ -11,6 +11,7 @@ import contextvars
 import datetime as dt
 import hashlib
 import os
+import statistics
 import secrets
 import sqlite3
 import threading
@@ -165,3 +166,32 @@ def summary(now=None):
         "errors": sum(1 for r in ev if not r["ok"]),
         "team_left_out": len(team_phones()),
     }
+
+
+# ---------------------------------------------------------------- speed of a voice turn, step by step (times only)
+STEPS = [("hearing", lambda r: r["kind"] == "hear" and r["ok"]),
+         ("brain (N-ATLaS)", lambda r: r["kind"] == "llm" and r["ok"] and r["engine"] == "natlas"),
+         ("brain (backup AI)", lambda r: r["kind"] == "llm" and r["ok"] and r["engine"] != "natlas"),
+         ("N-ATLaS didn't answer", lambda r: r["kind"] == "llm" and not r["ok"] and r["engine"] == "natlas"),
+         ("merge two hearings (N-ATLaS)", lambda r: r["kind"] == "hear_merge" and r["ok"]),
+         ("understand", lambda r: r["kind"] == "understand"),
+         ("voice (Intron)", lambda r: r["kind"] == "voice" and r["ok"] and (r["engine"] or "").startswith("intron"))]
+
+
+def pct(xs, p):
+    xs = sorted(xs)
+    return xs[min(len(xs) - 1, int(round(p / 100 * (len(xs) - 1))))]
+
+
+def _speed_table(rows):
+    out = []
+    for name, keep in STEPS:
+        ms = [r["ms"] for r in rows if r["ms"] is not None and keep(r)]
+        if ms:
+            out.append((name, len(ms), statistics.median(ms), pct(ms, 90), max(ms)))
+    return out
+
+
+def speed(days=7):
+    """[(step, count, typical ms, 9-in-10 ms, slowest ms)] from the event log (scripts/speed.py, /team)."""
+    return _speed_table(rows(since_days=days))

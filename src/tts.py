@@ -188,6 +188,17 @@ def live_ask(spoken, language="English"):
     return spoken
 
 
+def first_and_rest(spoken):
+    """Live talk speaks the first sentence while the rest is still being made: ("Saved.", "Dino will pay you …").
+    A short opener ("Saved.", "Okay.") is usually in the voice cache, so it plays at once. Never splits after a title
+    ("Mr. Bello"). A one-sentence reply stays whole."""
+    for m in re.finditer(r"[.?!](\s+)(?=\S)", spoken or ""):
+        if re.search(r"\b(mr|mrs|dr|st|mallam|engr|prof)$", spoken[:m.start()], re.I):
+            continue
+        return spoken[:m.start() + 1].strip(), spoken[m.end():].strip() or None
+    return spoken, None
+
+
 _FEMALE = ("mama", "iya", "aunty", "auntie", "madam", "hajiya", "hajia", "alhaja", "mrs", "sister", "iyawo", "mallama")
 
 

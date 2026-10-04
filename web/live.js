@@ -554,16 +554,18 @@ button.tvc-say{text-decoration:none}
       cutIn = () => { stop = true; voice.pause(); };
       const r = await fetch(`/api/speak/${sid}`).catch(() => null);
       const clip = r && r.ok ? await r.blob().catch(() => null) : null;
-      if (!clip || stop || !o.isConnected) { cutIn = null; return; }
+      if (!clip || stop || !o.isConnected) { cutIn = null; return !stop && o.isConnected; }
       const url = URL.createObjectURL(clip);
-      await new Promise(done => {
-        const fin = () => { voice.onended = voice.onerror = null; cutIn = null; URL.revokeObjectURL(url); done(); };
-        voice.onended = voice.onerror = fin;
-        cutIn = () => { voice.pause(); fin(); };
+      return new Promise(done => {   // true: said to the end; false: you talked over it
+        const fin = whole => { voice.onended = voice.onerror = null; cutIn = null; URL.revokeObjectURL(url); done(whole); };
+        voice.onended = () => fin(true); voice.onerror = () => fin(true);
+        cutIn = () => { voice.pause(); fin(false); };
         voice.src = url;
-        const p = voice.play(); if (p) p.catch(fin);
+        const p = voice.play(); if (p) p.catch(() => fin(true));
       });
     }
+    // the reply in two parts: the first sentence plays while the rest is made (live talk starts talking sooner)
+    const sayAll = async d => { if (await speak(d.speak) && d.speak2) await speak(d.speak2); };
     // one quiet line: the key facts of what's waiting to be saved, or the short answer
     function line(d) {
       const dr = d.draft;
@@ -612,11 +614,11 @@ button.tvc-say{text-decoration:none}
         if (d.saved) toast(esc((d.text || "").replace(/\*/g, "").split("\n")[0]), async () => { await api("/api/v2/undo_last", { body: {} }); loadBook(); });
         if (d.rows && d.rows.length) {   // a list said in one go: say how many, then the lines to check (nothing saved yet)
           if (next) next.stop();
-          await speak(d.speak); set("rest"); shut(o); checkRows(d.rows); break;
+          await sayAll(d); set("rest"); shut(o); checkRows(d.rows); break;
         }
         if (next && next.spoke) { carry = next; continue; }   // you were talking: listen on, the reply stays on screen
         if (next) next.stop();
-        await speak(d.speak);
+        await sayAll(d);
       }
       running = false;
     }
