@@ -177,7 +177,7 @@ def _reply_json(r, state, heard=None, live=False):
     return {"text": no_emoji(r["text"]), "english": no_emoji(r.get("english")), "lang": r["lang"], "heard": heard,
             "message": no_emoji(r.get("message")), "link": r.get("link"), "choices": r.get("choices"),
             "pending": bool(state.get("pending")), "draft": _draft(state), "saved": bool(r.get("saved")),
-            "speak": _speak_id(spoken, r["lang"])}
+            "speak": _speak_id(spoken, r["lang"]), "rows": r.get("rows") or [], "act": r.get("act")}
 
 
 class DraftEdit(BaseModel):
@@ -298,7 +298,11 @@ def _say(text, session, lang, shop, live):
     if check:
         state["heard_check"] = check   # the chat asks again for just the unclear part
     t0 = time.perf_counter()
-    out = _reply_json(_safe_reply(text, state, shop, lang), state, heard=text, live=live)
+    import llm
+
+    with llm.budget(float(os.getenv("ASK_AI_SECONDS", "20"))):   # a reply in time, even while N-ATLaS wakes up
+        r = _safe_reply(text, state, shop, lang)
+    out = _reply_json(r, state, heard=text, live=live)
     events.log("understand", channel="web", lang=lang, ms=(time.perf_counter() - t0) * 1000)   # speed check (E6)
     _start_voice(out.get("speak"))
     return out
@@ -417,8 +421,9 @@ def ask_chat(b: AskIn):
     events.log("understand", channel="web", lang=b.lang, ms=(time.perf_counter() - t0) * 1000)
     words = _ask_text(r, out)
     said = SPEAK.get(out["speak"], (None,))[0] if out.get("speak") else None
-    return {"t": words, "n": _headline(words), "lang": out["lang"], "english": out.get("english"),
-            "say": said, "speak": out.get("speak"), "pending": out["pending"], "link": out.get("link")}
+    return {"t": words, "n": None if r.get("rows") else _headline(words), "lang": out["lang"],
+            "english": out.get("english"), "say": said, "speak": out.get("speak"), "pending": out["pending"],
+            "link": out.get("link"), "rows": out["rows"], "act": out["act"]}
 
 
 @app.post("/api/ask/photo")

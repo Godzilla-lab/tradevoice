@@ -823,3 +823,84 @@ if __name__ == "__main__":
 
     r, m = extract(" ".join(sys.argv[1:]) or "I sell 3 bags of rice give Mama Tunde, 45k, she go pay Friday")
     print(json.dumps({"record": r, "meta": m}, indent=2))
+
+
+# ---------------------------------------------------------------- a list in one message (N-ATLaS reads it, code checks)
+LIST_PROMPT = """A Nigerian market trader sent ONE message that lists several money records: customers and amounts,
+sales, payments or spending, in English, Pidgin, Yoruba, Hausa or Igbo. The records may all be run together on one
+line. A title such as "Name Amount owed" says what the list is.
+Write EVERY record in the message, in the order written, one entry each. Never skip one, never join two.
+Copy each amount exactly as written ("₦15,000", "500,000", "7m"). Do not add up, round or work out any amount.
+"type": credit_sale = the person owes the trader ("owed", "owes", "debt", "balance", or just names with amounts);
+payment_received = the person paid the trader; sale = a cash sale; expense = money the trader spent;
+credit_purchase = the trader owes a supplier; payment_made = the trader paid a supplier back.
+"customer": the person's name as written, or null. "item": the goods, or null.
+Reply with JSON only: {"entries": [{"customer": ..., "item": ..., "amount": "...", "type": "..."}]}"""
+_SN = {"type": ["string", "null"]}
+LIST_SCHEMA = {"type": "object", "required": ["entries"], "properties": {"entries": {"type": "array", "items": {
+    "type": "object", "required": ["amount", "type"],
+    "properties": {"customer": _SN, "item": _SN, "amount": {"type": "string"}, "type": {"type": "string", "enum": list(TYPES)}}}}}}
+
+
+def money_spans(text):
+    """Every money amount written in the text, in order: [(start, end, value)]. Small bare numbers ("2 bags") are not."""
+    text = _PHONE_RE.sub(lambda m: " " * len(m.group(0)), text or "")
+    out = []
+    for m in _AMOUNT_RE.finditer(text):
+        v = float(m.group("num").replace(",", "")) * _SUFFIX.get((m.group("suf") or "").lower(), 1)
+        if (v >= 100 or m.group("suf") or m.group("cur")) and not re.match(rf"\s*({_UNITS}|pairs?)\b",
+                                                                          text[m.end():m.end() + 12], re.I):
+            out.append((m.start(), m.end(), v))
+    return out
+
+
+def is_list(text):
+    """Several records in one message ("Chinedu ₦15,000 Aisha ₦45,000 Tunde ₦8,500 …"): 3+ amounts that are not one
+    record's part payment ("paid 15k out of 30k, 15k remaining", "will balance me") or a corrected amount
+    ("17k, no be 17k, na 19k")."""
+    if len(money_spans(text)) < 3:
+        return False
+    t = fold(text)
+    return not (_PART_RE.search(t) or re.search(r"\bbalance (me|you|am)\b", t) or _CORRECT_RE.search(t.lower())
+                or _corrected(_PHONE_RE.sub(" ", text)) is not None)
+
+
+def read_list(text, today=None):
+    """A message listing many records -> (records, meta). N-ATLaS splits and reads it (guided JSON); code then checks
+    every amount was really written (each used once), every name is in the message, and says which amounts no
+    record used. records is None when no AI could read it (never guessed by the rules: one wrong number is worse)."""
+    start = time.perf_counter()
+    said = [v for _, _, v in money_spans(text)]
+    meta = {"engine": None, "error": None, "missed": []}
+    if not llm.available():
+        meta["error"] = "no AI"
+        return None, meta
+    try:
+        with llm.budget(float(os.getenv("LIST_AI_SECONDS", "90"))):   # a long list takes N-ATLaS a while to write
+            content, model = llm.chat([{"role": "system", "content": LIST_PROMPT}, {"role": "user", "content": text}],
+                                      max_tokens=120 + 45 * len(said), timeout=90, deadline=90, schema=LIST_SCHEMA,
+                                      long=True)
+        entries = _parse_json(content).get("entries") or []
+    except Exception as e:  # noqa: BLE001
+        meta["error"] = f"{type(e).__name__}: {e}"
+        return None, meta
+    left, words, out = list(said), set(re.findall(r"[^\W\d_]+", fold(text))), []
+    for e in entries:
+        if not isinstance(e, dict):
+            continue
+        amount = parse_amount(str(e.get("amount") or ""))
+        who = (str(e.get("customer") or "").strip() or None)
+        if who:
+            who = " ".join(w if w[:1].isupper() else w.title() for w in who.split())
+        rec = {"type": e.get("type") if e.get("type") in TYPES else "credit_sale", "customer": who,
+               "item": (str(e.get("item") or "").strip() or None), "quantity": None, "unit": None, "amount": amount,
+               "due_date": None, "confidence": 0.8, "note": None, "line": f"{who or e.get('item') or ''} {e.get('amount')}".strip()}
+        if amount is None or amount not in left:
+            rec["note"], rec["confidence"] = "This amount is not in your message.", 0.3   # made up or misread
+        else:
+            left.remove(amount)
+        if who and not all(w in words for w in re.findall(r"[^\W\d_]+", fold(who))):
+            rec["note"], rec["confidence"] = "This name is not in your message.", 0.3
+        out.append(rec)
+    meta.update(engine=f"llm:{model}", missed=left, latency_ms=round((time.perf_counter() - start) * 1000))
+    return out, meta

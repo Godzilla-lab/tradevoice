@@ -152,14 +152,15 @@ def budget(seconds):
 
 
 def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, models=None, deadline=None, retries=0,
-         shots=None, schema=None):
+         shots=None, schema=None, long=False):
     """Return (text, model_used). Tries each configured model (or `models`) until one answers.
     `deadline` (seconds, default LLM_DEADLINE=30) caps the TOTAL wait across all models, so a live demo never
     hangs: when it runs out the caller falls back to the offline rules.
     `shots`: worked examples [(user, assistant), ...] given to N-ATLaS only (an 8B model gains ~10 points from
     examples, independent AfroBench evaluation; the big cloud models don't need the extra tokens).
     `schema`: a JSON schema N-ATLaS must follow (vLLM guided decoding: always valid JSON and valid tool names);
-    other models just get the prompt, and the caller checks what comes back."""
+    other models just get the prompt, and the caller checks what comes back.
+    `long`: a long answer (a whole list): N-ATLaS gets `timeout`, not the shorter NATLAS_TIMEOUT."""
     pinned = models is not None
     models = list(models or (VISION_MODELS if kind == "vision" else LLM_MODELS))
     if kind == "llm" and natlas_on() and not pinned and "natlas" not in models:
@@ -199,7 +200,7 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
         if SHOTS_FOR == "all" or model in SHOTS_FOR.split(","):
             msgs = _with_shots(messages, shots)
         if model == "natlas":
-            wait = min(float(os.getenv("NATLAS_TIMEOUT", timeout)), budget)
+            wait = min(timeout if long else float(os.getenv("NATLAS_TIMEOUT", timeout)), budget)
             temp = NATLAS_TEMPERATURE
             extra = {"extra_body": {"repetition_penalty": NATLAS_REPETITION_PENALTY,
                                     "chat_template_kwargs": {"date_string": time.strftime("%d %b %Y")}}}

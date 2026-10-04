@@ -343,6 +343,37 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       await page.waitForFunction(() => /1 line saved/.test(document.querySelector("#thr").textContent), null, { timeout: 5000 });
     });
     await page.unroute("**/api/ask/photo"); await page.unroute("**/api/save_rows"); await page.unroute("**/api/speak/*");
+    const LIST = "# Name Amount owed Chinedu ₦15,000 Aisha ₦45,000 Tunde ₦8,500 Akinwande ₦200,000 Victor 500,000 mike 7m";
+    await check("Ask: a pasted list with N-ATLaS off: an honest line, never one guessed number", async () => {
+      const n = await answers().count();
+      await page.fill("#aq", LIST); await page.press("#aq", "Enter");
+      const a = await nextAnswer(n);
+      if (!/can't read a long list right now/.test(a) || /200,000/.test(a)) throw new Error(a);
+    });
+    saved = null;
+    await page.route("**/api/ask", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      t: "I found 3 people who owe you, ₦7,060,000 in all. Check them before I save.", n: null, lang: "English", say: "",
+      speak: null, pending: false, act: "scan",
+      rows: [{ save: true, type: "credit_sale", amount: 15000, customer: "Chinedu", item: "", line: "Chinedu ₦15,000" },
+             { save: true, type: "credit_sale", amount: 45000, customer: "Aisha", item: "", line: "Aisha ₦45,000" },
+             { save: false, type: "credit_sale", amount: 7000000, customer: "Mike", item: "", line: "mike 7m" }] }) }));
+    await page.route("**/api/save_rows", route => { saved = route.request().postDataJSON(); route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ saved: 2, problems: [] }) }); });
+    await check("Ask: a list read by N-ATLaS: 'Check the lines' lists every person; only the ticked ones are saved", async () => {
+      const n = await answers().count();
+      await page.fill("#aq", LIST); await page.press("#aq", "Enter");
+      const a = await nextAnswer(n);
+      if (!/I found 3 people who owe you/.test(a)) throw new Error(a);
+      await page.locator("#thr [data-a=achk]").last().click();
+      await page.waitForSelector(".ov.on .ln", { timeout: 5000 });
+      if ((await page.locator(".ov.on .ln").count()) !== 3) throw new Error("lines");
+      if ((await page.locator(".ov.on .ln.u").count()) !== 1) throw new Error("Mike should need a look");
+      await page.click(".ov.on #sv");
+      for (let i = 0; i < 20 && !saved; i++) await sleep(250);
+      const ticked = saved && saved.rows.filter(r => r.save).map(r => r.customer).join(",");
+      if (ticked !== "Chinedu,Aisha") throw new Error(JSON.stringify(saved));
+      await page.waitForFunction(() => /2 lines saved/.test(document.querySelector("#thr").textContent), null, { timeout: 5000 });
+    });
+    await page.unroute("**/api/ask"); await page.unroute("**/api/save_rows");
     await check("Ask: the chat is kept on this phone, per account", async () => {
       const h = await page.evaluate(() => JSON.parse(localStorage.getItem("tv-ask-" + TVL.A.phone) || "[]"));
       if (h.length < 12) throw new Error(`${h.length} messages kept`);

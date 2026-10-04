@@ -22,7 +22,7 @@ import clock
 import insights
 import ledger
 import tts
-from extract import extract, fold, parse_amount, parse_due, rule_extract, type_is_explicit
+from extract import extract, fold, is_list, parse_amount, parse_due, read_list, rule_extract, type_is_explicit
 from extract import parse_customer as extract_customer
 
 LANGS = askbook.LANGS
@@ -135,15 +135,15 @@ SAY = {
                     "Igbo": "Ana m agbakọ uru gị site n'ihe i rere na ihe i mefuru, ya mere anaghị m echekwa ya dị ka otu "
                             "ahịrị. Taa akwụkwọ gị na-ekwu: ahịa {s}, mmefu {e}, ya bụ {p}. Gwa m ihe i rere na ihe i mefuru."},
     # things TradeVoice can't see from here
-    "cant_see": {"English": "I can't see that here. Send a photo of it with the + button, or tell me each one, like: "
+    "cant_see": {"English": "I can't see that here. Send a photo of it with the + button, paste the list here, or tell me each one, like: "
                             "Mama Ngozi owes ₦5,000.",
-                 "Pidgin": "I no fit see am for here. Send photo of am with the + button, or tell me one by one, like: "
+                 "Pidgin": "I no fit see am for here. Send photo of am with the + button, paste the list here, or tell me one by one, like: "
                            "Mama Ngozi dey owe ₦5,000.",
-                 "Yoruba": "Mi ò lè rí i níbí. Fi fọ́tò rẹ̀ ránṣẹ́ pẹ̀lú bọ́tìnnì +, tàbí sọ wọ́n lọ́kọ̀ọ̀kan, bíi: "
+                 "Yoruba": "Mi ò lè rí i níbí. Fi fọ́tò rẹ̀ ránṣẹ́ pẹ̀lú bọ́tìnnì +, lẹ àkọsílẹ̀ náà síbí, tàbí sọ wọ́n lọ́kọ̀ọ̀kan, bíi: "
                            "Mama Ngozi jẹ mí ₦5,000.",
-                 "Hausa": "Ba zan iya ganin sa a nan ba. Aiko hotonsa da maɓallin +, ko ka faɗa min ɗaya bayan ɗaya, kamar: "
+                 "Hausa": "Ba zan iya ganin sa a nan ba. Aiko hotonsa da maɓallin +, liƙa jerin a nan, ko ka faɗa min ɗaya bayan ɗaya, kamar: "
                           "Mama Ngozi tana bina ₦5,000.",
-                 "Igbo": "Enweghị m ike ịhụ ya ebe a. Ziga foto ya site na bọtịnụ +, ma ọ bụ gwa m otu otu, dị ka: "
+                 "Igbo": "Enweghị m ike ịhụ ya ebe a. Ziga foto ya site na bọtịnụ +, mado ndepụta ahụ ebe a, ma ọ bụ gwa m otu otu, dị ka: "
                          "Mama Ngozi ji m ₦5,000."},
     "left_out": {"English": "I left out the other amount ({a} or {b}?). Say it on its own if you want it saved.",
                  "Pidgin": "I no use the other money ({a} or {b}?). Talk am alone if you wan make I save am.",
@@ -569,6 +569,22 @@ def _like_before(rec, old, said):
                 rec[k] = None
     elif not old.get("customer") and not rec.get("item"):
         rec["item"] = " ".join(words).lower()
+
+
+def _many(text, lang, today):
+    """Many records in one message: N-ATLaS reads every one, code checks them, the trader ticks and saves them in
+    the line check (nothing is saved here, no draft). With no AI, it says so instead of guessing one number."""
+    import photo
+
+    recs, meta = read_list(text, today)
+    if not recs:
+        out = _out(photo.LIST_SAY["cant"][lang], lang, english=photo.LIST_SAY["cant"]["English"])
+        return out
+    rows = photo.list_rows(recs)
+    out = _out(photo.list_summary(rows, meta["missed"], lang), lang,
+               english=photo.list_summary(rows, meta["missed"]) if lang != "English" else None)
+    out["rows"], out["act"] = photo.plain_checks(rows, lang), "scan"
+    return out
 
 
 def _same(a, b):
@@ -1077,6 +1093,8 @@ def reply(text, state=None, today=None, shop="your shop"):
 
         return _out(tax.chat_answer(lang, insights.year_record(today=today)[0]), lang,
                     english=tax.chat_answer("English") if lang != "English" else None)
+    if is_list(text) and not QUESTION.search(t):
+        return _many(text, lang, today)   # a list in one message ("Chinedu ₦15,000 Aisha ₦45,000 …"): every line
     if amount is None:
         import assistant
 

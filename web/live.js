@@ -610,6 +610,10 @@ button.tvc-say{text-decoration:none}
         line(d);
         loadBook();   // a yes saved it: the book behind the sheet is already up to date when it closes
         if (d.saved) toast(esc((d.text || "").replace(/\*/g, "").split("\n")[0]), async () => { await api("/api/v2/undo_last", { body: {} }); loadBook(); });
+        if (d.rows && d.rows.length) {   // a list said in one go: say how many, then the lines to check (nothing saved yet)
+          if (next) next.stop();
+          await speak(d.speak); set("rest"); shut(o); checkRows(d.rows); break;
+        }
         if (next && next.spoke) { carry = next; continue; }   // you were talking: listen on, the reply stays on screen
         if (next) next.stop();
         await speak(d.speak);
@@ -752,6 +756,7 @@ button.tvc-say{text-decoration:none}
     if (!r.ok) return { t: r.status === 0 && offline() ? noNet : r.status === 0 || r.status >= 500 ? slow : "Sorry, something went wrong. Try again." };
     const d = r.data, rep = { t: d.t, l: d.lang, sv: d.say || "" };
     if (d.n) rep.n = d.n;
+    if (d.rows && d.rows.length) { rep.act = "scan"; rep.rows = d.rows; }   // a pasted list: "Check the lines"
     if (!d.pending) loadBook();          // a "yes" in the chat may have saved a record: Home and Customers update
     return rep;
   };

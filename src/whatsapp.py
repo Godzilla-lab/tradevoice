@@ -56,7 +56,7 @@ SAY = {
                    "Yoruba": "Mo ka ìlà {n}:", "Hausa": "Na karanta layi {n}:", "Igbo": "Agụrụ m ahịrị {n}:"},
     "photo_help": "Tap *Save* to save every line not marked *Skip*. To fix one, reply like *3 = 40k*. To skip one, reply *no 3*.",
     "photo_none": "I couldn't find money records in this photo. Try a flat page, good light, the whole page in view.",
-    "photo_saved": "Saved {n} record{s} from your photo.",
+    "photo_saved": "Saved {n} record{s} from your {what}.",
     "photo_cancel": "OK, I didn't save anything from the photo.",
     "busy": "One moment…",
     "cant_hear": "I couldn't hear that voice note. Try again closer to the phone, or type it.",
@@ -306,7 +306,7 @@ def _photo_command(phone, text, st):
         res = photo.save(rows)
         st["photo_rows"] = None
         n = res["saved"]
-        send_text(phone, SAY["photo_saved"].format(n=n, s="" if n == 1 else "s")
+        send_text(phone, SAY["photo_saved"].format(n=n, s="" if n == 1 else "s", what=st.pop("rows_from", None) or "photo")
                   + ("\n" + "; ".join(res["problems"]) if res["problems"] else ""))
         return True
     if converse.NO.match(t) or t in ("cancel", "p_cancel"):
@@ -452,6 +452,10 @@ def handle(msg):
         r = converse.reply(text, st, shop=os.getenv("SHOP_NAME", "my shop"))
         if kind == "text" and r["lang"] in ("Yoruba", "Hausa", "Igbo") and r["lang"] != u["lang"]:
             set_user(phone, lang=r["lang"])  # they wrote in another of our languages: hear voice notes in it too
+        if r.get("rows"):   # a list in one message: the lines to check, like a photo (yes / no / "3 = 40k" / "no 3")
+            st["photo_rows"], st["rows_from"] = r["rows"], "list"
+            return send_buttons(phone, f"{r['text']}\n\n{photo.as_text(r['rows'])}\n\n{SAY['photo_help']}",
+                                [("p_save", "Save"), ("p_cancel", "Cancel")])
         return _reply(phone, r, u, kind)
 
 
