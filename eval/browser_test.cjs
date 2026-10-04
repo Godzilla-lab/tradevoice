@@ -202,6 +202,28 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
     await page.keyboard.press("Escape");
     await page.evaluate(() => document.querySelectorAll(".ov").forEach(o => o.remove()));
 
+    /* ------------------------------------------------------------ Home: Today / Week / Month / Year / 60 days */
+    await tab("home");
+    await check("Home: the period switch (Today, Week, Month, Year, 60 days), Today first", async () => {
+      const labels = await page.locator("#home .perseg button").allTextContents();
+      if (labels.join("|") !== "Today|Week|Month|Year|60 days") throw new Error(labels.join("|"));
+      return /Today/.test(await page.locator("#home h1").textContent()) && (await page.locator("#home .hero p").first().textContent()) === "Net today";
+    });
+    await check("Home: Week asks the server for this week; title and label follow; money in matches the server", async () => {
+      const resp = page.waitForResponse(r => /\/api\/v2\/book\?period=week/.test(r.url()));
+      await page.click('#home [data-per="week"]');
+      const d = await (await resp).json();
+      await page.waitForFunction(() => /This week/.test(document.querySelector("#home h1").textContent));
+      if ((await page.locator("#home .hero p").first().textContent()) !== "Net this week") throw new Error("label");
+      if (!(await page.locator("#home .hero").textContent()).includes(naira(d.in))) throw new Error("money in " + d.in);
+      if (d.period !== "week") throw new Error(JSON.stringify(d).slice(0, 80));
+    });
+    await check("Home: the choice is kept; back to Today", async () => {
+      if (await page.evaluate(() => localStorage.getItem("tv-per")) !== "week") throw new Error("not kept");
+      await page.click('#home [data-per="today"]');
+      await page.waitForFunction(() => document.querySelector("#home .hero p").textContent === "Net today");
+    });
+
     /* ------------------------------------------------------------ Ask: the chat with your book (design 3) */
     await tab("ask");
     const answers = () => page.locator("#thr .ab:not(.u):not(.ty)");

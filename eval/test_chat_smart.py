@@ -139,6 +139,10 @@ check("a very big amount marks the card's amount for a second look", "amount" in
 for said in ["I made 20k profit today", "we gain 15000 today", "Profit today na 7k"]:
     r = converse.reply(said, converse.new_state())["text"]
     check(f"profit talk explained, not saved: '{said}'", r.startswith(("I work out your profit", "Na me dey calculate")), r)
+for said in ["ere m akwa abuo 10800", "Mama Tunde gain 5k discount"]:   # Igbo "ere m" = I sold; not profit talk
+    s9 = converse.new_state()
+    converse.reply(said, s9)
+    check(f"not profit talk, still a record: '{said}'", bool(s9.get("pending")), s9.get("pending"))
 r = converse.reply("How much profit did I make today?", converse.new_state())["text"]
 check("'How much profit did I make today?' is still answered from the book", "₦" in r and "I work out" not in r, r)
 r = converse.reply("I sold rice 5000, profit 1000", converse.new_state())["text"]

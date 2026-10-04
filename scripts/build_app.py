@@ -129,6 +129,10 @@ PATCHES = [
     ("gave", 'amtSheet("You gave",v=>{c.b+=v;c.h.unshift(["Sold on credit",v,"Today"]);all();toast(`${f(v)} added. ${first(c.n)} owes ${f(c.b)}.`)});',
      'amtSheet("You gave",v=>TVL.gave(c,v));'),
     # --- Ask: anything the quick answers don't cover goes to N-ATLaS
+    # --- Home: Today / Week / Month / Year / 60 days (the design's own segmented switch; web/live.js keeps the choice
+    #     and asks the server for that period's money in / money out)
+    ("home period", '$("#home").innerHTML=`<h1 class="lt">${t("today")}<small>${gt()}, ${nm()}</small></h1><div class="hero"><p>Net today</p>',
+     '$("#home").innerHTML=`<h1 class="lt">${window.TVL?TVL.perTitle():t("today")}<small>${gt()}, ${nm()}</small></h1>${window.TVL?TVL.perSeg():""}<div class="hero"><p>${window.TVL?TVL.netLabel():"Net today"}</p>'),
     # --- Ask chat: answers, photos and voice come from the server (web/live.js gives areply / aimg / AX.avoice
     #     their real versions); the design's own guesser and fake photo reader are not used
     ("ask answer", 'if(im)rep=await aimg();else{await sleep(650);rep=areply(text)}',

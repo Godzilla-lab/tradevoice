@@ -38,7 +38,8 @@ NO = re.compile(r"^\s*(no|nope|cancel|no be so|leave am|forget am|rara|ko to|a'?
 EVENT_MONEY = re.compile(r"\b(spent|spend|sold|sell|paid|pay|owe|owes|bought|buy|collect|took|carry)\b")
 ONLY = re.compile(r"^\s*(?:yes\W+)?(?:save|keep)\b.*\bonly\b|^\s*only\b")   # "save Dino only" / "only Mike"
 AND_MORE = re.compile(r"^\s*(and|also|plus|then|another one|another|again|&|\+)\b")    # "and Mike owes me 300k"
-PROFIT_SAID = re.compile(r"\b(profit|profits|gain|gained|ere|riba|uru)\b")
+# "profit" said outright (Igbo "ere m" = I sold and "uru" are not used: they clash with sales words)
+PROFIT_SAID = re.compile(r"\b(profit|profits|riba)\b|\b(i|we)( don)? (gain|gained)\b")
 PROFIT_ASKED = re.compile(r"\bhow much\b|\bwhat\b|\bwetin\b|\?|\bmelo\b|\belo\b|\bnawa\b|\bole\b")
 CANT_SEE = re.compile(r"\bi (just |don |have |'ve )?(share|shared|send|sent|upload|uploaded|forward|forwarded|attach|attached)"
                       r"\b.{0,30}\b(list|file|excel|sheet|picture|pic|photo|screenshot|document|message|it|am)\b"

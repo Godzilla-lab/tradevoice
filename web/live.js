@@ -50,8 +50,27 @@
       delAt: m.delAt ? Date.parse(m.delAt) : undefined, created: Date.parse(m.created) || Date.now() };
   }
 
+  /* Home's period: Today / Week / Month / Year / 60 days (kept on this phone). Money in and out are added up by the
+     server for that period; the customers and what they owe never depend on it. */
+  const PER = ["today", "week", "month", "year", "60"];
+  const PER_SEG = { en: ["Today", "Week", "Month", "Year", "60 days"], yo: ["Òní", "Ọ̀sẹ̀", "Oṣù", "Ọdún", "Ọjọ́ 60"],
+    ha: ["Yau", "Mako", "Wata", "Shekara", "Kwana 60"], ig: ["Taa", "Izu", "Ọnwa", "Afọ", "Ụbọchị 60"] };
+  const PER_TITLE = { en: [null, "This week", "This month", "This year", "Last 60 days"],
+    yo: [null, "Ọ̀sẹ̀ yìí", "Oṣù yìí", "Ọdún yìí", "Ọjọ́ 60 sẹ́yìn"], ha: [null, "Wannan mako", "Wannan wata", "Bana", "Kwanaki 60 da suka wuce"],
+    ig: [null, "Izu a", "Ọnwa a", "Afọ a", "Ụbọchị 60 gara aga"] };
+  const NET = ["Net today", "Net this week", "Net this month", "Net this year", "Net, last 60 days"];
+  let per = "today";
+  try { per = PER.includes(localStorage.getItem("tv-per")) ? localStorage.getItem("tv-per") : "today"; } catch (e) {}
+  const pi = () => PER.indexOf(per), lk = () => (PER_SEG[L] ? L : "en");
+  { const s = document.createElement("style"); s.textContent = ".perseg{margin:0 0 var(--s3)}.perseg button{flex:1}"; document.head.append(s); }
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-per]"); if (!b) return;
+    per = b.dataset.per; try { localStorage.setItem("tv-per", per); } catch (x) {}
+    all(); loadBook();
+  });
+
   async function loadBook() {
-    const r = await api("/api/v2/book");
+    const r = await api("/api/v2/book?period=" + per);
     if (!r.ok) return;
     const openId = C[cur] && C[cur].id, hist = {};
     C.forEach(c => { if (c.id && c.full) hist[c.id] = c.h; });   // full histories already opened stay
@@ -71,6 +90,9 @@
 
   const TVL = window.TVL = {
     demo, A: null, voiceOn, say,
+    perTitle: () => pi() ? PER_TITLE[lk()][pi()] : t("today"),
+    netLabel: () => NET[pi()],
+    perSeg: () => `<div class="seg perseg" role="group" aria-label="Period">${PER.map((p, i) => `<button data-per="${p}" class="${p == per ? "on" : ""}" aria-pressed="${p == per}">${PER_SEG[lk()][i]}</button>`).join("")}</div>`,
     async boot() {
       const r = await api("/api/v2/me");
       if (r.ok) {

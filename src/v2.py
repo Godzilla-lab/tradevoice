@@ -484,8 +484,14 @@ def _due_label(iso, today):
     return f"{d.day} {d.strftime('%b')}"
 
 
+PERIODS = {"today": lambda d: d, "week": lambda d: d - dt.timedelta(days=d.weekday()), "month": lambda d: d.replace(day=1),
+           "year": lambda d: d.replace(month=1, day=1), "60": lambda d: d - dt.timedelta(days=59)}
+
+
 @router.get("/api/v2/book")
-def book(request: Request):
+def book(request: Request, period: str = "today"):
+    """The customers and Home's money in / money out for the period the trader picked (Today, Week, Month, Year,
+    60 days; weeks start on Monday)."""
     _phone(request)
     today = dt.date.today()
     out = []
@@ -506,8 +512,10 @@ def book(request: Request):
         e = last.get(r["id"])
         out.append({"id": r["id"], "n": r["name"], "b": round(r.get("owes_me") or 0), "late": r.get("days_late") or 0,
                     "due": due, "h": [], "last": _h_row(e, today) if e else None})
-    s = ledger.day_summary(today)
-    return {"customers": out, "in": round(s["money_in"]), "out": round(s["money_out"]), "count": s["count"]}
+    start = PERIODS.get(period, PERIODS["today"])(today)
+    s = ledger.money_between(start, today)
+    return {"customers": out, "in": round(s["money_in"]), "out": round(s["money_out"]), "count": s["count"],
+            "period": period if period in PERIODS else "today", "from": start.isoformat()}
 
 
 @router.get("/api/v2/customer/{cid}")

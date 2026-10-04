@@ -641,6 +641,17 @@ def expense_type(entry):
     return "Other"
 
 
+def money_between(start, end):
+    """Money that really moved between two dates (inclusive), like day_summary's: in = cash sales + debts paid back
+    + loans taken; out = spending + paying suppliers back (credit sales and goods on credit are not cash)."""
+    with conn() as c:
+        rows = [dict(r) for r in c.execute("SELECT * FROM entries WHERE substr(created_at,1,10) BETWEEN ? AND ?",
+                                           (start.isoformat(), end.isoformat()))]
+    tot = _totals(rows)
+    return {"money_in": tot["sale"] + tot["payment_received"] + tot["loan_taken"],
+            "money_out": tot["expense"] + tot["payment_made"], "count": len(rows)}
+
+
 def period_summary(start, end):
     """Money in and out between two dates (inclusive). All numbers from the trader's own confirmed records."""
     with conn() as c:
