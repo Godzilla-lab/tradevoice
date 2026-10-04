@@ -30,7 +30,7 @@ import ledger
 import photo
 import tts
 import ui_text
-from extract import TYPES
+from extract import TYPES, fold
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root (web/ lives there)
 SHOP_NAME = os.getenv("SHOP_NAME", "Chioma Stores")
@@ -367,6 +367,16 @@ def say(b: Said):
 # conversation needs to follow on ("how much does SHE owe?"), per open page, and forgets it on "Clear history".
 
 ASK_PHOTO = {
+    "not_record": {"English": "This looks like {what}, not a page from your record book. Send a photo of your book or a "
+                             "receipt, and I'll read every line.",
+                   "Pidgin": "Dis one be like {what}, e no be page from your record book. Send photo of your book or "
+                             "receipt, I go read every line.",
+                   "Yoruba": "Èyí dà bí {what}, kì í ṣe ojú ìwé àkọsílẹ̀ rẹ. Fi fọ́tò ìwé rẹ tàbí rìsíìtì ránṣẹ́, màá "
+                             "ka gbogbo ìlà.",
+                   "Hausa": "Wannan kamar {what} ne, ba shafin littafin ajiyarka ba. Aiko hoton littafinka ko rasit, zan "
+                            "karanta kowane layi.",
+                   "Igbo": "Nke a dị ka {what}, ọ bụghị peeji akwụkwọ ndekọ gị. Zitere m foto akwụkwọ gị ma ọ bụ "
+                           "risiti, m ga-agụ ahịrị ọ bụla."},
     "found": {"English": "I found {n} lines. Check them before I save.", "Pidgin": "I see {n} lines. Check dem before I save.",
               "Yoruba": "Mo rí ìlà {n}. Ṣàyẹ̀wò wọn kí n tó kọ wọ́n sílẹ̀.", "Hausa": "Na ga layuka {n}. Duba su kafin in adana.",
               "Igbo": "Ahụrụ m ahịrị {n}. Lelee ha tupu m chekwaa."},
@@ -427,8 +437,95 @@ class AskIn(BaseModel):
     shop: str = ""
 
 
+JOBS = {}   # a long answer: job id -> (done event, result box, started)
+
+
+def _in_time(fn):
+    """Answer within ANSWER_WAIT_SECONDS (25 s): iPhone Safari gives up on a request after 60 s and the page called
+    that "No network". A longer piece of work (a sleeping N-ATLaS, a photo, a long list) goes on in the background
+    and the page collects it from /api/job/<id>."""
+    import contextvars
+
+    jid, ev, box = uuid.uuid4().hex, threading.Event(), {}
+    ctx = contextvars.copy_context()   # the trader's own book goes with the work
+
+    def work():
+        try:
+            box["result"] = ctx.run(fn)
+        except HTTPException as e:
+            box["error"] = (e.status_code, e.detail)
+        except Exception as e:  # noqa: BLE001
+            print(f"answer failed: {type(e).__name__}: {e}")
+            box["error"] = (500, "Sorry, something went wrong. Try again.")
+        ev.set()
+    threading.Thread(target=work, daemon=True).start()
+    if ev.wait(float(os.getenv("ANSWER_WAIT_SECONDS", "25"))):
+        return _job_out(box)
+    now = time.time()
+    for k in [k for k, (_, _, t0) in JOBS.items() if now - t0 > 900]:
+        JOBS.pop(k, None)
+    JOBS[jid] = (ev, box, now)
+    return {"job": jid}
+
+
+def _job_out(box):
+    if "error" in box:
+        raise HTTPException(*box["error"])
+    return box["result"]
+
+
+@app.get("/api/job/{jid}")
+def job(jid: str):
+    """A long answer, collected by the page: waits up to 20 s, then {"job": id} again if it is still being worked on."""
+    j = JOBS.get(jid)
+    if not j:
+        raise HTTPException(404, "that answer is gone; ask again")
+    ev, box, _ = j
+    if not ev.wait(20):
+        return {"job": jid}
+    JOBS.pop(jid, None)
+    return _job_out(box)
+
+
+def _rules_first(text, state):
+    """Messages the record flow must answer itself (it holds what is waiting): yes / no / undo / save one only /
+    "no, that's wrong" after a save / a pasted list / an answer to "Which Alhaji?" or "Say the amount again" / the
+    time / hello, thanks, help (fixed words, no model needed)."""
+    import clock
+
+    t = fold(text)
+    return bool(converse._drafts(state) or state.get("choose") or state.get("heard_check")
+                or converse.YES.match(t) or converse.NO.match(t) or converse.UNDO.match(t) or converse.ONLY.search(t)
+                or (converse._last_saved(state) and converse.WRONG_AFTER.match(t)) or converse.is_list(text)
+                or clock.asked(t) or converse.THANKS.match(t) or converse.GREET.match(t) or converse.HELP.search(t))
+
+
+def _ask_brain(text, state, shop, lang):
+    """The Ask chat: the model (agent.py) answers, with the book's tools; a new record, the commands above, or a
+    model that fails go to the record flow and the rules (converse.reply)."""
+    import agent
+    import llm
+
+    if agent.available(lang) and not _rules_first(text, state):
+        with llm.budget(float(os.getenv("ASK_LLM_SECONDS", "45"))):
+            a = agent.answer(text, state, lang)
+        if a and not a.get("record"):
+            if not converse.on_topic(text) and not a.get("tools"):   # never out of context, whatever the model says
+                said = converse.SAY["off_topic"].get(lang, converse.SAY["off_topic"]["English"])
+                return converse._out(said, lang, english=converse.SAY["off_topic"]["English"])
+            return a
+    with llm.budget(float(os.getenv("ASK_AI_SECONDS", "20"))):   # an answer in time, even while N-ATLaS wakes up
+        r = _safe_reply(text, state, shop, lang)
+    agent.remember(state, text, r.get("text") or "")
+    return r
+
+
 @app.post("/api/ask")
 def ask_chat(b: AskIn):
+    return _in_time(lambda: _ask(b))
+
+
+def _ask(b):
     """One question in the Ask chat -> {n, t, lang, say, speak}. The same brain as everywhere (the book, the tools,
     5 languages, N-ATLaS); a record said here waits for "yes" like anywhere else.
     The chat answers in words, even to a voice question. The spoken answer costs an Intron call, so it is made only
@@ -442,12 +539,10 @@ def ask_chat(b: AskIn):
     if check:
         state["heard_check"] = check
     t0 = time.perf_counter()
-    import llm
-
-    with llm.budget(float(os.getenv("ASK_AI_SECONDS", "20"))):   # an answer in time, even while N-ATLaS wakes up
-        r = _safe_reply(text, state, b.shop, b.lang)
+    r = _ask_brain(text, state, b.shop, b.lang)
     out = _reply_json(r, state, heard=text if b.voice else None, live=True)   # no buttons in a chat: "Should I save it?"
-    events.log("understand", channel="web", lang=b.lang, ms=(time.perf_counter() - t0) * 1000)
+    events.log("understand", channel="web", lang=b.lang, ms=(time.perf_counter() - t0) * 1000,
+               engine=r.get("engine"))
     words = _ask_text(r, out)
     said = SPEAK.get(out["speak"], (None,))[0] if out.get("speak") else None
     return {"t": words, "n": None if r.get("rows") else _headline(words), "lang": out["lang"],
@@ -463,6 +558,10 @@ def ask_photo(file: UploadFile = File(...), consent: str = Form(""), lang: str =
         raise HTTPException(400, "consent needed")
     lang = lang if lang in ASK_PHOTO["found"] else "English"
     path = _upload(file, os.path.splitext(file.filename or "")[1] or ".jpg")
+    return _in_time(lambda: _ask_photo(path, lang))   # the vision model can take a while: never "No network"
+
+
+def _ask_photo(path, lang):
     try:
         res = photo.read(path)
     except Exception as e:  # noqa: BLE001
@@ -470,6 +569,8 @@ def ask_photo(file: UploadFile = File(...), consent: str = Form(""), lang: str =
         return {"t": ASK_PHOTO["cant"][lang], "rows": [], "act": None, "lang": lang}
     finally:
         os.remove(path)   # the photo is deleted as soon as it is read
+    if res.get("not_record"):   # an advert, a person, a product: said, nothing read into the book
+        return {"t": ASK_PHOTO["not_record"][lang].format(what=res["not_record"]), "rows": [], "act": None, "lang": lang}
     rows = res.get("rows") or []
     key = "none" if not rows else "found1" if len(rows) == 1 else "found"
     return {"t": ASK_PHOTO[key][lang].format(n=len(rows)), "rows": rows, "act": "scan" if rows else None, "lang": lang}

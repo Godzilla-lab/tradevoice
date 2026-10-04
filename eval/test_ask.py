@@ -172,16 +172,16 @@ def slow_client(kind, timeout, retries=0, model=None):
     return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
 
 
-os.environ.update(NATLAS_URL="http://natlas/v1", ASK_AI_SECONDS="6", NATLAS_TIMEOUT="60")
+os.environ.update(NATLAS_URL="http://natlas/v1", ASK_AI_SECONDS="6", ASK_LLM_SECONDS="6", NATLAS_TIMEOUT="60")
 real_client, llm._client, llm._resting = llm._client, slow_client, {}
 t0 = time.time()
 r = ask("Sold 2 bags of rice for 90000", session="slow")
 took = time.time() - t0
-check(f"a slow AI: answered in {took:.0f} s (limit 6 s + a little), by the rules", took < 10 and r["pending"]
+check(f"a slow AI: answered in {took:.0f} s (the model's 6 s + the rules' 6 s at most), by the rules", took < 16 and r["pending"]
       and "90,000" in r["t"], (took, r))
 check("…every AI call got only what was left of the 6 s", calls and max(calls) <= 6, calls)
 llm._client = real_client
-for k in ("NATLAS_URL", "ASK_AI_SECONDS", "NATLAS_TIMEOUT"):
+for k in ("NATLAS_URL", "ASK_AI_SECONDS", "ASK_LLM_SECONDS", "NATLAS_TIMEOUT"):
     os.environ.pop(k)
 
 # 11. live voice speed: N-ATLaS writes the record as guided JSON (short), and the reply is spoken in two parts

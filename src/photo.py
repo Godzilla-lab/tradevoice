@@ -13,6 +13,12 @@ def read(path):
     res = read_notebook(path)
     if not res["text"]:
         return {"rows": [], "lines": "", "engine": res["engine"]}
+    import re
+
+    m = re.match(r"\s*NOT_A_RECORD\s*:?\s*(.*)", res["text"], re.I | re.S)
+    if m:   # the vision model says it isn't a book page or receipt (an advert, a person…): say what it is
+        what = re.sub(r"[^\w\s,'-]", "", m.group(1).splitlines()[0] if m.group(1) else "").strip()[:60]
+        return {"rows": [], "lines": "", "engine": res["engine"], "not_record": what or "something else"}
     recs, meta = extract_many(res["text"])
     return {"rows": [row(r) for r in recs], "lines": res["text"], "engine": res["engine"],
             "brain": meta["engine"], "ms": res["latency_ms"] + meta["latency_ms"]}

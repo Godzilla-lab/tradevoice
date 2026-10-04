@@ -415,6 +415,12 @@ def handle(msg):
                 return send_text(phone, SAY["cant_read"])
             finally:
                 os.remove(path)  # the photo is deleted as soon as it is read
+            if res.get("not_record"):   # an advert, a person…: say what it is
+                import web
+
+                lang = st.get("lang", u["lang"])
+                return send_text(phone, web.ASK_PHOTO["not_record"].get(lang, web.ASK_PHOTO["not_record"]["English"])
+                                 .format(what=res["not_record"]))
             if not res["rows"]:
                 return send_text(phone, SAY["photo_none"])
             st["photo_rows"] = res["rows"]

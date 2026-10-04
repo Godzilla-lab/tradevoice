@@ -25,7 +25,9 @@ Examples:
 Sold 3 bags rice to Mama Tunde 45000 cr, pay Friday
 Iya Bisi ti san 12000 => Iya Bisi paid back 12000
 Na biya 3500 kudin mota => Expense: transport 3500
-Output ONLY the lines, nothing else. If there are no money records, output NONE."""
+Output ONLY the lines, nothing else. If there are no money records, output NONE.
+If the photo is NOT a record book page or a receipt (an advert, a person, a product, a screenshot of something else),
+output exactly one line: NOT_A_RECORD: <what it shows, in at most 8 English words, e.g. "an advert for a ring">"""
 
 # Used by eval/lang_check.py to measure how exactly a model copies text (letters + tone marks).
 COPY_PROMPT = ("Copy the text in this image EXACTLY, character for character, keeping every tone mark and "
@@ -58,7 +60,8 @@ def read_notebook(path):
     text, model = llm.chat([{"role": "user", "content": [
         {"type": "text", "text": PROMPT},
         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-    ]}], kind="vision", max_tokens=1000, timeout=int(os.getenv("VISION_TIMEOUT", "45")))
+    ]}], kind="vision", max_tokens=1000, timeout=int(os.getenv("VISION_TIMEOUT", "45")),
+       deadline=float(os.getenv("VISION_DEADLINE", "90")))   # the page waits in the background (web._in_time)
     if text.upper() == "NONE":
         text = ""
     return {"text": text, "latency_ms": round((time.perf_counter() - start) * 1000), "engine": f"vision:{model}"}

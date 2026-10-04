@@ -9,6 +9,13 @@
   const SID = "s" + Math.random().toString(36).slice(2);          // one conversation per open page
   const demo = /[?&]demo=1\b/.test(location.search);              // the design's test tools, only with ?demo=1
 
+  // a long answer (a sleeping N-ATLaS, a photo, a long list) comes back as {job}: collect it (each wait under 25 s,
+  // so the phone never gives up and calls it "no network")
+  async function collect(r) {
+    const until = Date.now() + 240000;
+    while (r.ok && r.data && r.data.job && Date.now() < until) r = await api(`/api/job/${r.data.job}`);
+    return r;
+  }
   async function api(path, opt = {}) {
     const o = { method: opt.method || (opt.body !== undefined || opt.form ? "POST" : "GET"), headers: {} };
     if (opt.form) o.body = opt.form;
@@ -899,6 +906,8 @@ button.tvc-say{text-decoration:none}
     const body = { session: SID, text: q, lang: lang(), voice, shop: A ? A.biz : "" };
     let r = await api("/api/ask", { body });
     if (r.status === 0 && !offline()) { await sleep(2000); r = await api("/api/ask", { body }); }   // a dropped line: once more
+    r = await collect(r);
+    if (r.ok && r.data.job) return { t: slow };
     if (!r.ok) return { t: r.status === 0 && offline() ? noNet : r.status === 0 || r.status >= 500 ? slow : "Sorry, something went wrong. Try again." };
     const d = r.data, rep = { t: d.t, l: d.lang, sv: d.say || "" };
     if (d.n) rep.n = d.n;
@@ -911,8 +920,9 @@ button.tvc-say{text-decoration:none}
     let file = TVL.pick; TVL.pick = null;
     if (!file) { const b = await (await fetch(im)).blob(); file = new File([b], "photo.jpg", { type: b.type || "image/jpeg" }); }
     const fd = new FormData(); fd.append("file", file, file.name || "photo.jpg"); fd.append("consent", "yes"); fd.append("lang", lang());
-    const r = await api("/api/ask/photo", { form: fd });
-    if (!r.ok) return { t: r.status === 0 ? noNet : "I couldn't read that photo. Try again." };
+    const r = await collect(await api("/api/ask/photo", { form: fd }));
+    if (r.ok && r.data.job) return { t: slow };
+    if (!r.ok) return { t: r.status === 0 && offline() ? noNet : r.status === 0 || r.status >= 500 ? slow : "I couldn't read that photo. Try again." };
     const rep = { t: r.data.t, l: r.data.lang };
     if (r.data.rows && r.data.rows.length) { rep.act = "scan"; rep.rows = r.data.rows; }
     return rep;
