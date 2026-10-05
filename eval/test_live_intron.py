@@ -185,6 +185,30 @@ with c.websocket_connect("/api/live/hear?lang=English") as ws:
     m = ws.receive_json()
 check("no consent: refused", m.get("type") == "error", m)
 
+# a trader who said yes to helping improve TradeVoice: the live-talk audio and the words heard are kept (as a WAV)
+import training  # noqa: E402
+kept, real_answer, real_keep = [], training.answer, training.keep_pcm
+training.answer = lambda phone=None: True
+training.keep_pcm = lambda pcm, lang="", heard=None, **k: kept.append((len(pcm), lang, heard))
+with c.websocket_connect("/api/live/hear?lang=English&consent=yes") as ws:
+    for _ in range(3):
+        ws.send_bytes(b"\1\0" * 1600)
+    ws.send_text(json.dumps({"type": "commit"}))
+    ws.receive_json()
+time.sleep(0.3)
+check("yes to improving: the live audio (every byte) and the words heard are kept",
+      kept and kept[0][0] == 3 * 3200 and kept[0][2] == {"text": "Mama Ngozi took rice 5000 on credit"}, kept)
+training.answer = lambda phone=None: None
+kept.clear()
+with c.websocket_connect("/api/live/hear?lang=English&consent=yes") as ws:
+    for _ in range(3):
+        ws.send_bytes(b"\1\0" * 1600)
+    ws.send_text(json.dumps({"type": "commit"}))
+    ws.receive_json()
+time.sleep(0.3)
+check("…not answered (or no): nothing kept", not kept, kept)
+training.answer, training.keep_pcm = real_answer, real_keep
+
 # 3. the live reply: N-ATLaS/our code answer, the voice streamed by Intron in pieces, played as each is ready
 started_old = []
 web._start_voice = lambda sid: started_old.append(sid)

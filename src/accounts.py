@@ -223,6 +223,11 @@ def delete_account(phone):
         for t in ("sessions", "logins", "users", "shares", "paylinks", "auto_runs", "store_wait"):
             if t in have:
                 c.execute(f"DELETE FROM {t} WHERE phone=?", (phone,))
+    try:
+        import training
+        training.erase(phone)   # voice notes and photos kept for training (only if they had said yes)
+    except Exception as e:  # noqa: BLE001
+        print(f"training copies not erased: {type(e).__name__}: {e}")
     path = ledger.book_file(phone)
     for f in (path, path + "-wal", path + "-shm", path + "-journal"):
         if os.path.exists(f):

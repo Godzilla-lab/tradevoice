@@ -54,7 +54,36 @@
     return { phone: m.phone, name: m.name, biz: m.biz, type: m.type, mk: m.mk, addr: m.addr, rc: m.rc, photo: m.photo,
       email: m.email, emailOk: m.emailOk, bank: m.bank, acctNo: m.acctNo, acctName: m.acctName, notif: m.notif,
       dev: (m.dev || []).map(d => ({ id: d.this ? "this" : d.id, name: d.name, t: Date.parse(d.t) || Date.now() })),
-      delAt: m.delAt ? Date.parse(m.delAt) : undefined, created: Date.parse(m.created) || Date.now() };
+      delAt: m.delAt ? Date.parse(m.delAt) : undefined, created: Date.parse(m.created) || Date.now(),
+      train: m.train === undefined ? null : m.train, trainAsked: !!m.trainAsked };
+  }
+
+  /* Help make TradeVoice better: a separate yes/no (never pre-ticked; no never limits the app). Yes keeps voice notes,
+     photos, live talk and chats for the team (/team) and training; no keeps nothing, and deletes what was kept.
+     Asked once after logging in; Me > "Help make TradeVoice better" changes it any time. */
+  const TRAIN = {
+    en: ["Help make TradeVoice better", "Can we keep your voice notes, photos and chats with TradeVoice? Our team checks them to fix mistakes and to train our AI to understand traders better. Only our team sees them, and we never sell them. You can turn this off any time in Me, and we delete what we kept.", "Yes, keep them", "No, thanks", "Thank you. You're helping make TradeVoice better.", "Done. We keep nothing, and deleted what we had kept.", "On", "Off"],
+    yo: ["Ràn wá lọ́wọ́ láti mú TradeVoice dára sí i", "Ṣé a lè tọ́jú àwọn ohùn rẹ, fọ́tò àti ìjíròrò rẹ pẹ̀lú TradeVoice? Ẹgbẹ́ wa máa ń wò wọ́n láti tún àṣìṣe ṣe àti láti kọ́ AI wa kí ó lè gbọ́ àwọn oníṣòwò dáadáa. Ẹgbẹ́ wa nìkan ló ń rí wọn, a kì í tà wọ́n. O lè pa á nígbàkígbà nínú ètò rẹ, a ó sì pa ohun tí a tọ́jú rẹ́.", "Bẹ́ẹ̀ni, ẹ tọ́jú wọn", "Rárá o, ẹ ṣé", "A dúpẹ́. O ń ràn TradeVoice lọ́wọ́.", "Ó ti parí. A kò tọ́jú nǹkan kan.", "Títàn", "Pípa"],
+    ha: ["Taimaka mana mu inganta TradeVoice", "Za mu iya ajiye saƙonnin muryarka, hotuna da hirarka da TradeVoice? Ƙungiyarmu tana duba su don gyara kurakurai da koyar da AI ɗinmu ya fahimci 'yan kasuwa sosai. Ƙungiyarmu kaɗai ke ganinsu, ba ma sayar da su. Kana iya kashe wannan kowane lokaci a cikin saitunanka, kuma za mu goge abin da muka ajiye.", "Eh, ajiye su", "A'a, na gode", "Mun gode. Kana taimakawa wajen inganta TradeVoice.", "An gama. Ba ma ajiye komai.", "A kunne", "A kashe"],
+    ig: ["Nyere anyị aka ime ka TradeVoice ka mma", "Anyị nwere ike idebe ozi olu gị, foto na mkparịta ụka gị na TradeVoice? Ndị otu anyị na-elele ha iji dozie mperi ma kuziere AI anyị ịghọta ndị ahịa nke ọma. Ọ bụ naanị ndị otu anyị na-ahụ ha, anyị anaghị ere ha. Ị nwere ike gbanyụọ ya mgbe ọ bụla na ntọala gị, anyị ga-ehichapụkwa ihe anyị debere.", "Ee, debe ha", "Mba, daalụ", "Daalụ. Ị na-enyere TradeVoice aka.", "Emechara. Anyị adịghị edebe ihe ọ bụla.", "Gbanyere", "Gbanyụrụ"],
+  };
+  const tw = i => (TRAIN[L] || TRAIN.en)[i];
+  function trainSheet() {
+    const o = sheet(`<h3>${tw(0)}</h3><p class="s">${tw(1)}</p><div class="btns"><button class="btn p w" id="ty">${tw(2)}</button><button class="btn w" id="tn">${tw(3)}</button></div>`);
+    const pick = async yes => {
+      const r = await api("/api/v2/training", { body: { yes } });
+      if (!r.ok) return toast("No network. Check your data and try again.");
+      if (A) { A.train = r.data.train; A.trainAsked = true; }
+      shut(o); all(); toast(tw(yes ? 4 : 5));
+    };
+    $("#ty", o).onclick = () => pick(true);
+    $("#tn", o).onclick = () => pick(false);
+    if (A && !A.trainAsked) { A.trainAsked = true; api("/api/v2/training", { body: { yes: null } }); }   // asked once
+  }
+  function askTrainOnce(tries = 0) {
+    if (!A || A.delAt || A.train !== null || A.trainAsked || TVL.demo) return;
+    if (document.querySelector(".ov") && tries < 10) return setTimeout(() => askTrainOnce(tries + 1), 3000);
+    if (!document.querySelector(".ov")) trainSheet();
   }
 
   /* Home's period: Today / 7D / 30D / 1Y / Custom (kept on this phone). Money in and out are added up by the server
@@ -184,7 +213,7 @@
         all(); await loadBook();
         if (A.delAt) return GO.restore();
         if (pin) return pinGate("unlock");
-        drop();
+        drop(); setTimeout(askTrainOnce, 2500);
       } else {
         A = TVL.A = null; C = []; inN = outN = 0; all();
         (st.get("tv-sess") || ss.get("tv-sess")) ? GO.login() : welcome();
@@ -195,18 +224,18 @@
       const r = await api("/api/auth/v2/signup", { body: { login_id: su.lid, pw: su.pw, name: a.name, biz: a.biz,
         type: a.type, mk: a.mk, lang: lang() } });
       if (!r.ok) return false;
-      A = TVL.A = fromServer(r.data.me); st.set("tv-sess", A.phone); ss.del("tv-sess"); return true;
+      A = TVL.A = fromServer(r.data.me); st.set("tv-sess", A.phone); ss.del("tv-sess"); setTimeout(askTrainOnce, 4000); return true;
     },
     async login(phone, pw, keep) {
       const r = await api("/api/auth/v2/login", { body: { phone, pw, keep } });
-      if (r.ok) { A = TVL.A = fromServer(r.data.me); if (r.data.delAt) A.delAt = Date.parse(r.data.delAt); loadBook(); return "ok"; }
+      if (r.ok) { A = TVL.A = fromServer(r.data.me); if (r.data.delAt) A.delAt = Date.parse(r.data.delAt); loadBook(); setTimeout(askTrainOnce, 2500); return "ok"; }
       return r.data.error === "missing" ? "missing" : r.status === 429 || r.data.locked ? "locked" : "wrong";
     },
     async loginCode(lid, keep) {
       const r = await api("/api/auth/v2/login_code", { body: { login_id: lid, keep } });
       if (!r.ok) return false;
       A = TVL.A = fromServer(r.data.me); if (r.data.delAt) A.delAt = Date.parse(r.data.delAt);
-      startSession(keep); loadBook(); return true;
+      startSession(keep); loadBook(); setTimeout(askTrainOnce, 2500); return true;
     },
     async reset(lid, pw) { const r = await api("/api/auth/v2/reset", { body: { login_id: lid, pw } }); return r.ok; },
     logout() { api("/api/auth/v2/logout", { body: {} }); },
@@ -994,5 +1023,7 @@ button.tvc-say{text-decoration:none}
   document.addEventListener("click", e => { const a = e.target.closest("[data-a=open]"); if (a) openDet(+a.dataset.i); });
   addEventListener("online", loadBook);
   TVL.loadBook = loadBook;
+  TVL.trainSheet = trainSheet;
+  TVL.trainRow = () => A ? [tw(0), A.train ? tw(6) : tw(7)] : [tw(0), ""];
 })();
 TVL.boot();

@@ -32,6 +32,7 @@ import converse
 import events
 import ledger
 import photo
+import training
 import tts
 import ui_text
 from extract import fold, parse_amount
@@ -403,13 +404,20 @@ def handle(msg):
         if not u["consent_at"]:
             if text == "consent:yes" or converse.YES.match(fold(text)):
                 set_user(phone, consent_at=dt.datetime.now().isoformat(timespec="seconds"))
-                return send_text(phone, ui_text.t("hello", u["lang"]))
+                send_text(phone, ui_text.t("hello", u["lang"]))
+                return ask_training(phone, u["lang"])
             return send_buttons(phone, ui_text.t("consent", u["lang"]),
                                 [("consent:yes", ui_text.t("agree", u["lang"])[:20])])
 
         st = _state(phone, u["lang"])
         t = fold(text)
         # 2) settings
+        if text in ("train:yes", "train:no"):   # help improve TradeVoice: keep voice notes, photos and chats, or not
+            yes = text == "train:yes"
+            training.set_answer(phone, yes)
+            return send_text(phone, ui_text.t("train_on" if yes else "train_off", u["lang"]))
+        if t in ("improve", "help improve", "training"):
+            return ask_training(phone, u["lang"])
         if t in ("voice off", "text only", "no voice"):
             set_user(phone, voice=0)
             return send_text(phone, SAY["voice_off"])
@@ -422,13 +430,14 @@ def handle(msg):
         # 3) photo of the notebook
         if kind == "image":
             send_text(phone, "" + ui_text.t("reading_photo", u["lang"]))
-            path = download(msg["image"]["id"], ".jpg")
+            path, res = download(msg["image"]["id"], ".jpg"), None
             try:
                 res = photo.read(path)
             except Exception as e:  # noqa: BLE001
                 print(f"whatsapp photo failed: {type(e).__name__}: {e}")
                 return send_text(phone, SAY["cant_read"])
             finally:
+                training.keep(path, "photo", u["lang"], res, phone=phone)   # only if they said yes to training
                 os.remove(path)  # the photo is deleted as soon as it is read
             if res.get("not_record"):   # an advert, a person…: say what it is
                 import web
@@ -443,7 +452,7 @@ def handle(msg):
 
         # 4) voice note -> text (Intron, in the trader's language)
         if kind == "audio":
-            path = download(msg["audio"]["id"], ".ogg")
+            path, heard = download(msg["audio"]["id"], ".ogg"), None
             try:
                 from asr import transcribe_auto
 
@@ -458,6 +467,7 @@ def handle(msg):
                 print(f"whatsapp voice-note failed: {type(e).__name__}: {e}")
                 return send_text(phone, SAY["cant_hear"])
             finally:
+                training.keep(path, "voice", u["lang"], heard, phone=phone)   # only if they said yes to training
                 os.remove(path)  # the voice note is deleted as soon as it is read
             if not text:
                 return send_text(phone, SAY["cant_hear"])
@@ -471,6 +481,8 @@ def handle(msg):
         _due_once(phone, st, u["lang"])
         st["queue_ok"] = True   # a chat: drafts said one after the other wait together ("save it all")
         r = converse.reply(text, st, shop=os.getenv("SHOP_NAME", "my shop"))
+        training.keep_turn("whatsapp_turn", text, r.get("text"), r.get("lang"), {"engine": r.get("engine"),
+                           "voice_note": kind == "audio"}, phone=phone)   # only if this trader said yes
         if kind == "text" and r["lang"] in ("Yoruba", "Hausa", "Igbo") and r["lang"] != u["lang"]:
             set_user(phone, lang=r["lang"])  # they wrote in another of our languages: hear voice notes in it too
         if r.get("rows"):   # a list in one message: the lines to check, like a photo (yes / no / "3 = 40k" / "no 3")
@@ -478,6 +490,24 @@ def handle(msg):
             return send_buttons(phone, f"{r['text']}\n\n{photo.as_text(r['rows'])}\n\n{SAY['photo_help']}",
                                 [("p_save", "Save"), ("p_cancel", "Cancel")])
         return _reply(phone, r, u, kind)
+
+
+def ask_training(phone, lang):
+    """The separate question: may the team keep this trader's voice notes, photos and chats to improve TradeVoice?"""
+    training.mark_asked(phone)
+    return send_buttons(phone, f"*{ui_text.t('train_title', lang)}*\n\n{ui_text.t('train_body', lang)}",
+                        [("train:yes", ui_text.t("train_yes", lang)[:20]),
+                         ("train:no", ui_text.t("train_no", lang)[:20])])
+
+
+def _ask_training_once(phone):
+    """Traders who agreed before this question existed: asked once, after their message has been answered."""
+    try:
+        u = user(phone)
+        if u.get("consent_at") and u.get("lang") and not training.asked(phone) and training.answer(phone) is None:
+            ask_training(phone, u["lang"])
+    except Exception as e:  # noqa: BLE001
+        print(f"training question not sent: {type(e).__name__}: {e}")
 
 
 def _ask_language(phone):
@@ -512,6 +542,8 @@ def _safe(msg):
     token = ledger.use_book(accounts.normalize(msg.get("from", "")) or "unknown")  # the sender's own book
     try:
         handle(msg)
+        if msg.get("from") and not _closing(msg["from"]):
+            _ask_training_once(msg["from"])
     except Exception as e:  # noqa: BLE001 - never crash the server on one bad message
         STATS["last_error"] = f"{type(e).__name__}: {e}"[:400]
         print(f"whatsapp message failed: {type(e).__name__}: {e}")

@@ -44,6 +44,9 @@ PATCHES = [
     ("delete toast", 'Account scheduled for deletion. Log in within 7 days to cancel.',
      'Account scheduled for deletion. Log in within 90 days to cancel.'),
     ("privacy link", 'priv:()=>toast("Privacy notice opens here.")', 'priv:()=>open("/privacy","_blank")'),
+    ("improve row", '${B("Privacy notice","","priv")}',
+     '${B("Privacy notice","","priv")}${window.TVL&&TVL.trainRow?B(...TVL.trainRow(),"train"):""}'),
+    ("improve action", 'del:delSheet};', 'del:delSheet,train:()=>TVL.trainSheet()};'),
     ("privacy at sign-up", 'I agree to the Terms and the Privacy Notice.',
      'I agree to the Terms and the <a href="/privacy" target="_blank" style="color:var(--accent)">Privacy Notice</a>.'),
     # --- 4 languages to choose (Pidgin is still understood: it is English's voice and the brain reads it)

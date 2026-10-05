@@ -158,6 +158,17 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (!/Welcome/.test(await toastText())) throw new Error("no welcome toast");
       await gone("#gate");
     });
+    await check("sign-up: then the separate 'Help make TradeVoice better' question; Yes is saved", async () => {
+      await page.waitForSelector(".ov.on #ty", { timeout: 15000 });
+      const t = await page.locator(".ov.on h3").textContent();
+      if (t !== "Help make TradeVoice better") throw new Error(t);
+      if (!(await page.locator(".ov.on #tn").count())) throw new Error("no 'No, thanks'");
+      await page.click(".ov.on #ty");
+      await page.waitForFunction(() => [...document.querySelectorAll(".toast")].some(t => /Thank you/.test(t.textContent)), null, { timeout: 5000 });
+      const me = await page.evaluate(() => fetch("/api/v2/me").then(r => r.json()));
+      if (me.train !== true) throw new Error(JSON.stringify(me.train));
+      await gone(".ov.on");
+    });
 
     /* ------------------------------------------------------------ records (what Talk saves after "Save") */
     const r1 = await say("Iya Bisi took 2 bags of rice for 60000, she will pay Friday");
@@ -419,6 +430,12 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (t.includes(PHONE)) throw new Error("full phone number on screen: " + t);
     });
     await check("Me: N-ATLaS credited in About", async () => /N-ATLaS/.test(await page.locator("#me").textContent()));
+    await check("Me: 'Help make TradeVoice better' shows On, and the privacy notice is a real page", async () => {
+      const row = await page.locator('#me [data-a=train]').textContent();
+      if (!/Help make TradeVoice better/.test(row) || !/On/.test(row)) throw new Error(row);
+      const p = await page.evaluate(() => fetch("/privacy").then(r => r.text()));
+      if (!/90 days/.test(p) || !/Helping make TradeVoice better/.test(p)) throw new Error("privacy page");
+    });
     await check("Me: language change is saved on the server", async () => {
       await page.selectOption("#lg", "yo");
       await page.waitForFunction(async () => (await (await fetch("/api/v2/me")).json()).lang === "Yoruba", null, { timeout: 8000, polling: 500 });
@@ -604,8 +621,14 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
     await page.click('#tabs [data-k=me]'); await page.click('#me [data-a=logout]'); await page.click(".ov.on #y");
     await page.waitForSelector("#gate #lp");
     await page.fill("#id", "08030000533"); await page.fill("#lp", temp || "x"); await page.click("#go");
-    await check("team account: logs in through the real login page", async () => {
+    await check("team account: logs in through the real login page; No to the improve question is saved", async () => {
       await gone("#gate");
+      await page.waitForSelector(".ov.on #tn", { timeout: 15000 });
+      await page.click(".ov.on #tn");
+      await page.waitForFunction(() => [...document.querySelectorAll(".toast")].some(t => /We keep nothing/.test(t.textContent)), null, { timeout: 5000 });
+      const me = await page.evaluate(() => fetch("/api/v2/me").then(r => r.json()));
+      if (me.train !== false) throw new Error(JSON.stringify(me.train));
+      await gone(".ov.on");
       await tab("me");
       const t = await page.locator("#me .pcard").textContent();
       if (!t.includes("Kemi Test Stores")) throw new Error(t);

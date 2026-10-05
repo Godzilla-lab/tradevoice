@@ -63,9 +63,11 @@ def _log(kind, ok, lang, ms=None, engine="intron-stream"):
 
 
 # ---------------------------------------------------------------- hearing (browser -> us -> Intron -> us -> browser)
-async def relay_hearing(browser, lang):
+async def relay_hearing(browser, lang, collect=False):
     """browser: a Starlette WebSocket. It sends audio as binary frames and {"type": "commit"} when the trader has
-    finished; it gets {"type": "partial"|"final"|"error", "text"|"message"}. One turn per connection."""
+    finished; it gets {"type": "partial"|"final"|"error", "text"|"message"}. One turn per connection.
+    Returns {"text": final words, "pcm": the audio} (pcm only with collect=True: a trader who said yes to training)."""
+    got = {"text": "", "pcm": bytearray() if collect else None}
     ws_lib = _websockets()
     code = STT_LANG.get(lang, STT_LANG["English"])
     url = f"{STT_WS}?sample_rate=16000&bit_rate=16&num_channels=1&use_language_asr_input={code}"
@@ -74,7 +76,7 @@ async def relay_hearing(browser, lang):
     except Exception as e:  # noqa: BLE001
         await _send(browser, {"type": "error", "message": f"connect: {type(e).__name__}"})
         _log("hear", False, lang)
-        return
+        return got
     try:
         first = json.loads(await asyncio.wait_for(intron.recv(), 8))
         if first.get("message_type") != "SESSION_CREATED":
@@ -82,7 +84,7 @@ async def relay_hearing(browser, lang):
             _rest(why)
             await _send(browser, {"type": "error", "message": why})
             _log("hear", False, lang)
-            return
+            return got
         state = {"buf": bytearray(), "committed_at": None, "done": False}
 
         async def from_browser():
@@ -93,6 +95,8 @@ async def relay_hearing(browser, lang):
                     return
                 if msg.get("bytes"):
                     state["buf"] += msg["bytes"]
+                    if got["pcm"] is not None:
+                        got["pcm"] += msg["bytes"]
                     while len(state["buf"]) >= 3200:      # 0.1 s of audio per piece, like a live source
                         piece = bytes(state["buf"][:CHUNK_MAX])
                         del state["buf"][:len(piece)]
@@ -119,7 +123,8 @@ async def relay_hearing(browser, lang):
                 elif kind == "COMMITTED_TRANSCRIPT":
                     ms = (time.perf_counter() - state["committed_at"]) * 1000 if state["committed_at"] else None
                     _log("hear", True, lang, ms=ms)   # /team speed: from "you stopped" to the final words
-                    await _send(browser, {"type": "final", "text": (m.get("transcript_text") or "").strip()})
+                    got["text"] = (m.get("transcript_text") or "").strip()
+                    await _send(browser, {"type": "final", "text": got["text"]})
                     return
                 elif kind in _ERRORS:
                     why = str(m.get("message") or kind)
@@ -145,6 +150,7 @@ async def relay_hearing(browser, lang):
             await intron.close()
         except Exception:  # noqa: BLE001
             pass
+    return got
 
 
 async def _send(browser, data):

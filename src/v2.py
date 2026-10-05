@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 import accounts
 import ledger
+import training
 
 router = APIRouter()
 COOKIE = "tv_auth"
@@ -136,7 +137,8 @@ def _me(phone, token=None):
             "photo": u.get("photo") or "", "email": u.get("email") or "", "emailOk": bool(u.get("email_ok")),
             "bank": u.get("bank_name") or "", "acctNo": u.get("account_number") or "",
             "acctName": u.get("account_name") or "", "lang": u.get("lang") or "", "notif": notif, "dev": dev,
-            "delAt": u.get("delete_at"), "created": u.get("created_at")}
+            "delAt": u.get("delete_at"), "created": u.get("created_at"),
+            "train": training.answer(phone), "trainAsked": training.asked(phone)}
 
 
 # ---------------------------------------------------------------- codes (WhatsApp)
@@ -250,6 +252,7 @@ def login(b: Login, request: Request):
         FAILS[phone] = (0, time.time() + 30) if n >= 5 else (n, 0)
         return JSONResponse({"error": "wrong", "fails": n, "locked": n >= 5}, 401)
     FAILS.pop(phone, None)
+    _event("login", phone)
     return _login_response(request, phone, keep=b.keep, extra={"delAt": u.get("delete_at")})
 
 
@@ -263,6 +266,7 @@ def login_code(b: CodeLogin, request: Request):
     phone = _ticket(b.login_id, "login")
     CODE_TICKETS.pop(b.login_id, None)
     u = _user(phone) or {}
+    _event("login", phone)
     return _login_response(request, phone, keep=b.keep, extra={"delAt": u.get("delete_at")})
 
 
@@ -449,6 +453,22 @@ def closing(phone):
     """The date this account will be erased, if its owner deleted it; else None."""
     u = _user(phone) or {}
     return dt.datetime.fromisoformat(u["delete_at"]).date() if u.get("delete_at") else None
+
+
+class Train(BaseModel):
+    yes: bool | None = None   # None: the question was closed without an answer (not asked again; Me can change it)
+
+
+@router.post("/api/v2/training")
+def train(b: Train, request: Request):
+    """Help improve TradeVoice: keep my voice notes, photos and chats for the team (yes), or not (no: what was kept is
+    deleted). Saying no never limits the app."""
+    phone = _phone(request)
+    if b.yes is None:
+        training.mark_asked(phone)
+    else:
+        training.set_answer(phone, b.yes)
+    return {"train": training.answer(phone)}
 
 
 @router.post("/api/v2/restore")

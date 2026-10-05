@@ -5,6 +5,7 @@
 
 The API only moves data; every number still comes from ledger.py / insights.py, every reply from converse.py.
 """
+import asyncio
 import datetime as dt
 import json
 import os
@@ -28,6 +29,7 @@ import events
 import insights
 import ledger
 import photo
+import training
 import tts
 import ui_text
 from extract import TYPES, fold
@@ -280,7 +282,7 @@ def _hear(file, lang, consent):
     """Voice note -> words (nothing else changes: safe to run early and to throw away)."""
     if consent != "yes":
         raise HTTPException(400, "consent needed")
-    path = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm")
+    path, heard = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm"), None
     try:
         from asr import transcribe_auto
 
@@ -289,6 +291,7 @@ def _hear(file, lang, consent):
         print(f"hearing failed: {type(e).__name__}: {e}")
         return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
     finally:
+        training.keep(path, "voice", lang, heard)   # only if this trader said yes to helping train TradeVoice
         os.remove(path)  # the voice note is deleted as soon as it is read
     heard["text"] = (heard.get("text") or "").strip()
     if not heard["text"]:
@@ -319,7 +322,10 @@ def _say(text, session, lang, shop, live):
     with llm.budget(float(os.getenv("ASK_AI_SECONDS", "20"))):   # a reply in time, even while N-ATLaS wakes up
         r = _safe_reply(text, state, shop, lang)
     out = _reply_json(r, state, heard=text, live=live)
-    events.log("understand", channel="web", lang=lang, ms=(time.perf_counter() - t0) * 1000)   # speed check (E6)
+    ms = (time.perf_counter() - t0) * 1000
+    events.log("understand", channel="web", lang=lang, ms=ms, engine="live talk" if live else "voice")   # speed (E6)
+    training.keep_turn("live_turn" if live else "voice_turn", text, out.get("text"), lang,
+                       {"engine": r.get("engine"), "ms": int(ms)})   # only if this trader said yes
     out["parts"] = 0
     if live and out.get("speak"):   # live talk: the voice in short pieces, the first plays while the rest is made
         import intron_live
@@ -557,9 +563,11 @@ def _ask(b):
     t0 = time.perf_counter()
     r = _ask_brain(text, state, b.shop, b.lang)
     out = _reply_json(r, state, heard=text if b.voice else None, live=True)   # no buttons in a chat: "Should I save it?"
-    events.log("understand", channel="web", lang=b.lang, ms=(time.perf_counter() - t0) * 1000,
-               engine=r.get("engine"))
+    ms = (time.perf_counter() - t0) * 1000
+    events.log("understand", channel="web", lang=b.lang, ms=ms, engine=r.get("engine"))
     words = _ask_text(r, out)
+    training.keep_turn("ask_turn", text, words, b.lang, {"engine": r.get("engine"), "ms": int(ms),
+                                                          "voice": bool(b.voice)})   # only if this trader said yes
     said = SPEAK.get(out["speak"], (None,))[0] if out.get("speak") else None
     return {"t": words, "n": None if r.get("rows") else _headline(words), "lang": out["lang"],
             "english": out.get("english"), "say": said, "speak": out.get("speak"), "pending": out["pending"],
@@ -578,12 +586,14 @@ def ask_photo(file: UploadFile = File(...), consent: str = Form(""), lang: str =
 
 
 def _ask_photo(path, lang):
+    res = None
     try:
         res = photo.read(path)
     except Exception as e:  # noqa: BLE001
         print(f"ask photo failed: {type(e).__name__}: {e}")
         return {"t": ASK_PHOTO["cant"][lang], "rows": [], "act": None, "lang": lang}
     finally:
+        training.keep(path, "photo", lang, res)   # only if this trader said yes to helping train TradeVoice
         os.remove(path)   # the photo is deleted as soon as it is read
     if res.get("not_record"):   # an advert, a person, a product: said, nothing read into the book
         return {"t": ASK_PHOTO["not_record"][lang].format(what=res["not_record"]), "rows": [], "act": None, "lang": lang}
@@ -675,7 +685,9 @@ async def live_hear(ws: WebSocket, lang: str = "English", consent: str = ""):
     if consent != "yes" or not intron_live.hearing_on():
         await ws.send_text(json.dumps({"type": "error", "message": "consent needed" if consent != "yes" else "off"}))
         return await ws.close()
-    await intron_live.relay_hearing(ws, lang)
+    got = await intron_live.relay_hearing(ws, lang, collect=bool(training.answer()))
+    if got and got.get("pcm"):   # only kept for a trader who said yes to helping train TradeVoice
+        await asyncio.to_thread(training.keep_pcm, got["pcm"], lang, {"text": got.get("text", "")})
     try:
         await ws.close()
     except Exception:  # noqa: BLE001
@@ -707,12 +719,14 @@ def speak(sid: str):
 def photo_api(file: UploadFile = File(...), consent: str = Form("")):
     if consent != "yes":
         raise HTTPException(400, "consent needed")
-    path = _upload(file, os.path.splitext(file.filename or "")[1] or ".jpg")
+    path, res = _upload(file, os.path.splitext(file.filename or "")[1] or ".jpg"), None
     try:
-        return photo.read(path)
+        res = photo.read(path)
+        return res
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": f"Could not read the photo ({type(e).__name__}: {str(e)[:100]})."}, 502)
     finally:
+        training.keep(path, "photo", "", res)   # only if this trader said yes to helping train TradeVoice
         os.remove(path)  # the photo is deleted as soon as it is read
 
 
@@ -1027,7 +1041,7 @@ def assist(screen: str = Form("today"), lang: str = Form("English"), session: st
     if file is not None:
         if consent != "yes":
             raise HTTPException(400, "consent needed")
-        path = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm")
+        path, h = _upload(file, os.path.splitext(file.filename or "")[1] or ".webm"), None
         try:
             from asr import transcribe_auto
 
@@ -1037,6 +1051,7 @@ def assist(screen: str = Form("today"), lang: str = Form("English"), session: st
             print(f"hearing failed: {type(e).__name__}: {e}")
             return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
         finally:
+            training.keep(path, "voice", speak_lang, h)   # only if this trader said yes to helping train TradeVoice
             os.remove(path)  # the voice note is deleted as soon as it is read
     if not heard:
         return JSONResponse({"error": "I didn't hear anything. Try again, closer to the phone."}, 422)

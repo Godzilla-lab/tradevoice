@@ -291,9 +291,15 @@ def resolve_customer(name, created_at=None):
 
 def create_customer(name, phone=None, notes=None, created_at=None):
     with conn() as c:
-        return c.execute("INSERT INTO customers (name, phone, notes, created_at) VALUES (?,?,?,?)",
-                         (name.strip(), (phone or "").strip() or None, notes,
-                          (created_at or dt.datetime.now()).isoformat(timespec="seconds"))).lastrowid
+        cid = c.execute("INSERT INTO customers (name, phone, notes, created_at) VALUES (?,?,?,?)",
+                        (name.strip(), (phone or "").strip() or None, notes,
+                         (created_at or dt.datetime.now()).isoformat(timespec="seconds"))).lastrowid
+    try:
+        import events
+        events.log("customer_added", engine="by hand" if phone or notes else "")   # no name: just that one was added
+    except Exception:  # noqa: BLE001
+        pass
+    return cid
 
 
 def get_customer(cid):
