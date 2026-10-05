@@ -24,6 +24,7 @@ WHATSAPP_BOT_NUMBER|no|The bot's WhatsApp number, digits only, e.g. 234801234567
 TEAM_WHATSAPP|no|Team numbers for alerts, digits, comma between them
 TEAM_PHONES|no|Team phone numbers (digits, comma between): their own testing is left out of the NAIC numbers
 ADMIN_TOKEN|yes|Password for the team dashboard (/team); press Enter on an empty one to make one for you
+PRIVACY_CONTACT|no|Email for privacy requests, shown on the privacy notice (/privacy): a team address, never a personal phone
 INTRON_API_KEY|yes|Intron key (voice replies)
 PAYSTACK_SECRET_KEY|yes|Paystack secret key (starts sk_test_ or sk_live_)
 PAYSTACK_EMAIL|no|Email Paystack puts on payments

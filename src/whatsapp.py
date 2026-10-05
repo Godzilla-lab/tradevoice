@@ -336,6 +336,18 @@ def _send_rows(phone, rows, lang):
                  [("p_save", "Save"), ("p_cancel", "Cancel")])
 
 
+def _app_url():
+    return os.getenv("PUBLIC_URL", "").rstrip("/") + ("/app" if os.getenv("PUBLIC_URL") else "")
+
+
+def _closing(phone):
+    try:
+        import v2
+        return v2.closing(phone)
+    except Exception:  # noqa: BLE001 - no accounts yet (WhatsApp-only setups)
+        return None
+
+
 def handle(msg):
     """Answer one incoming WhatsApp message (runs in the background, after Meta got its 200)."""
     phone, kind = msg["from"], msg.get("type")
@@ -348,6 +360,10 @@ def handle(msg):
                              "That login code is old or not for this number. On the website, tap "
                              "'Verify with WhatsApp' again from this phone.")
         u = user(phone)
+        when = _closing(phone)
+        if when:   # deleted, waiting to be erased: the book is not used; logging in on the app can still keep it
+            return send_text(phone, ui_text.t("account_closing", u.get("lang")).format(
+                date=f"{when.day} {when.strftime('%B %Y')}", url=_app_url() or "(ask the team for the link)"))
         events.CHANNEL.set("whatsapp")
         events.log("message", phone, "whatsapp", lang=u.get("lang"), engine=kind)   # type only, never the text
         mark_read(msg.get("id"))
@@ -401,8 +417,7 @@ def handle(msg):
             set_user(phone, voice=1)
             return send_text(phone, SAY["voice_on"])
         if t in ("dashboard", "web", "app", "book", "see more"):
-            url = os.getenv("PUBLIC_URL", "").rstrip("/") + ("/app" if os.getenv("PUBLIC_URL") else "")
-            return send_text(phone, SAY["dashboard"].format(url=url or "(ask the team for the link)"))
+            return send_text(phone, SAY["dashboard"].format(url=_app_url() or "(ask the team for the link)"))
 
         # 3) photo of the notebook
         if kind == "image":

@@ -1218,8 +1218,9 @@ def auth_delete(w: Code, request: Request):
         raise HTTPException(400, "type DELETE")
     for k in [k for k in SESSIONS if k[0] == ledger.book_file(phone)]:
         SESSIONS.pop(k)
-    accounts.delete_account(phone)
-    r = JSONResponse({"ok": True})
+    accounts.end_session(request.cookies.get(COOKIE))
+    at = v2.schedule_delete(phone)   # closed now, erased after v2.DELETE_DAYS (same as the app's delete screen)
+    r = JSONResponse({"ok": True, "delAt": at})
     r.delete_cookie(COOKIE)
     return r
 
@@ -1246,6 +1247,20 @@ app.mount("/static", StaticFiles(directory=os.path.join(HERE, "web")), name="sta
 @app.get("/")
 def landing():
     return _page("landing.html")
+
+
+@app.get("/privacy")
+def privacy():
+    """The privacy notice (sign-up links to it; it states the 90-day hold after an account is deleted)."""
+    import html as _html
+
+    page = open(os.path.join(HERE, "web", "privacy.html"), encoding="utf-8").read()
+    contact = _html.escape(os.getenv("PRIVACY_CONTACT", "").strip()) or "the TradeVoice team"
+    supa = bool(os.getenv("BACKUP_SUPABASE_URL"))
+    page = page.replace("{{contact}}", contact).replace(
+        "{{backup}}", " A backup copy is also kept in a private store with Supabase." if supa else "").replace(
+        "{{backup_company}}", "\n<li><b>Supabase:</b> keeps a private backup copy.</li>" if supa else "")
+    return HTMLResponse(page, headers=NO_CACHE)
 
 
 @app.get("/sw.js")

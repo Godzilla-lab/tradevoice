@@ -38,6 +38,14 @@ LANDING_PATCHES = [
 ]
 
 PATCHES = [
+    # --- a deleted account is kept 90 days (src/v2.py DELETE_DAYS), and the privacy notice is a real page
+    ("delete days", 'Your records, customers and settings are deleted after 7 days. Log in before then to cancel.',
+     'Your records, customers and settings are deleted after 90 days. Log in before then to cancel.'),
+    ("delete toast", 'Account scheduled for deletion. Log in within 7 days to cancel.',
+     'Account scheduled for deletion. Log in within 90 days to cancel.'),
+    ("privacy link", 'priv:()=>toast("Privacy notice opens here.")', 'priv:()=>open("/privacy","_blank")'),
+    ("privacy at sign-up", 'I agree to the Terms and the Privacy Notice.',
+     'I agree to the Terms and the <a href="/privacy" target="_blank" style="color:var(--accent)">Privacy Notice</a>.'),
     # --- 4 languages to choose (Pidgin is still understood: it is English's voice and the brain reads it)
     ("no Pidgin tile", 'LG=[["en","English"],["pcm","Pidgin"],', 'LG=[["en","English"],'),
     # --- the N-ATLaS licence sentence in Me > About

@@ -507,6 +507,8 @@ def run_due_reminders(base=None, today=None, send=True):
         if not f.endswith(".db"):
             continue
         phone = f[:-3]
+        if _user(phone).get("delete_at"):   # deleted, waiting to be erased: the book is not used any more
+            continue
         with _lock, _db() as c:
             if c.execute("SELECT 1 FROM auto_runs WHERE phone=? AND day=?", (phone, today.isoformat())).fetchone():
                 continue
@@ -555,7 +557,7 @@ def start_scheduler():
                 print(f"auto reminders failed: {type(e).__name__}: {e}")
             time.sleep(1800)
 
-    def purge():   # accounts deleted 7+ days ago are erased for real (the promise on the delete screen)
+    def purge():   # accounts deleted 90+ days ago (v2.DELETE_DAYS) are erased for real (the delete screen says so)
         import v2
         while True:
             try:

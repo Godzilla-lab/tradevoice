@@ -214,12 +214,16 @@ def update_profile(phone, **fields):
 
 
 def delete_account(phone):
-    """Everything for this number: sessions, profile, and the book file."""
+    """Everything for this number: sessions, profile, share and pay links, the store list, and the book file (which
+    also holds its WhatsApp settings). The usage log keeps only an unreadable code, never the number."""
     import ledger
 
     with _lock, db() as c:
-        for t in ("sessions", "logins", "users"):
-            c.execute(f"DELETE FROM {t} WHERE phone=?", (phone,))
+        have = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for t in ("sessions", "logins", "users", "shares", "paylinks", "auto_runs", "store_wait"):
+            if t in have:
+                c.execute(f"DELETE FROM {t} WHERE phone=?", (phone,))
     path = ledger.book_file(phone)
-    if os.path.exists(path):
-        os.remove(path)
+    for f in (path, path + "-wal", path + "-shm", path + "-journal"):
+        if os.path.exists(f):
+            os.remove(f)

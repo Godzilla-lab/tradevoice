@@ -128,8 +128,9 @@ def main():
     check("logged out -> 401", b.get("/api/today").status_code == 401)
     r = login(b, "08091112222")
     r = b.post("/api/auth/delete", json={"login_id": "-", "code": "DELETE"})
-    check("delete my account removes the book", r.status_code == 200 and
-          not os.path.exists(os.path.join(os.environ["BOOKS_DIR"], "2348091112222.db")))
+    check("delete my account: closed now (logged out), kept 90 days, then erased (same as the app's delete screen)",
+          r.status_code == 200 and r.json().get("delAt") and b.get("/api/today").status_code == 401 and
+          os.path.exists(os.path.join(os.environ["BOOKS_DIR"], "2348091112222.db")), r.text)
 
     # WhatsApp configured but the token has expired: the code is NEVER shown (anyone could open that book);
     # the trader can still verify by sending LOGIN <word> to the bot

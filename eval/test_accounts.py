@@ -1,5 +1,5 @@
-"""TradeVoice 2.0 accounts (src/v2.py): WhatsApp code, sign-up, password, log in, delete with 7 days to undo, and the
-real erase after 7 days. No keys needed (WhatsApp is faked). Made-up numbers only.
+"""TradeVoice 2.0 accounts (src/v2.py): WhatsApp code, sign-up, password, log in, delete with 90 days to undo, and the
+real erase after 90 days (everything for the number), erase sooner on request, and the privacy notice. No keys needed (WhatsApp is faked). Made-up numbers only.
 
 python eval/test_accounts.py
 """
@@ -103,23 +103,47 @@ def main():
     check("5 wrong passwords: locked for a while, even the right one waits", r.status_code == 429, r.text)
     v2.FAILS.clear()
 
-    # delete with 7 days to undo
+    # delete with 90 days to undo (the delete screen and the privacy notice say so)
     r = c.post("/api/v2/delete", json={"biz": "Wrong Name", "pw": pw("Balogun2027y")})
     check("delete: the business name must match", r.status_code == 400, r.text)
     r = c.post("/api/v2/delete", json={"biz": "ada test stores", "pw": pw("guess-guess")})
     check("delete: the password must match", r.status_code == 401, r.text)
     r = c.post("/api/v2/delete", json={"biz": "ada test stores", "pw": pw("Balogun2027y")})
     days = (dt.datetime.fromisoformat(r.json()["delAt"]) - v2._now()).days if r.status_code == 200 else None
-    check("delete: asks for 7 days' grace", days == 6 or days == 7, r.text)
-    check("within the 7 days nothing is erased", v2.purge_deleted() == [] and os.path.exists(ledger_file))
+    check("delete: keeps the account 90 days", days in (89, 90), r.text)
+    check("within the 90 days nothing is erased", v2.purge_deleted() == [] and os.path.exists(ledger_file))
     c.post("/api/v2/restore", json={})
     check("undo: the account is back", c.get("/api/v2/me").json()["delAt"] is None)
 
     c.post("/api/v2/delete", json={"biz": "Ada Test Stores", "pw": pw("Balogun2027y")})
-    with v2._db() as db:   # 8 days later
+    import extras
+    with extras._db() as db:   # a share link and a pay link the trader made earlier
+        db.execute("INSERT INTO shares (token_hash, phone, created_at) VALUES ('t1', ?, '2026-10-01')", (FULL,))
+        db.execute("INSERT INTO paylinks (token_hash, phone, customer_id, amount) VALUES ('p1', ?, 1, 500)", (FULL,))
+    # while it waits: no daily WhatsApp summary, and the bot says it is closed without touching the book
+    extras.run_due_reminders(send=False)
+    with extras._db() as db:
+        ran = db.execute("SELECT 1 FROM auto_runs WHERE phone=?", (FULL,)).fetchone()
+    check("closed account: no daily summary", ran is None)
+    before = len(SENT)
+    import sqlite3
+    with sqlite3.connect(ledger_file) as b:
+        n0 = b.execute("SELECT COUNT(*) FROM entries").fetchone()[0]
+    whatsapp._safe({"from": FULL, "type": "text", "id": "w1", "text": {"body": "sold rice 5000"}})
+    said = " ".join(str(p) for p in SENT[before:])
+    with sqlite3.connect(ledger_file) as b:
+        n1 = b.execute("SELECT COUNT(*) FROM entries").fetchone()[0]
+    check("closed account: the bot says it is closed and when it will be deleted",
+          "Your account is closed" in said and str(v2.closing(FULL).year) in said, said)
+    check("closed account: the book is not touched", n1 == n0, (n0, n1))
+    with v2._db() as db:   # 91 days later
         db.execute("UPDATE users SET delete_at=? WHERE phone=?", ((v2._now() - dt.timedelta(days=1)).isoformat(), FULL))
-    check("after 7 days the account is erased", v2.purge_deleted() == [FULL])
+    check("after 90 days the account is erased", v2.purge_deleted() == [FULL])
     check("…its book file is gone", not os.path.exists(ledger_file), ledger_file)
+    with extras._db() as db:
+        left = [t for t in ("shares", "paylinks", "auto_runs", "users", "sessions")
+                if db.execute(f"SELECT 1 FROM {t} WHERE phone=?", (FULL,)).fetchone()]
+    check("…and every row for the number (links, sessions, profile)", not left, left)
     check("…it can't log in, and its session is dead", c.get("/api/v2/me").status_code == 401 and c.post(
         "/api/auth/v2/login", json={"phone": PHONE, "pw": pw("Balogun2027y")}).status_code == 404)
     check("…and the number can sign up fresh", c.post("/api/auth/v2/code/start",
@@ -139,6 +163,27 @@ def main():
         check("add_account: refuses a number that already has an account", False)
     except SystemExit:
         check("add_account: refuses a number that already has an account", True)
+    # erase sooner when the owner asks (scripts/erase_account.py), and only with --yes
+    import erase_account
+    p3, _ = add_account.create("08030000541", "Chika Testtrader", "Chika Test Stores")
+    book3 = ledger.book_file(p3)
+    open(book3, "a").close()
+    check("erase_account: without --yes nothing is erased",
+          erase_account.main(["08030000541"]) == 1 and v2._has_account(p3) and os.path.exists(book3))
+    check("erase_account --yes: account and book gone",
+          erase_account.main(["08030000541", "--yes"]) == 0 and not v2._has_account(p3) and not os.path.exists(book3))
+
+    # the privacy notice: a real page, saying what the delete screen says, with the team's contact
+    os.environ["PRIVACY_CONTACT"] = "privacy@example.com <b>"
+    page = TestClient(web.app).get("/privacy")
+    os.environ.pop("PRIVACY_CONTACT")
+    check("privacy notice: a page that states the 90 days, the contact (escaped) and the N-ATLaS sentence",
+          page.status_code == 200 and "90 days" in page.text and "privacy@example.com &lt;b&gt;" in page.text
+          and "{{" not in page.text and "powered by Awarri Technologies" in page.text, page.text[:300])
+    app_page = open(os.path.join(os.path.dirname(__file__), "..", "web", "app.html"), encoding="utf-8").read()
+    check("the app's delete screen and privacy links match", "deleted after 90 days" in app_page
+          and "7 days to cancel" not in app_page and 'priv:()=>open("/privacy"' in app_page)
+
     p2, _ = add_account.create("08030000599", "mama ngozi testtrader", "Ngozi Test Foods")
     check("personal: titles keep the name after them ('Mama Ngozi', not 'Mama'), and a lowercase name is tidied",
           accounts.trader(p2).get("name") == "Mama Ngozi", accounts.trader(p2))

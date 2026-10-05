@@ -30,7 +30,7 @@ COOKIE = "tv_auth"
 CODE_TICKETS = {}   # login_id -> (phone, purpose, verified_at): a checked code, valid for 15 minutes
 FAILS = {}          # phone -> (count, locked_until): 5 wrong passwords -> wait 30 s
 _lock = threading.Lock()
-DELETE_DAYS = 7
+DELETE_DAYS = int(os.getenv("DELETE_DAYS", "90"))   # a deleted account is kept this long (the delete screen says so)
 TYPES = ["Foodstuff", "Fashion and fabric", "Electronics", "Building materials", "Provisions", "Other"]
 
 
@@ -434,10 +434,21 @@ def delete(b: Delete, request: Request):
         return JSONResponse({"error": "biz"}, 400)
     if not _pw_ok(b.pw, u.get("pw_hash")):
         return JSONResponse({"error": "wrong"}, 401)
+    return {"delAt": schedule_delete(phone)}
+
+
+def schedule_delete(phone):
+    """Close the account now and erase it after DELETE_DAYS (logging in before then and tapping Keep undoes it)."""
     at = (_now() + dt.timedelta(days=DELETE_DAYS)).isoformat()
     with _lock, _db() as c:
         c.execute("UPDATE users SET delete_at=? WHERE phone=?", (at, phone))
-    return {"delAt": at}
+    return at
+
+
+def closing(phone):
+    """The date this account will be erased, if its owner deleted it; else None."""
+    u = _user(phone) or {}
+    return dt.datetime.fromisoformat(u["delete_at"]).date() if u.get("delete_at") else None
 
 
 @router.post("/api/v2/restore")
@@ -449,7 +460,7 @@ def restore(request: Request):
 
 
 def purge_deleted():
-    """Erase accounts whose 7 days are up (book file, sessions, profile). Called by the daily scheduler."""
+    """Erase accounts whose DELETE_DAYS are up (everything for the number). Called by the hourly scheduler."""
     with _db() as c:
         due = [r["phone"] for r in c.execute("SELECT phone FROM users WHERE delete_at IS NOT NULL AND delete_at<?",
                                              (_now().isoformat(),))]
