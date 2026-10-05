@@ -107,6 +107,16 @@ def main():
     check("live talk: the audio is kept (FLAC when ffmpeg is there: lossless, half the size) with the words heard",
           name == live["file"] and os.path.splitext(name)[1] in (".flac", ".wav") and live["heard"]["text"] == "Iya Bisi paid 2000"
           and training.media_path(os.path.basename(training.folder(phone)), name), live)
+    os.environ["TRAIN_MIN_FREE_GB"] = "100000"   # pretend the disk is nearly full
+    before = len(kept(phone))
+    hear(c)
+    c.post("/api/ask", json={"session": "s1", "text": "who owes me money?", "lang": "English"})
+    after = kept(phone)
+    st = training.stats()
+    os.environ.pop("TRAIN_MIN_FREE_GB")
+    check("disk nearly full: no new audio or photos (the books keep saving), chat lines still kept, dashboard warned",
+          not any(x["kind"] == "voice" for x in after[before:]) and any(x["kind"] == "ask_turn" for x in after[before:])
+          and st["low_disk"] is True, (after[before:], st))
     r = c.post("/api/v2/training", json={"yes": False})
     check("no: stops, and deletes what was kept", r.json() == {"train": False} and not os.path.exists(training.folder(phone)))
     hear(c)

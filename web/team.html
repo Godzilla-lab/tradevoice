@@ -358,7 +358,10 @@ footer{padding:var(--s5) 0 var(--s7);font-size:13px;color:var(--label2);display:
     const KEPT = { voice: "Voice notes", photo: "Photos", live: "Live-talk audio", live_turn: "Live talk turns", ask_turn: "Ask chat turns",
       voice_turn: "Voice questions", whatsapp_turn: "WhatsApp turns" };
     const im = o.improve, kinds = Object.entries(im.kept || {}).map(([k, v]) => [`Kept: ${KEPT[k] || k}`, fmtN(v)]);
-    rows("#improve", [["Said yes", fmtN(im.yes)], ["Said no", fmtN(im.no)], ...kinds, ["Stored", im.mb + " MB"]]);
+    rows("#improve", [["Said yes", fmtN(im.yes)], ["Said no", fmtN(im.no)], ...kinds, ["Stored", im.mb + " MB"],
+      ["Free on the server", im.free_gb + " GB"]]);
+    if (im.low_disk) { const w = el("p", "badge"); w.style.display = "flex"; w.style.marginTop = "8px"; w.innerHTML = ALERT;
+      w.append(document.createTextNode("Disk nearly full: new audio and photos are not kept. Free space or grow the disk.")); $("#improve").append(w); }
     const li = $("#licence"), lc = o.licence; li.textContent = "";
     const big = el("div", "tile"); big.style.boxShadow = "none"; big.style.padding = "0"; big.append(el("div", "v", `${fmtN(lc.active_30d)} of ${fmtN(lc.cap)}`)); li.append(big);
     const m = el("div", "meter" + (lc.warn ? " warn" : "")), mi = el("i"); mi.style.width = Math.min(100, 100 * lc.active_30d / lc.cap) + "%"; m.append(mi); li.append(m);

@@ -69,7 +69,8 @@ def describe(r):
     elif k == "store_wait":
         cat, words = "people", "Asked to hear when the app is in the store"
     elif k == "training_kept":
-        cat, words = "records", f"Kept a {_KEPT.get(e, e)} for improving TradeVoice"
+        cat, words = "records", ("Disk nearly full: stopped keeping audio and photos" if e == "disk low"
+                                 else f"Kept a {_KEPT.get(e, e)} for improving TradeVoice")
     elif k == "record_saved":
         cat, words = "records", "Saved a record"
     elif k == "customer_added":

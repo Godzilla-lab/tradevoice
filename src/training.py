@@ -88,7 +88,32 @@ def folder(phone):
     return os.path.join(_dir(), events._hash(phone))
 
 
+def free_gb():
+    root = _dir()
+    probe = root if os.path.isdir(root) else os.path.dirname(root)
+    return shutil.disk_usage(probe if os.path.isdir(probe) else ".").free / 1e9
+
+
+def room():
+    """Is there room to keep another file? Below TRAIN_MIN_FREE_GB (default 3) nothing new is kept, so audio for
+    training can never fill the disk and stop the books from saving. The dashboard shows it."""
+    return free_gb() >= float(os.getenv("TRAIN_MIN_FREE_GB", "3"))
+
+
+_FULL = {"logged": 0.0}
+
+
 def _write(phone, data, ext, kind, lang, heard):
+    if not room():
+        import time
+        if time.time() - _FULL["logged"] > 3600:   # one line in the dashboard's problems per hour, not one per file
+            _FULL["logged"] = time.time()
+            try:
+                import events
+                events.log("training_kept", phone, engine="disk low", ok=False)
+            except Exception:  # noqa: BLE001
+                pass
+        return None
     d = folder(phone)
     os.makedirs(d, mode=0o700, exist_ok=True)
     name = f"{dt.datetime.now(dt.timezone.utc).strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(4)}{ext}"
@@ -232,4 +257,6 @@ def stats():
                     kinds[k] = kinds.get(k, 0) + 1
             for f in os.listdir(os.path.join(root, d)):
                 size += os.path.getsize(os.path.join(root, d, f))
-    return {"yes": yes, "no": no, "kept": kinds, "mb": round(size / 1e6, 1)}
+    free = free_gb()
+    return {"yes": yes, "no": no, "kept": kinds, "mb": round(size / 1e6, 1), "free_gb": round(free, 1),
+            "low_disk": free < float(os.getenv("TRAIN_MIN_FREE_GB", "3"))}
