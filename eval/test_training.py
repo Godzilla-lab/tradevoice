@@ -102,6 +102,11 @@ def main():
     s = training.stats()
     check("counts for the dashboard", s["yes"] == 1 and s["kept"].get("voice") == 1 and s["mb"] >= 0, s)
 
+    name = training.keep_pcm(b"\1\0" * 16000, "English", {"text": "Iya Bisi paid 2000"}, phone=phone)
+    live = next(x for x in kept(phone) if x["kind"] == "live")
+    check("live talk: the audio is kept (FLAC when ffmpeg is there: lossless, half the size) with the words heard",
+          name == live["file"] and os.path.splitext(name)[1] in (".flac", ".wav") and live["heard"]["text"] == "Iya Bisi paid 2000"
+          and training.media_path(os.path.basename(training.folder(phone)), name), live)
     r = c.post("/api/v2/training", json={"yes": False})
     check("no: stops, and deletes what was kept", r.json() == {"train": False} and not os.path.exists(training.folder(phone)))
     hear(c)

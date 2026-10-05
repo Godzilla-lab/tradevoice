@@ -133,7 +133,8 @@ def keep_pcm(pcm, lang="", heard=None, phone=None, rate=16000):
             w.setsampwidth(2)
             w.setframerate(rate)
             w.writeframes(pcm)
-        return _write(phone, b.getvalue(), ".wav", "live", lang, heard)
+        data, ext = _flac(b.getvalue())
+        return _write(phone, data, ext, "live", lang, heard)
     except Exception as e:  # noqa: BLE001
         print(f"training copy not kept: {type(e).__name__}: {e}")
         return None
@@ -185,6 +186,26 @@ def media_path(code, name):
         return None
     p = os.path.join(_dir(), code, name)
     return p if name != "manifest.jsonl" and os.path.isfile(p) else None
+
+
+def _flac(wav_bytes):
+    """Lossless and about half the size of WAV (live talk adds up fast on the server's disk). WAV if ffmpeg is missing."""
+    import subprocess
+    import tempfile
+    if not shutil.which("ffmpeg"):
+        return wav_bytes, ".wav"
+    d = tempfile.mkdtemp()
+    try:
+        src, out = os.path.join(d, "in.wav"), os.path.join(d, "out.flac")
+        with open(src, "wb") as f:
+            f.write(wav_bytes)
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-c:a", "flac", out], check=True, timeout=60)
+        with open(out, "rb") as f:
+            return f.read(), ".flac"
+    except Exception:  # noqa: BLE001
+        return wav_bytes, ".wav"
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 def erase(phone, keep_answer=False):

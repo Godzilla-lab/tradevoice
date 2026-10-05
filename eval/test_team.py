@@ -15,6 +15,7 @@ os.environ["TV_NO_DOTENV"] = "1"
 os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(), "t.db")
 os.environ["BOOKS_DIR"] = tempfile.mkdtemp()
 os.environ["ACCOUNTS_DB"] = os.path.join(tempfile.mkdtemp(), "a.db")
+os.environ["TRAIN_DIR"] = tempfile.mkdtemp()
 for k in list(os.environ):
     if k.endswith("API_KEY") or k.startswith("LOCAL_") or k.startswith("WHATSAPP_") or k.startswith("NATLAS"):
         os.environ.pop(k)
@@ -98,6 +99,51 @@ check("dashboard shows no phone number or name", PHONE not in page.text and "Tun
 csv = client.get("/team/export.csv", headers={"x-admin-key": "team-secret-1"})
 check("CSV export (header key works too): anonymised rows", csv.status_code == 200
       and csv.text.startswith("ts,who,channel,kind") and PHONE not in csv.text)
+
+# 5. the live dashboard's data: team key on every call; actions for everyone, words only for traders who said yes
+import team  # noqa: E402
+import training  # noqa: E402
+K = {"x-admin-key": "team-secret-1"}
+check("dashboard data needs the team key", all(client.get(u).status_code == 403 for u in (
+    "/team/api/overview", "/team/api/feed", "/team/api/conversations", "/team/media/0123456789abcdef/x.wav")))
+o = client.get("/team/api/overview?period=today", headers=K).json()
+check("overview: today's numbers, by the hour (24), with the day before to compare",
+      len(o["series"]) == 24 and o["kpi"]["conversations"] >= 1 and "prev" in o and o["kpi"]["active"] == 1, o["kpi"])
+check("overview: 7 and 30 days, by the day", len(client.get("/team/api/overview?period=7d", headers=K).json()["series"]) == 7
+      and len(client.get("/team/api/overview?period=30d", headers=K).json()["series"]) == 30)
+f = client.get("/team/api/feed", headers=K)
+rows = f.json()["rows"]
+check("live activity: every action in words, newest first, never the phone number",
+      rows and rows[0]["id"] > rows[-1]["id"] and any(r["what"].startswith("WhatsApp message") for r in rows)
+      and PHONE not in f.text, [r["what"] for r in rows[:5]])
+check("live activity: only what is new after the last one seen",
+      client.get(f"/team/api/feed?after={rows[0]['id']}", headers=K).json()["rows"] == [])
+me = events._hash(PHONE)
+st = client.get(f"/team/api/feed?who={me}", headers=K).json()["stats"]
+check("one trader: their all-time numbers", st["conversations"] >= 1 and st["first"] <= st["last"], st)
+check("a failed step reads as a problem", team.describe({"kind": "llm", "engine": "natlas", "ok": 0, "lang": ""})
+      == ("errors", "AI answered: failed"))
+check("what traders said: nothing for a trader who hasn't said yes",
+      client.get("/team/api/conversations", headers=K).json()["items"] == [])
+training.set_answer(PHONE, True)
+training.keep_turn("live_turn", "Iya Bisi took rice", "Iya Bisi took rice. How much was it?", "English", phone=PHONE)
+wav = os.path.join(tempfile.mkdtemp(), "v.wav")
+open(wav, "wb").write(b"RIFF....WAVEfake")
+training.keep(wav, "voice", "English", {"text": "Iya Bisi took rice"}, phone=PHONE)
+items = client.get("/team/api/conversations", headers=K).json()["items"]
+check("…after yes: what they said, TradeVoice's reply, and their voice note to play",
+      {x["kind"] for x in items} == {"live_turn", "voice"} and any(x["reply"] for x in items)
+      and any(x["media"] == "audio" and x["file"] for x in items), items)
+link = next(x["file"] for x in items if x["file"])
+check("…the voice note plays only with the team key, and no path leaves the trader's folder",
+      client.get(link).status_code == 403 and client.get(link, headers=K).status_code == 200
+      and client.get(f"/team/media/{me}/manifest.jsonl", headers=K).status_code == 404
+      and client.get(f"/team/media/{me}/..%2F..%2Fa.db", headers=K).status_code == 404)
+page = client.get("/team?key=team-secret-1")
+check("the page itself holds no data (it loads it with the key) and is never indexed or cached",
+      PHONE not in page.text and page.headers.get("cache-control") == "no-store"
+      and page.headers.get("x-robots-tag") == "noindex")
+
 os.environ["ADMIN_TOKEN"] = ""
 check("no ADMIN_TOKEN set -> /team closed for everyone", client.get("/team?key=").status_code == 403)
 

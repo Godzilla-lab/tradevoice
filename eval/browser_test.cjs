@@ -51,7 +51,7 @@ function startServer() {
     DB_PATH: path.join(TMP, "tradevoice.db"), PORT: String(PORT), TRADEVOICE_ADMIN: "0", AUTO_REMINDERS: "0",
     // offline: no AI, no WhatsApp, no payments (the rules understand the sentences below)
     NATLAS_URL: "", NATLAS_ASR_URL: "", NVIDIA_API_KEY: "", LOCAL_LLM_URL: "", WHATSAPP_TOKEN: "", PAYSTACK_SECRET_KEY: "",
-    INTRON_API_KEY: "",
+    INTRON_API_KEY: "", ADMIN_TOKEN: "browser-team-key",
   });
   const p = spawn(process.env.PYTHON || "python", ["src/web.py"], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] });
   const log = fs.createWriteStream(path.join(TMP, "server.log"));
@@ -632,6 +632,21 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       await tab("me");
       const t = await page.locator("#me .pcard").textContent();
       if (!t.includes("Kemi Test Stores")) throw new Error(t);
+    });
+
+    /* ------------------------------------------------------------ the team's live dashboard (this run's own actions) */
+    await check("team dashboard: with the key, today's numbers, this run's actions live, and what the 'yes' trader said", async () => {
+      await page.goto(`${BASE}/team?key=browser-team-key`);
+      await page.waitForSelector("#kpis .tile.hero", { timeout: 10000 });
+      await page.waitForFunction(() => /New trader signed up/.test(document.querySelector("#feed").textContent)
+        && /Saved a record/.test(document.querySelector("#feed").textContent), null, { timeout: 10000 });
+      await page.waitForFunction(() => document.querySelectorAll("#convos .cv").length > 0, null, { timeout: 10000 });
+      const said = await page.locator("#convos").textContent();
+      if (!/They said/.test(said) || !/TradeVoice replied/.test(said)) throw new Error(said.slice(0, 200));
+      const sw = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+      if (sw > 0) throw new Error("sideways scroll " + sw);
+      const r = await page.evaluate(() => fetch("/team/api/feed").then(r => r.status));
+      if (r !== 403) throw new Error("data without the key: " + r);
     });
 
     /* ------------------------------------------------------------ the whole run */

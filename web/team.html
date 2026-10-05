@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>TradeVoice team</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<style>
+:root{--canvas:#F7F6F3;--card:#fff;--fill:#EFEEEA;--label:#17171B;--label2:#6B6B73;--muted:#898781;--hair:rgba(20,20,30,.09);
+  --grid:#e9e8e3;--accent:#3B4CE0;--accent-fg:#fff;--bar:#3B4CE0;--track:#e4e6fb;--good-ink:#006300;--bad-ink:#b42d2d;
+  --live:#0ca30c;--critical:#d03b3b;--warning:#9A5B05;--warn-bg:#FDF1DE;
+  --c-people:#2a78d6;--c-conversations:#eb6834;--c-voice:#1baf7a;--c-records:#eda100;--c-ai:#e87ba4;--c-errors:#d03b3b;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;--r1:10px;--r2:16px;--r3:24px;--pill:999px;
+  --ease:cubic-bezier(.32,.72,0,1);--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,"Segoe UI",Roboto,sans-serif;
+  --lift:0 1px 0 rgba(20,20,30,.03),0 24px 48px -28px rgba(20,20,30,.22);--gut:clamp(16px,4vw,40px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--canvas:#0B0B0E;--card:#17171C;--fill:#212127;--label:#F2F2F5;
+  --label2:#9A9AA3;--muted:#898781;--hair:rgba(255,255,255,.1);--grid:#26262c;--accent:#8C9BFF;--accent-fg:#0B0D24;--bar:#6f7cf2;
+  --track:#262a4d;--good-ink:#0ca30c;--bad-ink:#e66767;--warning:#FFB458;--warn-bg:#33240D;
+  --c-people:#3987e5;--c-conversations:#d95926;--c-voice:#199e70;--c-records:#c98500;--c-ai:#d55181;color-scheme:dark}}
+:root[data-theme="dark"]{--canvas:#0B0B0E;--card:#17171C;--fill:#212127;--label:#F2F2F5;--label2:#9A9AA3;--hair:rgba(255,255,255,.1);
+  --grid:#26262c;--accent:#8C9BFF;--accent-fg:#0B0D24;--bar:#6f7cf2;--track:#262a4d;--good-ink:#0ca30c;--bad-ink:#e66767;
+  --warning:#FFB458;--warn-bg:#33240D;--c-people:#3987e5;--c-conversations:#d95926;--c-voice:#199e70;--c-records:#c98500;
+  --c-ai:#d55181;color-scheme:dark}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--canvas);color:var(--label);font:400 15px/1.5 var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--r1)}
+svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.w{width:min(1280px,100% - 2*var(--gut));margin-inline:auto}
+
+/* nav, like the website's */
+nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--canvas) 80%,transparent);backdrop-filter:saturate(1.8) blur(22px);
+  -webkit-backdrop-filter:saturate(1.8) blur(22px);border-bottom:1px solid var(--hair)}
+nav .w{display:flex;align-items:center;gap:var(--s3);min-height:60px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:var(--s2);font-weight:500;letter-spacing:-.02em}
+.logo img{width:28px;height:28px}
+.tag{font-size:12px;font-weight:500;padding:2px 10px;border-radius:var(--pill);background:var(--fill);color:var(--label2)}
+.live{display:flex;align-items:center;gap:var(--s2);font-size:13px;color:var(--label2);margin-left:auto}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--live);box-shadow:0 0 0 0 color-mix(in srgb,var(--live) 50%,transparent);animation:pulse 2s infinite}
+@media(max-width:520px){.live .u{display:none}}
+.live.off i{background:var(--muted);animation:none}.live.bad i{background:var(--critical);animation:none}
+@keyframes pulse{70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.seg{display:inline-flex;padding:3px;border-radius:var(--pill);background:var(--fill);gap:2px}
+.seg button{min-height:34px;padding:0 14px;border-radius:var(--pill);font-size:14px;color:var(--label2)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--label);box-shadow:0 1px 2px rgba(0,0,0,.08),inset 0 0 0 1px var(--hair);font-weight:500}
+.pill{min-height:34px;padding:0 14px;border-radius:var(--pill);font-size:14px;box-shadow:inset 0 0 0 1px var(--hair);background:var(--card)}
+.pill:hover{background:var(--fill)}
+
+/* heading, like the website's */
+header{padding:var(--s6) 0 var(--s5)}
+.k{font-size:14px;color:var(--label2);margin-bottom:var(--s3);display:flex;align-items:center;gap:var(--s2)}
+.k:before{content:"";width:24px;height:1px;background:var(--label2)}
+h1{font-size:clamp(1.9rem,4.4vw,2.9rem);line-height:1.05;letter-spacing:-.045em;font-weight:300}
+h1 b{font-weight:500}
+.sub{color:var(--label2);margin-top:var(--s3);max-width:52em}
+
+/* cards */
+.card{background:var(--card);border-radius:var(--r3);box-shadow:inset 0 0 0 1px var(--hair),var(--lift);padding:var(--s5);min-width:0}
+.card h2{font-size:17px;font-weight:500;letter-spacing:-.01em}
+.card .note{font-size:13px;color:var(--label2);margin-top:2px}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s4);flex-wrap:wrap}
+section{margin-bottom:var(--s4)}
+.g{display:grid;gap:var(--s4)}
+@media(min-width:900px){.g2{grid-template-columns:1.6fr 1fr}.g-main{grid-template-columns:1.15fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.span2{grid-column:span 2}}
+@media(min-width:620px) and (max-width:899px){.g3{grid-template-columns:repeat(2,1fr)}}
+
+/* KPI tiles */
+.kpis{display:grid;gap:var(--s3);grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(min-width:620px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:1000px){.kpis{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.tile{background:var(--card);border-radius:var(--r2);box-shadow:inset 0 0 0 1px var(--hair);padding:var(--s4);min-width:0}
+.tile .l{font-size:13px;color:var(--label2)}
+.tile .v{font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1.2;margin-top:2px}
+.tile .d{font-size:12.5px;color:var(--label2);margin-top:2px;display:flex;gap:4px;align-items:center}
+.tile .d.up-good,.tile .d.down-good{color:var(--good-ink)}.tile .d.up-bad,.tile .d.down-bad{color:var(--bad-ink)}
+.tile.hero{grid-column:span 2}.tile.hero .v{font-size:52px}
+.tile.alert .v{color:var(--label)}.tile.alert .badge{display:inline-flex}
+.badge{display:none;align-items:center;gap:4px;font-size:12px;font-weight:500;color:var(--critical)}
+.badge svg{width:14px;height:14px;stroke-width:2}
+
+/* column chart */
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:220px;overflow:visible}
+.chart .gl{stroke:var(--grid);stroke-width:1}.chart .base{stroke:var(--hair);stroke-width:1}
+.chart text{fill:var(--muted);font:12px var(--font);stroke:none}
+.chart .col{fill:var(--bar);stroke:none}.chart line{stroke-linecap:butt}.chart .hit{fill:transparent;stroke:none;cursor:default}
+.chart .hit:hover+.col,.chart g.on .col{opacity:.78}
+.chart .top{fill:var(--label2);font-weight:500}
+.tip{position:absolute;pointer-events:none;background:var(--card);border-radius:var(--r1);box-shadow:inset 0 0 0 1px var(--hair),0 8px 24px rgba(0,0,0,.14);
+  padding:8px 10px;font-size:13px;white-space:nowrap;opacity:0;transition:opacity .12s;z-index:5}
+.tip b{display:block;font-size:15px}.tip span{color:var(--label2)}
+details.tbl{margin-top:var(--s3);font-size:13px;color:var(--label2)}
+details.tbl summary{cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-weight:500;color:var(--label2);text-align:left;padding:6px 8px 6px 0;border-bottom:1px solid var(--hair)}
+td{padding:6px 8px 6px 0;border-bottom:1px solid var(--hair);vertical-align:top}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* horizontal bars */
+.bars{display:grid;gap:10px}
+.bars .r{display:grid;grid-template-columns:minmax(0,12em) 1fr auto;gap:var(--s3);align-items:center;font-size:14px}
+.bars .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .tr{height:10px}
+.bars .f{height:10px;background:var(--bar);border-radius:0 4px 4px 0;min-width:2px}
+.bars .n{font-variant-numeric:tabular-nums;color:var(--label2);min-width:2.5em;text-align:right}
+.empty{color:var(--label2);font-size:14px;padding:var(--s3) 0}
+.meter{height:10px;border-radius:var(--pill);background:var(--track);overflow:hidden;margin:var(--s3) 0 var(--s2)}
+.meter i{display:block;height:100%;background:var(--bar);border-radius:var(--pill)}
+.meter.warn i{background:var(--warning)}
+.statrow{display:flex;justify-content:space-between;gap:var(--s3);padding:7px 0;border-bottom:1px solid var(--hair);font-size:14px}
+.statrow:last-child{border-bottom:0}.statrow b{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* filter chips + feed */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--s3)}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border-radius:var(--pill);font-size:13px;
+  box-shadow:inset 0 0 0 1px var(--hair);color:var(--label2)}
+.chip[aria-pressed="true"]{background:var(--label);color:var(--canvas);box-shadow:none}
+.chip small{font-variant-numeric:tabular-nums;opacity:.75}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;box-shadow:0 0 0 2px var(--card)}
+.feed,.convos{max-height:720px;overflow:auto;margin:0 calc(-1*var(--s5));padding:0 var(--s5);overscroll-behavior:contain}
+.ev{display:grid;grid-template-columns:auto 1fr;gap:2px var(--s3);padding:10px 0;border-bottom:1px solid var(--hair)}
+.ev .tm{font-size:12.5px;color:var(--label2);font-variant-numeric:tabular-nums;padding-top:2px;min-width:4.6em}
+.ev .wh{display:flex;align-items:center;gap:var(--s2);font-weight:500;font-size:14.5px;min-width:0}
+.ev .wh span{min-width:0;overflow-wrap:anywhere}
+.ev .mt{grid-column:2;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12.5px;color:var(--label2)}
+.ev.new{animation:flash 2.4s var(--ease)}
+@keyframes flash{from{background:color-mix(in srgb,var(--accent) 12%,transparent)}to{background:transparent}}
+.who{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;padding:1px 8px;border-radius:var(--pill);background:var(--fill);color:var(--label)}
+.who:hover{box-shadow:inset 0 0 0 1px var(--hair)}
+.fail{display:inline-flex;align-items:center;gap:3px;color:var(--critical);font-weight:500}
+.fail svg{width:13px;height:13px;stroke-width:2.2}
+
+/* conversations */
+.cv{padding:var(--s4) 0;border-bottom:1px solid var(--hair)}
+.cv .top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12.5px;color:var(--label2);margin-bottom:var(--s2)}
+.kind{font-size:12px;font-weight:500;color:var(--label);padding:2px 9px;border-radius:var(--pill);box-shadow:inset 0 0 0 1px var(--hair)}
+.said,.reply{font-size:14.5px;padding:8px 12px;border-radius:14px;max-width:92%;overflow-wrap:anywhere;white-space:pre-wrap}
+.said{background:var(--fill)}
+.reply{background:color-mix(in srgb,var(--accent) 9%,var(--card));margin:6px 0 0 auto}
+.lab{font-size:11.5px;color:var(--label2);margin:6px 0 2px}
+.cv audio{width:100%;max-width:420px;height:36px;margin-top:var(--s2)}
+.cv img{max-width:min(260px,100%);border-radius:var(--r1);margin-top:var(--s2);display:block;box-shadow:inset 0 0 0 1px var(--hair)}
+.rows{font-size:13px;margin-top:6px}
+
+/* trader drawer */
+.scrim{position:fixed;inset:0;background:rgba(10,10,14,.35);opacity:0;pointer-events:none;transition:opacity .25s;z-index:30}
+.drawer{position:fixed;top:0;right:0;height:100%;width:min(560px,100%);background:var(--canvas);z-index:31;transform:translateX(100%);
+  transition:transform .35s var(--ease);overflow:auto;box-shadow:-24px 0 48px -24px rgba(0,0,0,.3);padding:var(--s5)}
+body.open .scrim{opacity:1;pointer-events:auto}body.open .drawer{transform:none}
+.drawer .x{position:sticky;top:0;float:right;width:40px;height:40px;border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1px var(--hair);display:grid;place-items:center}
+.drawer .x svg{width:16px;height:16px}
+.drawer h2{font-size:26px;font-weight:400;letter-spacing:-.03em}
+.mini{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2);margin:var(--s4) 0}
+.mini div{background:var(--card);border-radius:var(--r1);box-shadow:inset 0 0 0 1px var(--hair);padding:10px 12px;font-size:12.5px;color:var(--label2)}
+.mini b{display:block;font-size:17px;color:var(--label);font-weight:500}
+.drawer h3{font-size:15px;font-weight:500;margin:var(--s5) 0 var(--s2)}
+
+footer{padding:var(--s5) 0 var(--s7);font-size:13px;color:var(--label2);display:grid;gap:var(--s2)}
+.stale{opacity:.55;transition:opacity .2s}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<nav><div class="w">
+  <span class="logo"><img src="/static/logo.svg" alt="" width="28" height="28">TradeVoice</span><span class="tag">Team</span>
+  <span class="live" id="live" role="status"><i></i><span id="liveText">Connecting</span><span class="u" id="liveAt"></span></span>
+  <div class="seg" role="group" aria-label="Period" id="period">
+    <button data-p="today" aria-pressed="true">Today</button><button data-p="7d" aria-pressed="false">7 days</button><button data-p="30d" aria-pressed="false">30 days</button>
+  </div>
+  <button class="pill" id="pause" aria-pressed="false">Pause</button>
+</div></nav>
+
+<main class="w">
+  <header>
+    <p class="k">Team dashboard</p>
+    <h1>How traders use TradeVoice, <b>live</b>.</h1>
+    <p class="sub">Every action appears as it happens. What traders said and sent is shown only for those who said yes to
+      helping improve TradeVoice. Lagos time. The team's own phones are marked and left out of the numbers.</p>
+  </header>
+
+  <section class="kpis" id="kpis" aria-label="Headline numbers"></section>
+
+  <section class="g g2">
+    <div class="card chart" id="chartCard">
+      <div class="head"><div><h2 id="chartTitle">Conversations by hour</h2><p class="note">Live talk, Ask chat, voice questions and WhatsApp messages</p></div></div>
+      <div id="chart"></div><div class="tip" id="tip" role="tooltip"></div>
+      <details class="tbl"><summary>Show as a table</summary><div id="chartTable"></div></details>
+    </div>
+    <div class="card">
+      <div class="head"><div><h2>Where they talk</h2><p class="note">Conversations in this period</p></div></div>
+      <div class="bars" id="where"></div>
+      <div class="head" style="margin-top:var(--s5)"><div><h2>Languages</h2><p class="note">Conversations by language</p></div></div>
+      <div class="bars" id="langs"></div>
+    </div>
+  </section>
+
+  <section class="g g-main">
+    <div class="card">
+      <div class="head"><div><h2>Live activity</h2><p class="note">Every action, newest first. Tap a trader to see everything they did.</p></div></div>
+      <div class="chips" id="chips" role="group" aria-label="Show"></div>
+      <div class="feed" id="feed" aria-live="off"></div>
+    </div>
+    <div class="card">
+      <div class="head"><div><h2>What traders said</h2><p class="note">Live talk, chats, voice notes and photos from traders who said yes to helping improve TradeVoice</p></div></div>
+      <div class="convos" id="convos"></div>
+    </div>
+  </section>
+
+  <section class="g g3">
+    <div class="card span2"><div class="head"><div><h2>Speed of a voice turn</h2><p class="note">Each step, in seconds: typical, 9 in 10 faster than, slowest</p></div></div><div id="speed"></div></div>
+    <div class="card"><div class="head"><div><h2>Recent problems</h2><p class="note">Anything that failed in this period</p></div></div><div id="problems"></div></div>
+    <div class="card"><div class="head"><div><h2>Which AI answered</h2><p class="note">N-ATLaS share: <b id="natlas">-</b></p></div></div><div class="bars" id="models"></div></div>
+    <div class="card"><div class="head"><div><h2>Hearing</h2><p class="note">Which speech model heard them</p></div></div><div class="bars" id="hearing"></div></div>
+    <div class="card"><div class="head"><div><h2>Voice replies</h2><p class="note">Made by Intron, or replayed from the saved voices</p></div></div><div class="bars" id="voices"></div></div>
+    <div class="card"><div class="head"><div><h2>Tools the AI used</h2><p class="note">Code did the maths</p></div></div><div class="bars" id="tools"></div></div>
+    <div class="card"><div class="head"><div><h2>Questions nothing could answer</h2><p class="note">By language: add the common ones as tools</p></div></div><div class="bars" id="unanswered"></div></div>
+    <div class="card"><div class="head"><div><h2>From first message to coming back</h2><p class="note">All time</p></div></div><div class="bars" id="funnel"></div></div>
+    <div class="card"><div class="head"><div><h2>Helping improve TradeVoice</h2><p class="note">Who said yes, and what is kept</p></div></div><div id="improve"></div></div>
+    <div class="card"><div class="head"><div><h2>N-ATLaS licence</h2><p class="note">Active traders in 30 days, of the 1,000 allowed</p></div></div><div id="licence"></div></div>
+    <div class="card"><div class="head"><div><h2>All time</h2><p class="note">Traders and guests</p></div></div><div id="totals"></div></div>
+  </section>
+
+  <footer>
+    <span><a id="csv" href="#">Download the anonymised interaction log (CSV)</a> for the NAIC validation PDF.</span>
+    <span>N-ATLaS is an initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri Technologies.</span>
+  </footer>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Trader" aria-hidden="true">
+  <button class="x" id="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  <div id="dbody"></div>
+</aside>
+
+<script>
+(() => {
+  const KEY = new URLSearchParams(location.search).get("key") || "";
+  const $ = s => document.querySelector(s);
+  const CATS = { people: "People", conversations: "Conversations", voice: "Voice", records: "Records", ai: "AI", errors: "Problems" };
+  const KINDS = { live_turn: "Live talk", ask_turn: "Ask chat", voice_turn: "Voice question", whatsapp_turn: "WhatsApp",
+    voice: "Voice note", live: "Live-talk audio", photo: "Photo" };
+  const ALERT = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>';
+  const fmtN = n => n == null ? "-" : Number(n).toLocaleString("en-NG");
+  const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const day = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", day: "numeric", month: "short" });
+  const when = ts => { const d = new Date(ts); const today = day.format(d) === day.format(new Date()); return (today ? "" : day.format(d) + " ") + clock.format(d); };
+  const secs = ms => ms == null ? "" : (ms < 1000 ? ms + " ms" : (ms / 1000).toFixed(1) + " s");
+  const code = w => w ? w.replace(/^g/, "").slice(0, 6) : "";
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  let period = "today", paused = false, filter = "all", lastId = 0, lastAt = "", feedRows = [], busy = false;
+
+  async function api(path) {
+    const r = await fetch(path, { headers: { "X-Admin-Key": KEY }, cache: "no-store" });
+    if (r.status === 403) throw new Error("key");
+    if (!r.ok) throw new Error(String(r.status));
+    return r.json();
+  }
+  function status(state, text) { const l = $("#live"); l.className = "live" + (state === "ok" ? "" : state === "paused" ? " off" : " bad");
+    $("#liveText").textContent = state === "ok" ? "Live" : text; $("#liveAt").textContent = state === "ok" ? " · updated " + clock.format(new Date()) : ""; }
+
+  /* ---------------- headline numbers */
+  const TILES = [
+    ["active", "Active traders", true, false], ["new", "New traders", true, false], ["conversations", "Conversations", true, false],
+    ["live", "Live talk turns", true, false], ["voice", "Voice heard", true, false], ["records", "Records saved", true, false],
+    ["customers", "Customers added", true, false], ["reply_ms", "Typical reply time", false, true], ["errors", "Problems", false, false]];
+  const VS = { today: "vs yesterday", "7d": "vs the 7 days before", "30d": "vs the 30 days before" };
+  function kpis(o) {
+    const box = $("#kpis"); box.textContent = "";
+    TILES.forEach(([k, label, upGood, time], i) => {
+      const t = el("div", "tile" + (i === 0 ? " hero" : "") + (k === "errors" && o.kpi.errors ? " alert" : ""));
+      const v = o.kpi[k], p = o.prev[k];
+      t.append(el("div", "l", label));
+      t.append(el("div", "v", time ? (v == null ? "-" : secs(v)) : k === "natlas_share" ? (v == null ? "-" : v + "%") : fmtN(v)));
+      if (k === "errors" && v) { const b = el("div", "badge"); b.innerHTML = ALERT; b.append(document.createTextNode("Needs a look")); t.append(b); }
+      const d = el("div", "d");
+      if (v != null && p != null && k !== "natlas_share") {
+        const diff = v - p;
+        if (diff) {
+          const good = (diff > 0) === upGood;
+          d.className = "d " + (diff > 0 ? "up" : "down") + (good ? "-good" : "-bad");
+          d.textContent = (diff > 0 ? "+" : "-") + (time ? secs(Math.abs(diff)) : fmtN(Math.abs(diff))) + " " + VS[period];
+        } else d.textContent = "Same as " + VS[period].replace("vs ", "");
+      }
+      t.append(d); box.append(t);
+    });
+  }
+
+  /* ---------------- column chart (one series: no legend; the title names it) */
+  function niceMax(m) { if (m <= 4) return 4; const p = Math.pow(10, Math.floor(Math.log10(m))); for (const s of [1, 2, 2.5, 5, 10]) if (s * p >= m) return s * p; return 10 * p; }
+  function chart(o) {
+    $("#chartTitle").textContent = o.unit === "hour" ? "Conversations by hour" : "Conversations by day";
+    const box = $("#chart"), W = Math.max(280, box.clientWidth || 600), H = 220, L = 34, B = 26, T = 18;
+    const data = o.series, n = data.length, max = niceMax(Math.max(...data.map(d => d.n), 0));
+    const band = (W - L) / n, bw = Math.min(24, Math.max(4, band - 2)), y = v => T + (H - T - B) * (1 - v / max);
+    const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", $("#chartTitle").textContent + ". The table below has every value.");
+    const mk = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
+    for (let i = 0; i <= 4; i++) {
+      const v = max * i / 4, yy = y(v);
+      svg.append(mk("line", { x1: L, x2: W, y1: yy, y2: yy, class: i ? "gl" : "base" }));
+      svg.append(mk("text", { x: L - 8, y: yy + 4, "text-anchor": "end" }, fmtN(v)));
+    }
+    const every = Math.max(1, Math.ceil(44 / band)), top = data.reduce((a, d, i) => d.n > data[a].n ? i : a, 0);
+    data.forEach((d, i) => {
+      const x = L + band * i + (band - bw) / 2, g = mk("g", { tabindex: 0, role: "img", "aria-label": `${d.label}: ${d.n}` });
+      g.append(mk("rect", { class: "hit", x: L + band * i, y: T, width: band, height: H - T - B }));
+      if (d.n > 0) {
+        const yy = y(d.n), h = H - B - yy, r = Math.min(4, h, bw / 2);
+        g.append(mk("path", { class: "col", d: `M${x},${H - B}V${yy + r}Q${x},${yy} ${x + r},${yy}H${x + bw - r}Q${x + bw},${yy} ${x + bw},${yy + r}V${H - B}Z` }));
+      }
+      if (i % every === 0) svg.append(mk("text", { x: x + bw / 2, y: H - 8, "text-anchor": "middle" }, d.label));
+      const show = e => { g.classList.add("on"); const tip = $("#tip"); tip.textContent = ""; tip.append(el("b", null, fmtN(d.n) + (d.n === 1 ? " conversation" : " conversations")), el("span", null, o.unit === "hour" ? "Today " + d.label : d.label));
+        const cr = $("#chartCard").getBoundingClientRect(), br = g.getBoundingClientRect(); tip.style.left = Math.min(cr.width - 170, Math.max(8, br.left - cr.left + br.width / 2 - 70)) + "px"; tip.style.top = (br.top - cr.top + 10) + "px"; tip.style.opacity = 1; };
+      const hide = () => { g.classList.remove("on"); $("#tip").style.opacity = 0; };
+      g.addEventListener("pointerenter", show); g.addEventListener("pointerleave", hide); g.addEventListener("focus", show); g.addEventListener("blur", hide);
+      svg.append(g);
+    });
+    if (data[top].n > 0) svg.append(mk("text", { class: "top", x: L + band * top + band / 2, y: y(data[top].n) - 6, "text-anchor": "middle" }, fmtN(data[top].n)));
+    box.textContent = ""; box.append(svg);
+    const tb = el("table"), hr = el("tr"); hr.append(el("th", null, o.unit === "hour" ? "Hour" : "Day"), el("th", "n", "Conversations")); tb.append(hr);
+    data.forEach(d => { const r = el("tr"); r.append(el("td", null, d.label), el("td", "n", fmtN(d.n))); tb.append(r); });
+    $("#chartTable").textContent = ""; $("#chartTable").append(tb);
+  }
+
+  /* ---------------- horizontal bars (magnitude: one hue, value at the tip) */
+  function bars(id, obj, empty) {
+    const box = $(id); box.textContent = "";
+    const items = Object.entries(obj || {}).filter(([, v]) => v > 0);
+    if (!items.length) { box.append(el("p", "empty", empty || "Nothing yet in this period.")); return; }
+    const max = Math.max(...items.map(([, v]) => v));
+    items.forEach(([k, v]) => {
+      const r = el("div", "r"); r.title = `${k}: ${fmtN(v)}`;
+      const tr = el("div", "tr"), f = el("div", "f"); f.style.width = (100 * v / max) + "%"; tr.append(f);
+      r.append(el("span", "t", k), tr, el("span", "n", fmtN(v))); box.append(r);
+    });
+  }
+  function rows(id, list) { const box = $(id); box.textContent = ""; list.forEach(([k, v]) => { const r = el("div", "statrow"); r.append(el("span", null, k), el("b", null, v)); box.append(r); }); }
+
+  function rest(o) {
+    bars("#where", o.where); bars("#langs", o.languages); bars("#models", o.models); bars("#hearing", o.hearing);
+    bars("#voices", o.voice_replies); bars("#tools", o.tools); bars("#unanswered", o.unanswered, "Every question got an answer.");
+    bars("#funnel", o.funnel);
+    $("#natlas").textContent = o.kpi.natlas_share == null ? "-" : o.kpi.natlas_share + "%";
+    const sp = $("#speed"); sp.textContent = "";
+    if (!o.speed.length) sp.append(el("p", "empty", "No voice turns yet in this period."));
+    else { const t = el("table"), h = el("tr"); ["Step", "Count", "Typical", "9 in 10", "Slowest"].forEach((x, i) => h.append(el("th", i ? "n" : null, x))); t.append(h);
+      o.speed.forEach(s => { const r = el("tr"); r.append(el("td", null, s.step), el("td", "n", fmtN(s.count)), el("td", "n", secs(s.typical)), el("td", "n", secs(s.p90)), el("td", "n", secs(s.max))); t.append(r); }); sp.append(t); }
+    const pb = $("#problems"); pb.textContent = "";
+    if (!o.problems.length) pb.append(el("p", "empty", "Nothing failed in this period."));
+    o.problems.forEach(p => { const r = el("div", "statrow"); const a = el("span"); a.append(el("span", "fail"), document.createTextNode(p.what)); a.firstChild.innerHTML = ALERT;
+      r.append(a, el("b", null, when(p.ts))); r.title = [p.engine, p.lang].filter(Boolean).join(" · "); pb.append(r); });
+    const KEPT = { voice: "Voice notes", photo: "Photos", live: "Live-talk audio", live_turn: "Live talk turns", ask_turn: "Ask chat turns",
+      voice_turn: "Voice questions", whatsapp_turn: "WhatsApp turns" };
+    const im = o.improve, kinds = Object.entries(im.kept || {}).map(([k, v]) => [`Kept: ${KEPT[k] || k}`, fmtN(v)]);
+    rows("#improve", [["Said yes", fmtN(im.yes)], ["Said no", fmtN(im.no)], ...kinds, ["Stored", im.mb + " MB"]]);
+    const li = $("#licence"), lc = o.licence; li.textContent = "";
+    const big = el("div", "tile"); big.style.boxShadow = "none"; big.style.padding = "0"; big.append(el("div", "v", `${fmtN(lc.active_30d)} of ${fmtN(lc.cap)}`)); li.append(big);
+    const m = el("div", "meter" + (lc.warn ? " warn" : "")), mi = el("i"); mi.style.width = Math.min(100, 100 * lc.active_30d / lc.cap) + "%"; m.append(mi); li.append(m);
+    if (lc.warn) { const w = el("p", "badge"); w.style.display = "flex"; w.style.color = "var(--warning)"; w.innerHTML = ALERT; w.append(document.createTextNode("Near the cap: contact Awarri (datasupport@awarri.com)")); li.append(w); }
+    rows("#totals", [["Traders", fmtN(o.totals.traders)], ["Guests (web, not logged in)", fmtN(o.totals.guests)], ["Team phones left out", fmtN(o.totals.team_left_out)]]);
+  }
+
+  async function loadOverview() {
+    try {
+      document.querySelectorAll("#kpis,.card").forEach(e => e.classList.add("stale"));
+      const o = await api("/team/api/overview?period=" + period);
+      kpis(o); chart(o); rest(o);
+      status(paused ? "paused" : "ok", paused ? "Paused" : "Live · updated " + clock.format(new Date()));
+    } catch (e) { status("bad", e.message === "key" ? "Wrong team key" : "Offline, trying again"); }
+    finally { document.querySelectorAll(".stale").forEach(e => e.classList.remove("stale")); }
+  }
+
+  /* ---------------- live activity */
+  function chips() {
+    const box = $("#chips"); box.textContent = "";
+    const counts = feedRows.reduce((a, r) => (a[r.cat] = (a[r.cat] || 0) + 1, a), {});
+    [["all", "All"], ...Object.entries(CATS)].forEach(([k, label]) => {
+      const b = el("button", "chip"); b.setAttribute("aria-pressed", String(filter === k));
+      if (k !== "all") { const d = el("i", "dot"); d.style.background = `var(--c-${k})`; b.append(d); }
+      b.append(document.createTextNode(label + " "), el("small", null, fmtN(k === "all" ? feedRows.length : counts[k] || 0)));
+      b.onclick = () => { filter = k; chips(); drawFeed(); }; box.append(b);
+    });
+  }
+  function evRow(r, fresh) {
+    const d = el("div", "ev" + (fresh ? " new" : ""));
+    const tm = el("span", "tm", when(r.ts)); tm.title = new Date(r.ts).toString(); d.append(tm);
+    const wh = el("div", "wh"); const dot = el("i", "dot"); dot.style.background = `var(--c-${r.cat})`; dot.title = CATS[r.cat];
+    wh.append(dot, el("span", null, r.what));
+    if (!r.ok) { const f = el("span", "fail"); f.innerHTML = ALERT; f.append(document.createTextNode("Failed")); wh.append(f); }
+    d.append(wh);
+    const mt = el("div", "mt");
+    if (r.who) { const w = el("button", "who", r.name ? `${r.name} · ${code(r.who)}` : (r.who.startsWith("g") ? "Guest " : "Trader ") + code(r.who)); w.onclick = () => openTrader(r.who, r.name); mt.append(w); }
+    [r.channel === "whatsapp" ? "WhatsApp" : r.channel === "web" ? "Web app" : "", r.lang, r.engine, secs(r.ms)].filter(Boolean).forEach(x => mt.append(el("span", null, x)));
+    d.append(mt); return d;
+  }
+  function drawFeed(fresh = new Set()) {
+    const box = $("#feed"); box.textContent = "";
+    const shown = feedRows.filter(r => filter === "all" || r.cat === filter);
+    if (!shown.length) box.append(el("p", "empty", filter === "all" ? "Nothing yet. New actions appear here as they happen." : "Nothing of this kind in the list."));
+    shown.slice(0, 300).forEach(r => box.append(evRow(r, fresh.has(r.id))));
+  }
+  async function pollFeed() {
+    try {
+      const d = await api(`/team/api/feed?after=${lastId}&limit=${lastId ? 200 : 300}`);
+      if (d.rows.length) {
+        const fresh = new Set(lastId ? d.rows.map(r => r.id) : []);
+        feedRows = d.rows.concat(feedRows).slice(0, 600); lastId = Math.max(lastId, ...d.rows.map(r => r.id));
+        chips(); drawFeed(fresh);
+        if (lastId && fresh.size) overviewSoon();
+      } else if (!feedRows.length) { chips(); drawFeed(); }
+      status("ok", "Live · updated " + clock.format(new Date()));
+    } catch (e) { status("bad", e.message === "key" ? "Wrong team key" : "Offline, trying again"); }
+  }
+  let ovTimer = null;
+  function overviewSoon() { if (!ovTimer) ovTimer = setTimeout(() => { ovTimer = null; loadOverview(); }, 4000); }
+
+  /* ---------------- what traders said (only those who said yes) */
+  function cvItem(x) {
+    const c = el("div", "cv");
+    const top = el("div", "top"); top.append(el("span", "kind", KINDS[x.kind] || x.kind));
+    const w = el("button", "who", x.name ? `${x.name} · ${code(x.who)}` : "Trader " + code(x.who)); w.onclick = () => openTrader(x.who, x.name);
+    top.append(w, el("span", null, when(x.at)));
+    [x.lang, x.extra && x.extra.engine, x.extra && secs(x.extra.ms)].filter(Boolean).forEach(t => top.append(el("span", null, t)));
+    c.append(top);
+    if (x.said) { c.append(el("div", "lab", x.kind === "photo" ? "Read from the photo" : "They said")); c.append(el("div", "said", x.said)); }
+    if (x.media === "audio") { const a = el("audio"); a.controls = true; a.preload = "none"; a.src = x.file + "?key=" + encodeURIComponent(KEY); c.append(a); }
+    if (x.media === "image") { const a = el("a"); a.href = x.file + "?key=" + encodeURIComponent(KEY); a.target = "_blank"; a.rel = "noreferrer"; const i = el("img"); i.loading = "lazy"; i.alt = "Photo the trader sent"; i.src = a.href; a.append(i); c.append(a); }
+    if (x.not_record) c.append(el("div", "rows", "Not a record page: " + x.not_record));
+    if (x.read && x.read.length) { c.append(el("div", "lab", "Lines read")); const t = el("table", "rows"); x.read.slice(0, 12).forEach(r => { const tr = el("tr"); tr.append(el("td", null, [r.type, r.item, r.customer].filter(Boolean).join(" · ")), el("td", "n", r.amount != null ? "₦" + fmtN(r.amount) : "")); t.append(tr); }); c.append(t); }
+    if (x.reply) { c.append(el("div", "lab", "TradeVoice replied")); c.append(el("div", "reply", x.reply)); }
+    return c;
+  }
+  async function pollConvos(first) {
+    try {
+      const d = await api(`/team/api/conversations?after=${encodeURIComponent(lastAt)}&limit=${first ? 60 : 40}`);
+      const box = $("#convos");
+      if (first) { box.textContent = ""; if (!d.items.length) box.append(el("p", "empty", "No one has said yes yet. When traders agree to help improve TradeVoice, what they say and send appears here.")); }
+      if (d.items.length) {
+        if (box.querySelector(".empty")) box.textContent = "";
+        const frag = document.createDocumentFragment(); d.items.forEach(x => frag.append(cvItem(x)));
+        box.prepend(frag); lastAt = d.items[0].at > lastAt ? d.items[0].at : lastAt;
+        while (box.children.length > 150) box.lastChild.remove();
+      }
+    } catch (e) { /* the status line already says offline */ }
+  }
+
+  /* ---------------- one trader, everything they did */
+  async function openTrader(who, name) {
+    const body = $("#dbody"); body.textContent = "";
+    body.append(el("p", "k", who.startsWith("g") ? "Guest" : "Trader"), el("h2", null, name || "Trader " + code(who)));
+    body.append(el("p", "sub", name ? "Said yes to helping improve TradeVoice: everything they said and sent is below." : "Actions only: this trader has not said yes to helping improve TradeVoice."));
+    document.body.classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false"); $("#close").focus();
+    try {
+      const [f, c] = await Promise.all([api(`/team/api/feed?who=${encodeURIComponent(who)}&limit=400`), api(`/team/api/conversations?who=${encodeURIComponent(who)}&limit=100`)]);
+      const ev = f.rows, st = f.stats || {};
+      const mini = el("div", "mini");
+      [["First seen", st.first ? when(st.first) : "-"], ["Last seen", st.last ? when(st.last) : "-"],
+       ["Conversations", fmtN(st.conversations || 0)], ["Records saved", fmtN(st.records || 0)],
+       ["Customers added", fmtN(st.customers || 0)], ["Problems", fmtN(st.problems || 0)]]
+        .forEach(([k, v]) => { const d = el("div"); d.append(el("b", null, v), document.createTextNode(k)); mini.append(d); });
+      body.append(mini);
+      if (c.items.length) { body.append(el("h3", null, "What they said and sent")); c.items.forEach(x => body.append(cvItem(x))); }
+      body.append(el("h3", null, ev.length < 400 ? "Everything they did" : "Their latest 400 actions"));
+      if (!ev.length) body.append(el("p", "empty", "Nothing logged."));
+      ev.forEach(r => body.append(evRow(r)));
+    } catch (e) { body.append(el("p", "empty", "Couldn't load this trader. Check the connection.")); }
+  }
+  function closeTrader() { document.body.classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); }
+  $("#close").onclick = closeTrader; $("#scrim").onclick = closeTrader;
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeTrader(); });
+
+  /* ---------------- controls + the live loop */
+  $("#period").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if (!b) return; period = b.dataset.p;
+    document.querySelectorAll("#period button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); loadOverview(); });
+  $("#pause").onclick = () => { paused = !paused; $("#pause").setAttribute("aria-pressed", String(paused)); $("#pause").textContent = paused ? "Resume" : "Pause";
+    status(paused ? "paused" : "ok", paused ? "Paused" : "Live"); if (!paused) tick(); };
+  $("#csv").href = "/team/export.csv?key=" + encodeURIComponent(KEY);
+  let n = 0;
+  async function tick() {
+    if (paused || busy || document.hidden) return; busy = true;
+    try { await pollFeed(); if (n % 2 === 0) await pollConvos(false); if (n % 10 === 0 && n) await loadOverview(); n++; } finally { busy = false; }
+  }
+  addEventListener("resize", () => { clearTimeout(window.__rz); window.__rz = setTimeout(loadOverview, 200); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+  (async () => { await loadOverview(); await pollFeed(); await pollConvos(true); setInterval(tick, 3000); })();
+})();
+</script>
+</body>
+</html>
