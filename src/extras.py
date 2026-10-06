@@ -316,7 +316,7 @@ def notify_trader_paid(phone, name, amount, left):
         import whatsapp
 
         lang = (accounts.profile(phone) or {}).get("lang") or "English"
-        whatsapp.send_text(phone, ui_text.t("paid_notice", lang).format(
+        whatsapp.send_first(phone, "paid", ui_text.t("paid_notice", lang).format(   # 24 h window, else the template
             name=name or "A customer", amount=f"{amount:,.0f}", left=f"{left:,.0f}"))
     except Exception as e:
         print(f"paid notice not sent: {type(e).__name__}: {e}")
@@ -541,8 +541,13 @@ def run_due_reminders(base=None, today=None, send=True):
                 if usual:
                     parts.append("\n".join(converse.repeat_line(p, lang if lang in converse.LANGS else "English")
                                                        + f' Say "{p["customer"]} usual" to record it.' for p in usual[:5]))
-                whatsapp.send_text(phone, "\n\n".join(parts) + f"\n\nOpen: {base}/app")
-            except Exception as e:  # noqa: BLE001 - WhatsApp may not reach them (24 h rule); drafts are still there
+                text = "\n\n".join(parts) + f"\n\nOpen: {base}/app"
+                # inside the 24 h window as is; outside it the summary template (a short version), else not sent
+                # (the reminders are ready in the app anyway, and /team shows it)
+                short = (f"{len(due)} customer(s) promised to pay today. Your reminders are ready." if due else
+                         "Your usual orders are ready to record.") + f" Open: {base}/app"
+                whatsapp.send_first(phone, "summary", text, params=[short])
+            except Exception as e:  # noqa: BLE001 - expired token or Meta refused; drafts are still there
                 print(f"daily summary not sent: {e}")
         done += len(due)
     return done

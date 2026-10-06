@@ -221,6 +221,7 @@ footer{padding:var(--s5) 0 var(--s7);font-size:13px;color:var(--label2);display:
     <div class="card"><div class="head"><div><h2>From first message to coming back</h2><p class="note">All time</p></div></div><div class="bars" id="funnel"></div></div>
     <div class="card"><div class="head"><div><h2>Helping improve TradeVoice</h2><p class="note">Who said yes, and what is kept</p></div></div><div id="improve"></div></div>
     <div class="card"><div class="head"><div><h2>N-ATLaS licence</h2><p class="note">Active traders in 30 days, of the 1,000 allowed</p></div></div><div id="licence"></div></div>
+    <div class="card"><div class="head"><div><h2>WhatsApp</h2><p class="note">Since the app last started, with Meta's delivery reports</p></div></div><div id="wa"></div></div>
     <div class="card"><div class="head"><div><h2>All time</h2><p class="note">Traders and guests</p></div></div><div id="totals"></div></div>
   </section>
 
@@ -366,6 +367,12 @@ footer{padding:var(--s5) 0 var(--s7);font-size:13px;color:var(--label2);display:
     const big = el("div", "tile"); big.style.boxShadow = "none"; big.style.padding = "0"; big.append(el("div", "v", `${fmtN(lc.active_30d)} of ${fmtN(lc.cap)}`)); li.append(big);
     const m = el("div", "meter" + (lc.warn ? " warn" : "")), mi = el("i"); mi.style.width = Math.min(100, 100 * lc.active_30d / lc.cap) + "%"; m.append(mi); li.append(m);
     if (lc.warn) { const w = el("p", "badge"); w.style.display = "flex"; w.style.color = "var(--warning)"; w.innerHTML = ALERT; w.append(document.createTextNode("Near the cap: contact Awarri (datasupport@awarri.com)")); li.append(w); }
+    const w = o.whatsapp || {}, tp = w.templates || {};
+    rows("#wa", [["Messages received", fmtN(w.received || 0)], ["Sent", fmtN(w.sent || 0)], ["Delivered", fmtN(w.delivered || 0)],
+      ["Read", fmtN(w.read || 0)], ["Failed", fmtN(w.failed || 0)], ["Not sent (no 24 h window, no template)", fmtN(w.not_sent || 0)],
+      ["Templates ready", Object.values(tp).filter(Boolean).length + " of " + Object.keys(tp).length],
+      ["Messages signed by Meta", w.signed ? "Yes" : "No: set WHATSAPP_APP_SECRET"]]);
+    if (w.last_error) { const e = el("p", "note", "Last problem: " + w.last_error); e.style.marginTop = "8px"; $("#wa").append(e); }
     rows("#totals", [["Traders", fmtN(o.totals.traders)], ["Guests (web, not logged in)", fmtN(o.totals.guests)], ["Team phones left out", fmtN(o.totals.team_left_out)]]);
   }
 

@@ -44,6 +44,7 @@ def code_sent():
 
 def login(client, phone):
     SENT.clear()
+    whatsapp.saw(accounts.normalize(phone))   # the trader wrote to the bot today: Meta's 24-hour window is open
     r = client.post("/api/auth/start", json={"phone": phone}).json()
     return client.post("/api/auth/verify", json={"login_id": r["login_id"], "code": code_sent()})
 
@@ -60,6 +61,11 @@ def main():
     check("words for the login screen still load", a.get("/api/ui?lang=Yoruba").status_code == 200)
     check("bad number refused", a.post("/api/auth/start", json={"phone": "12"}).status_code == 400)
 
+    SENT.clear()
+    st = a.post("/api/auth/start", json={"phone": "0803 123 4567", "lang": "Pidgin"}).json()
+    check("never wrote to the bot (Meta would drop a plain message) and no template: no code sent, LOGIN offered",
+          not st["sent"] and not SENT and st["verify_link"], (st, SENT))
+    whatsapp.saw("2348031234567")   # now they have written to the bot: the window is open
     SENT.clear()
     st = a.post("/api/auth/start", json={"phone": "0803 123 4567", "lang": "Pidgin"}).json()
     code = code_sent()
@@ -113,7 +119,7 @@ def main():
     check("…and does not log C in", c.post("/api/auth/poll", json={"login_id": st["login_id"]}).json()
           == {"ok": False})
     out = wa("2347012345678", f"LOGIN {st['word']}", "w2")
-    check("LOGIN from the right number -> confirmed", "logged in" in out, out)
+    check("LOGIN from the right number -> confirmed", "confirmed" in out, out)
     r = c.post("/api/auth/poll", json={"login_id": st["login_id"]})
     check("web page polls -> logged in", r.status_code == 200 and r.json().get("ok") and web.COOKIE in r.cookies,
           r.text)

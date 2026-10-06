@@ -163,19 +163,56 @@ def code_start(b: CodeStart, request: Request):
         _phone(request)  # changing your number needs you logged in
         if exists:
             return JSONResponse({"error": "taken"}, 409)
+    if _too_many(phone, request):
+        return JSONResponse({"error": "too_many"}, 429)
     login = accounts.start(phone)
-    sent = False
+    sent, bot = False, ""
     if os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID") or os.getenv("WHATSAPP_PHONE_NUMBER_ID")):
-        try:
-            import whatsapp
-            whatsapp.send_text(phone, f"Your TradeVoice code is *{login['code']}*. Don't share it with anyone.")
-            sent = True
+        import whatsapp
+        try:   # inside Meta's 24-hour window, or with the approved code template: the code goes by WhatsApp
+            sent = whatsapp.send_code(phone, login["code"])
         except Exception as e:  # noqa: BLE001
             print(f"code not sent by WhatsApp: {type(e).__name__}")
+        # the other way, always open: the trader sends "LOGIN MANGO-123" to the bot from that phone (they write first,
+        # so no template is needed); the page continues by itself (/api/auth/v2/code/poll)
+        bot = whatsapp.bot_number() if whatsapp.login_by_message_ok() else ""
     demo = accounts.demo_mode()
-    if not sent and not demo:
+    if not sent and not demo and not bot:
         return JSONResponse({"error": "nosend"}, 503)
-    return {"login_id": login["id"], "sent": sent, "demo_code": login["code"] if demo else None}
+    return {"login_id": login["id"], "sent": sent, "demo_code": login["code"] if demo else None,
+            "word": login["word"] if bot else None, "bot": bot or None}
+
+
+SENDS = {}   # phone or IP -> times codes were asked for (the last hour)
+
+
+def _too_many(phone, request):
+    """At most 5 codes an hour for one number and 20 from one connection: nobody can flood a trader's WhatsApp."""
+    now, ip = time.time(), (request.headers.get("x-forwarded-for") or (request.client.host if request.client else ""))
+    ip = ip.split(",")[0].strip()
+    for key, cap in ((phone, 5), ("ip:" + ip, 20)):
+        recent = [t for t in SENDS.get(key, []) if now - t < 3600]
+        if len(recent) >= cap:
+            return True
+        SENDS[key] = recent
+    for key in (phone, "ip:" + ip):
+        SENDS[key].append(now)
+    return False
+
+
+class CodePoll(BaseModel):
+    login_id: str
+    purpose: str = "signup"
+
+
+@router.post("/api/auth/v2/code/poll")
+def code_poll(b: CodePoll):
+    """The page waits here while the trader sends LOGIN <word> to the bot: ok once WhatsApp confirmed this number."""
+    phone = accounts.poll(b.login_id)
+    if not phone:
+        return {"ok": False}
+    CODE_TICKETS[b.login_id] = (phone, b.purpose, time.time())
+    return {"ok": True}
 
 
 class CodeCheck(BaseModel):

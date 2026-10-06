@@ -1145,22 +1145,20 @@ def _me(phone):
 
 
 @app.post("/api/auth/start")
-def auth_start(b: Start):
+def auth_start(b: Start, request: Request):
     phone = accounts.normalize(b.phone)
     if not phone:
         raise HTTPException(400, "That doesn't look like a phone number. Try like 0803 123 4567.")
+    if v2._too_many(phone, request):
+        raise HTTPException(429, "Too many codes asked for. Try again in an hour.")
     login = accounts.start(phone)
     sent = False
     if not accounts.demo_mode():
-        try:
-            words = {"Pidgin": "Your TradeVoice code na", "Yoruba": "Kóòdù TradeVoice rẹ ni",
-                     "Hausa": "Lambar TradeVoice ɗinka ita ce", "Igbo": "Koodu TradeVoice gị bụ"}
-            whatsapp.send_text(phone, f"{words.get(b.lang, 'Your TradeVoice code is')} *{login['code']}*\n"
-                                      "Don't share it with anyone.")
-            sent = True
-        except Exception as e:  # noqa: BLE001 - expired token, or Meta's 24-hour rule
+        try:   # inside Meta's 24-hour window or with the code template; else LOGIN <word> below
+            sent = whatsapp.send_code(phone, login["code"])
+        except Exception as e:  # noqa: BLE001 - expired token
             print(f"login code not sent by WhatsApp: {e}")
-    bot = whatsapp.bot_number()
+    bot = whatsapp.bot_number() if whatsapp.login_by_message_ok() else ""
     # the code is NEVER shown on screen when sending fails (that let anyone open any number's book); they can still
     # verify by sending LOGIN <word> to the bot from that phone. AUTH_STRICT=0 restores the old fallback (demos only)
     fallback = not sent and not accounts.demo_mode() and os.getenv("AUTH_STRICT", "1") == "0"

@@ -81,6 +81,15 @@ def describe(r):
         cat, words = "voice", "Compared two hearings"
     elif k == "voice":
         cat, words = "voice", "Replayed a saved voice reply" if e == "cache" else "Spoke a reply"
+    elif k == "wa_failed":
+        return "errors", f"WhatsApp message not delivered: {e.split(' ', 1)[-1] if e else 'no reason given'}"
+    elif k == "wa_not_sent":
+        return "errors", {"code": "Login code not sent (no WhatsApp in 24 h, no template): the trader can send LOGIN instead",
+                          "summary": "Daily summary not sent (no WhatsApp in 24 h, no template)",
+                          "paid": "Paid notice not sent (no WhatsApp in 24 h, no template)",
+                          "alert": "Team alert not sent (no WhatsApp in 24 h, no template)"}.get(e, f"Not sent: {e}")
+    elif k == "wa_flood":
+        return "errors", "Too many messages from one number in a minute: the rest were ignored"
     elif k == "llm":
         cat, words = "ai", "AI answered"
     elif k == "ask_brain":
@@ -210,7 +219,22 @@ def overview(period="today", now=None):
         "licence": {"active_30d": s["active_30d"], "cap": s["licence_cap"], "warn": s["licence_warn"]},
         "totals": {"traders": s["traders_total"], "guests": s["guests_total"], "team_left_out": s["team_left_out"]},
         "improve": training.stats(),
+        "whatsapp": _wa_stats(),
     }
+
+
+def _wa_stats():
+    """Since the app last started: what the bot received and sent, and Meta's delivery reports."""
+    try:
+        import whatsapp
+        s = dict(whatsapp.STATS)
+        tpl = {k: bool(os.getenv(v)) for k, v in whatsapp.TEMPLATES.items()}
+    except Exception:  # noqa: BLE001
+        return {}
+    return {"received": s.get("messages", 0), "sent": s.get("sent", 0), "delivered": s.get("delivered", 0),
+            "read": s.get("read", 0), "failed": s.get("failed", 0), "not_sent": s.get("not_sent", 0),
+            "bad_signature": s.get("bad_signature", 0), "last_error": s.get("last_error"), "templates": tpl,
+            "signed": bool(os.getenv("WHATSAPP_APP_SECRET"))}
 
 
 # ---------------------------------------------------------------- pages and data (team key on every call)

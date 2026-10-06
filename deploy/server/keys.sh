@@ -21,6 +21,11 @@ WHATSAPP_PHONE_ID|no|WhatsApp Phone number ID from Meta (digits only)
 WHATSAPP_APP_SECRET|yes|Meta App secret (App settings > Basic)
 WHATSAPP_VERIFY_TOKEN|yes|Any word you choose; type the same word in Meta's webhook settings
 WHATSAPP_BOT_NUMBER|no|The bot's WhatsApp number, digits only, e.g. 2348012345678
+WHATSAPP_WABA_ID|no|WhatsApp Business Account ID (WhatsApp Manager), only to create templates
+WHATSAPP_TPL_CODE|no|Approved login-code template name (whatsapp_templates.sh --status), e.g. tradevoice_code
+WHATSAPP_TPL_SUMMARY|no|Approved daily-summary template name, e.g. tradevoice_daily
+WHATSAPP_TPL_PAID|no|Approved paid-notice template name, e.g. tradevoice_paid
+WHATSAPP_TPL_ALERT|no|Approved team-alert template name, e.g. tradevoice_alert
 TEAM_WHATSAPP|no|Team numbers for alerts, digits, comma between them
 TEAM_PHONES|no|Team phone numbers (digits, comma between): their own testing is left out of the NAIC numbers
 ADMIN_TOKEN|yes|Password for the team dashboard (/team); press Enter on an empty one to make one for you

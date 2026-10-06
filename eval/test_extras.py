@@ -39,6 +39,8 @@ def check(name, ok, got=""):
 
 def login(client, phone, shop="Chioma Stores"):
     SENT.clear()
+    import accounts
+    whatsapp.saw(accounts.normalize(phone) or phone)   # they wrote to the bot today: Meta's 24-hour window is open
     st = client.post("/api/auth/start", json={"phone": phone}).json()
     code = next(p["text"]["body"].split("*")[1] for p in SENT if p.get("type") == "text")
     client.post("/api/auth/verify", json={"login_id": st["login_id"], "code": code})

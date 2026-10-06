@@ -634,6 +634,28 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (!t.includes("Kemi Test Stores")) throw new Error(t);
     });
 
+    /* ------------------------------------------------------------ sign-up when WhatsApp can't send the code */
+    await check("sign-up without a code: 'Send it on WhatsApp' opens LOGIN <word> to the bot, the page carries on by itself", async () => {
+      const c2 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
+      await c2.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+      let polls = 0;   // a real server answers these when WhatsApp is set up; here they are played back
+      await c2.route(/\/api\/auth\/v2\/code\/start$/, r => r.fulfill({ json: { login_id: "lid-wa", sent: false, demo_code: null, word: "MANGO-123", bot: "2348000000999" } }));
+      await c2.route(/\/api\/auth\/v2\/code\/poll$/, r => { polls++; r.fulfill({ json: { ok: polls >= 2 } }); });
+      const p2 = await c2.newPage();
+      p2.on("pageerror", e => errors.push(e.message));
+      await p2.goto(`${BASE}/app`);
+      await p2.click("#gate [data-g=signup]");
+      await p2.fill("#ph", "8030000777"); await p2.check("#ag"); await p2.click("#go");
+      const a = p2.locator("#wa");
+      await a.waitFor({ timeout: 8000 });
+      const href = await a.getAttribute("href");
+      if (href !== "https://wa.me/2348000000999?text=LOGIN%20MANGO-123") throw new Error(href);
+      if (await p2.locator("#otp").count()) throw new Error("a code box although no code was sent");
+      if (!/LOGIN MANGO-123/.test(await p2.locator("#gate").textContent())) throw new Error("the words to send are not shown");
+      await p2.waitForSelector("#pgo", { timeout: 10000 });   // confirmed by WhatsApp: on to choosing a password
+      await c2.close();
+    });
+
     /* ------------------------------------------------------------ the team's live dashboard (this run's own actions) */
     await check("team dashboard: with the key, today's numbers, this run's actions live, and what the 'yes' trader said", async () => {
       await page.goto(`${BASE}/team?key=browser-team-key`);

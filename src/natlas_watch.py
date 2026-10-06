@@ -83,7 +83,7 @@ def _tell_team(text):
     import whatsapp
     for to in filter(None, (n.strip() for n in os.getenv("TEAM_WHATSAPP", "").split(","))):
         try:
-            whatsapp.send_text(to, text)
+            whatsapp.send_first(to, "alert", text)   # 24 h window, else the alert template, else /team shows it
         except Exception as e:  # noqa: BLE001
             print(f"team alert to WhatsApp failed: {type(e).__name__}")
 

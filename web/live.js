@@ -284,7 +284,7 @@
 
   /* ---------------------------------------------------------------- codes by WhatsApp (the design's verify) */
   verify = function (host, o) {
-    let n = 0, iv, lid = null;
+    let n = 0, iv, lid = null, pv = null;
     const ch = "whatsapp";
     const clock = () => {
       let left = 30; clearInterval(iv);
@@ -298,7 +298,18 @@
       if (!lid) { i.value = ""; e.textContent = "That code isn't right. Get a new code."; return; }   // no account (reset): never says so
       const r = await api("/api/auth/v2/code/check", { body: { login_id: lid, code: i.value, purpose: o.purpose } });
       if (!r.ok) { i.value = ""; e.textContent = r.data.error || "That code isn't right."; if (/Too many|expired|new one/i.test(r.data.error || "")) i.disabled = true; return; }
-      clearInterval(iv); o.onOk(lid);
+      clearInterval(iv); clearInterval(pv); o.onOk(lid);
+    };
+    // "Send it on WhatsApp": the trader sends LOGIN <word> to the bot from that phone (they write first, so Meta
+    // always delivers); the server confirms the number and this page carries on by itself
+    const waitForWhatsApp = () => {
+      clearInterval(pv); const t0 = Date.now();
+      pv = setInterval(async () => {
+        if (!host.isConnected || Date.now() - t0 > 10 * 60e3) return clearInterval(pv);
+        if (document.hidden) return;
+        const r = await api("/api/auth/v2/code/poll", { body: { login_id: lid, purpose: o.purpose } });
+        if (r.ok && r.data.ok) { clearInterval(iv); clearInterval(pv); o.onOk(lid); }
+      }, 2000);
     };
     const go = async () => {
       if (offline()) { host.innerHTML = `<p class="er" role="alert" style="margin:0 0 var(--s3)">You're offline. We need internet to send your code.</p><button class="btn w" data-vb="again">Try again</button>`; return; }
@@ -307,18 +318,26 @@
       if (r.ok) lid = r.data.login_id;
       else if (r.status === 404 && o.purpose === "reset") lid = null;          // ghost: same screen, nothing sent
       else if (r.status === 503) error = "We can't send codes on WhatsApp right now. Try again soon.";
+      else if (r.status === 429) error = "Too many codes asked for. Try again in an hour.";
       else if (r.status === 409) error = "This number already has an account.";
       else error = "Couldn't send the code. Try again.";
-      host.innerHTML = (error ? "" : `<p style="color:var(--label2);margin-bottom:var(--s4)">We sent a 6-digit code ${ch == "sms" ? "by SMS to" : "to WhatsApp"} <b style="color:var(--label);font-weight:500">${o.label}</b>.</p>`) +
+      const ghost = !r.ok && !error;   // reset for a number with no account: the same code screen, nothing sent
+      const sent = ghost || (r.ok && (r.data.sent || r.data.demo_code)), word = r.ok && r.data.word;
+      const wa = word && r.data.bot ? `https://wa.me/${r.data.bot}?text=${encodeURIComponent("LOGIN " + word)}` : "";
+      const waBtn = wa ? `<a class="btn ${sent ? "" : "p "}w" id="wa" href="${wa}" target="_blank" rel="noopener" style="margin-top:var(--s3);text-decoration:none">${sent ? "No code? Send it on WhatsApp" : "Send it on WhatsApp"}</a>` +
+        `<p class="fine" style="margin-top:var(--s2)">From the phone with ${o.label}, send <b style="color:var(--label);font-weight:500">LOGIN ${word}</b>. This page carries on by itself.</p>` : "";
+      host.innerHTML = (error ? "" : sent ? `<p style="color:var(--label2);margin-bottom:var(--s4)">We sent a 6-digit code ${ch == "sms" ? "by SMS to" : "to WhatsApp"} <b style="color:var(--label);font-weight:500">${o.label}</b>.</p>` :
+          `<p style="color:var(--label2);margin-bottom:var(--s4)">Confirm <b style="color:var(--label);font-weight:500">${o.label}</b> on WhatsApp: tap the button and send the message it opens.</p>`) +
         (error ? `<p class="er" role="alert" style="margin:0 0 var(--s3)">${error}</p><button class="btn w" data-vb="again">Try again</button>` :
-          `<input class="otp" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="6-digit code" placeholder="······"><p class="er" id="o-e" role="alert"></p><p class="fine" id="rs"></p>`) +
+          (sent ? `<input class="otp" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="6-digit code" placeholder="······"><p class="er" id="o-e" role="alert"></p><p class="fine" id="rs"></p>` : "") + waBtn) +
         (o.back ? `<p class="fine"><button data-vb="back" style="text-decoration:underline">${o.back}</button></p>` : "");
+      if (!error && lid && wa) waitForWhatsApp();
       if (r.ok && r.data.demo_code) setTimeout(() => wab("WhatsApp", `Your TradeVoice code is <b>${r.data.demo_code}</b>. Don't share it with anyone.`), 700);
-      if (!error) { const i = $("#otp", host); i.focus({ preventScroll: true });
+      if (!error && sent) { const i = $("#otp", host); i.focus({ preventScroll: true });
         i.oninput = async () => { i.value = i.value.replace(/\D/g, ""); $("#o-e", host).textContent = ""; if (i.value.length == 6) { await sleep(150); check(i); } }; clock(); }
     };
     host.onclick = e => { const b = e.target.closest("[data-vb]"); if (!b) return; const k = b.dataset.vb;
-      if (k == "back") { clearInterval(iv); o.onBack(); } else { if (k == "resend") n++; go(); } };
+      if (k == "back") { clearInterval(iv); clearInterval(pv); o.onBack(); } else { if (k == "resend") n++; go(); } };
     go();
   };
 

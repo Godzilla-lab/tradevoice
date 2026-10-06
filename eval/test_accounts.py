@@ -40,6 +40,7 @@ def pw(p):   # the page sends a hash of the password, never the password
 
 
 def code_for(c, purpose):
+    whatsapp.saw(FULL)   # the trader wrote to the bot today: Meta's 24-hour window is open
     r = c.post("/api/auth/v2/code/start", json={"phone": PHONE, "purpose": purpose})
     body = SENT[-1]["text"]["body"] if SENT else ""
     code = "".join(ch for ch in body.split("*")[1] if ch.isdigit()) if "*" in body else ""

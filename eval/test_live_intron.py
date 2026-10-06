@@ -195,7 +195,10 @@ with c.websocket_connect("/api/live/hear?lang=English&consent=yes") as ws:
         ws.send_bytes(b"\1\0" * 1600)
     ws.send_text(json.dumps({"type": "commit"}))
     ws.receive_json()
-time.sleep(0.3)
+for _ in range(50):   # saved in a thread after the turn: wait for it (up to 5 s on a busy machine)
+    if kept:
+        break
+    time.sleep(0.1)
 check("yes to improving: the live audio (every byte) and the words heard are kept",
       kept and kept[0][0] == 3 * 3200 and kept[0][2] == {"text": "Mama Ngozi took rice 5000 on credit"}, kept)
 training.answer = lambda phone=None: None

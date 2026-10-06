@@ -166,14 +166,24 @@ def whatsapp():
     if r.status_code != 200:
         return FAIL, scrub(f"Meta said HTTP {r.status_code}: {r.text}")
     d = r.json()
-    missing = [n for n in ("WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN") if not os.getenv(n)]
     detail = (f"{d.get('display_phone_number', '?')} ({d.get('verified_name', '?')}), name {d.get('name_status', '?')}, "
               f"quality {d.get('quality_rating', '?')}")
-    if missing:
-        return WARN, detail + f"; not set: {', '.join(missing)}"
+    a, b = os.getenv("WHATSAPP_PHONE_ID"), os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+    if a and b and a != b:
+        return FAIL, "WHATSAPP_PHONE_ID and WHATSAPP_PHONE_NUMBER_ID differ (PHONE_ID wins): remove the old one in .env"
+    if not os.getenv("WHATSAPP_APP_SECRET"):
+        return FAIL, detail + ("; WHATSAPP_APP_SECRET not set: anyone could post fake messages into a trader's book, "
+                               "and LOGIN by message is off (keys.sh WHATSAPP_APP_SECRET, from Meta app > Basic)")
+    if not os.getenv("WHATSAPP_VERIFY_TOKEN"):
+        return WARN, detail + "; WHATSAPP_VERIFY_TOKEN not set (Meta can't re-check the webhook)"
     if "test" in str(d.get("verified_name", "")).lower():
         return WARN, detail + ": a Meta test number reaches only 5 phones"
-    return PASS, detail
+    import whatsapp as wa2
+    tpl = [k for k, env in wa2.TEMPLATES.items() if os.getenv(env)]
+    if "code" not in tpl:
+        return WARN, detail + ("; no login-code template yet: codes reach only traders who wrote in 24 h, the rest tap "
+                               "'Send it on WhatsApp' (whatsapp_templates.sh --print)")
+    return PASS, detail + f"; templates: {', '.join(tpl)}"
 
 
 def settings_needed():

@@ -42,7 +42,8 @@ if not os.getenv("WHATSAPP_PHONE_ID") and os.getenv("WHATSAPP_PHONE_NUMBER_ID"):
     os.environ["WHATSAPP_PHONE_ID"] = os.environ["WHATSAPP_PHONE_NUMBER_ID"]
 GRAPH = f"https://graph.facebook.com/{os.getenv('WHATSAPP_GRAPH_VERSION', 'v23.0')}"
 router = APIRouter()
-STATS = {"posts": 0, "messages": 0, "bad_signature": 0, "last_post": None, "sent": 0, "last_error": None}
+STATS = {"posts": 0, "messages": 0, "bad_signature": 0, "last_post": None, "sent": 0, "last_error": None,
+         "delivered": 0, "read": 0, "failed": 0, "not_sent": 0, "flood_dropped": 0}
 STATES = {}                    # phone -> conversation state (same shape as the web chat's)
 SEEN = OrderedDict()           # message ids already handled (Meta sometimes sends twice)
 LOCKS = {}                     # phone -> lock, so one trader's messages are answered in order
@@ -67,6 +68,7 @@ SAY = {
     "lang_set": "{lang}. Send a voice note in {lang}, or type in any language.",
     "dashboard": "Your full book (charts, debts, statement): {url}",
     "other": "Send me a *voice note*, a *photo* of your book, or type what happened.",
+    "too_big": "That file is too big for me (over 16 MB). Send a shorter voice note or a smaller photo.",
     "store_wait": ("Noted. We'll message you here the day TradeVoice is on {store}.\n\nYou don't have to wait: "
                    "TradeVoice already works right here on WhatsApp. Send *hi* to start."),
 }
@@ -165,6 +167,152 @@ def send_text(to, body):
     return graph_post(_words({"to": to, "type": "text", "text": {"body": body[:4096], "preview_url": True}}))
 
 
+# ---------------------------------------------------------------- Meta's 24-hour window, templates, delivery
+# A trader's message opens a 24-hour window: inside it we may write anything. Outside it Meta only delivers an
+# APPROVED TEMPLATE; a free-text send is accepted (HTTP 200) and then fails in a status callback (131047). So every
+# message the trader didn't just ask for goes through send_first(): free text inside the window, else the template
+# named in .env (scripts/whatsapp_templates.py makes them), else it is not sent and /team shows it.
+WINDOW_HOURS = 23.5          # a little under 24 h: a message sent at 23 h 59 min can still fail
+TEMPLATES = {"code": "WHATSAPP_TPL_CODE", "summary": "WHATSAPP_TPL_SUMMARY", "paid": "WHATSAPP_TPL_PAID",
+             "alert": "WHATSAPP_TPL_ALERT"}
+MAX_MEDIA = 16 * 1024 * 1024   # Meta's own cap for audio; larger files are refused before downloading
+WA_ERRORS = {131047: "outside the 24-hour window: needs an approved template", 131026: "can't be delivered to this number",
+             131056: "too many messages to this number in a short time", 131049: "Meta held it back (limit per person)",
+             131042: "payment problem on the Meta account: add a payment method", 131048: "spam limit reached",
+             130429: "sending too fast (rate limit)", 131050: "the trader stopped these messages",
+             131051: "message type not supported", 131052: "couldn't download the trader's media",
+             131053: "couldn't upload our media", 132000: "template: wrong number of values", 132001: "template does not exist",
+             132012: "template: a value is in the wrong format", 132015: "template paused by Meta",
+             132016: "template disabled by Meta", 133010: "the bot's number is not registered",
+             131031: "the WhatsApp account is locked", 368: "Meta blocked the account for a while (policy)"}
+
+
+QUIET = ("reaction", "sticker", "system", "unsupported", "ephemeral", "request_welcome")   # never answered
+
+
+class TooBig(Exception):
+    pass
+
+
+def _wdb():
+    import sqlite3
+
+    import accounts
+    c = sqlite3.connect(accounts.ACCOUNTS_DB, timeout=5)
+    c.execute("CREATE TABLE IF NOT EXISTS wa_window (phone TEXT PRIMARY KEY, last_in TEXT NOT NULL)")
+    return c
+
+
+def saw(phone):
+    """A message came in from this number: Meta's window is open for the next 24 hours."""
+    try:
+        with _wdb() as c:
+            c.execute("INSERT INTO wa_window VALUES (?,?) ON CONFLICT(phone) DO UPDATE SET last_in=excluded.last_in",
+                      (re.sub(r"\D", "", str(phone)), dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")))
+    except Exception as e:  # noqa: BLE001
+        print(f"whatsapp: window not saved: {type(e).__name__}")
+
+
+def window_open(phone):
+    try:
+        with _wdb() as c:
+            r = c.execute("SELECT last_in FROM wa_window WHERE phone=?", (re.sub(r"\D", "", str(phone)),)).fetchone()
+    except Exception:  # noqa: BLE001
+        return False
+    return bool(r) and dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(r[0]) < dt.timedelta(hours=WINDOW_HOURS)
+
+
+def _flat(text):
+    """Template values can't hold new lines, tabs or long runs of spaces (Meta refuses them)."""
+    return re.sub(r" {4,}", "   ", re.sub(r"[\r\n\t]+", " ", str(text))).strip()[:1000]
+
+
+def send_template(to, name, params=(), code=None):
+    """An approved template. `code`: an authentication template's copy-code button gets the code too."""
+    comps = [{"type": "body", "parameters": [{"type": "text", "text": _flat(p)} for p in params]}] if params else []
+    if code:
+        comps.append({"type": "button", "sub_type": "url", "index": "0", "parameters": [{"type": "text", "text": code}]})
+    return graph_post({"to": to, "type": "template", "template": {
+        "name": name, "language": {"code": os.getenv("WHATSAPP_TPL_LANG", "en")}, "components": comps}})
+
+
+def _not_sent(to, kind):
+    STATS["not_sent"] += 1
+    try:
+        events.log("wa_not_sent", to, "whatsapp", engine=kind, ok=False)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def send_first(to, kind, text, params=None):
+    """A message the trader didn't just ask for (kind: summary / paid / alert). True if it went out."""
+    if window_open(to):
+        send_text(to, text)
+        return True
+    name = os.getenv(TEMPLATES[kind], "")
+    if name:
+        send_template(to, name, params if params is not None else [text])
+        return True
+    _not_sent(to, kind)
+    return False
+
+
+def send_code(to, code):
+    """A sign-up / login code. Inside the window: a plain message. Outside: the authentication template, if there is
+    one. Otherwise False, and the web page offers 'Send LOGIN ... on WhatsApp' (the trader writes first)."""
+    if window_open(to):
+        send_text(to, f"Your TradeVoice code is *{code}*. Don't share it with anyone.")
+        return True
+    name = os.getenv(TEMPLATES["code"], "")
+    if name:
+        send_template(to, name, [code], code=code)
+        return True
+    _not_sent(to, "code")
+    return False
+
+
+def login_by_message_ok():
+    """Proving a number by sending LOGIN <word> is only safe when Meta signs the webhook (WHATSAPP_APP_SECRET):
+    without it anyone could post 'LOGIN word' as anyone. Off on the live server until the secret is set."""
+    return bool(os.getenv("WHATSAPP_APP_SECRET")) or os.getenv("TV_PUBLIC") != "1"
+
+
+def status(st):
+    """Meta's delivery callback for a message we sent: counts, and a failure shown on /team with the reason."""
+    s = st.get("status") or "?"
+    if s in ("delivered", "read", "failed"):
+        STATS[s] += 1
+    if s == "failed":
+        err = (st.get("errors") or [{}])[0]
+        code = err.get("code")
+        why = WA_ERRORS.get(code) or err.get("title") or err.get("message") or "failed"
+        STATS["last_error"] = f"{code}: {why}"[:300]
+        print(f"whatsapp: a message to ...{str(st.get('recipient_id', ''))[-4:]} failed: {code} {why}")
+        try:
+            events.log("wa_failed", st.get("recipient_id"), "whatsapp", engine=f"{code} {why}"[:80], ok=False)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+FLOOD = {}   # phone -> recent arrival times (more than FLOOD_MAX a minute: the rest are dropped)
+FLOOD_MAX = int(os.getenv("WHATSAPP_FLOOD_MAX", "30"))
+
+
+def _flooding(phone):
+    now = time.time()
+    t = [x for x in FLOOD.get(phone, []) if now - x < 60] + [now]
+    FLOOD[phone] = t[-(FLOOD_MAX + 5):]
+    if len(t) > FLOOD_MAX:
+        STATS["flood_dropped"] += 1
+        if len(t) == FLOOD_MAX + 1:   # logged once per burst
+            try:
+                events.log("wa_flood", phone, "whatsapp", ok=False)
+            except Exception:  # noqa: BLE001
+                pass
+        return True
+    return False
+
+
 def send_buttons(to, body, buttons):
     """buttons: [(id, title≤20)] (max 3)."""
     return graph_post(_words({"to": to, "type": "interactive", "interactive": {
@@ -240,6 +388,8 @@ def download(media_id, suffix):
     """Media id -> our own temp file (deleted by the caller right after it is read)."""
     meta = requests.get(f"{GRAPH}/{media_id}", headers=_headers(), timeout=30)
     meta.raise_for_status()
+    if int(meta.json().get("file_size") or 0) > MAX_MEDIA:
+        raise TooBig()
     data = requests.get(meta.json()["url"], headers=_headers(), timeout=60)
     data.raise_for_status()
     fd, path = tempfile.mkstemp(suffix=suffix)
@@ -356,10 +506,17 @@ def handle(msg):
         if kind == "text" and re.match(r"\s*login\b", msg["text"]["body"], re.I):  # "Verify with WhatsApp" on the web
             import accounts
 
+            if not login_by_message_ok():
+                return send_text(phone, "Logging in by message is switched off for now. Use the 6-digit code on the "
+                                        "website, or ask the TradeVoice team.")
             ok = accounts.confirm_from_whatsapp(phone, msg["text"]["body"])
-            return send_text(phone, "Done. You're logged in: go back to TradeVoice." if ok else
-                             "That login code is old or not for this number. On the website, tap "
-                             "'Verify with WhatsApp' again from this phone.")
+            return send_text(phone, "Done, your number is confirmed. Go back to TradeVoice: it continues by itself."
+                             if ok else "That login code is old or not for this number. On the website, start again "
+                                        "and tap 'Send it on WhatsApp' from this phone.")
+        if kind in QUIET:
+            return None   # a thumbs-up or a sticker needs no answer
+        if kind == "document" and str(msg.get("document", {}).get("mime_type", "")).startswith("image/"):
+            kind, msg = "image", {**msg, "type": "image", "image": msg["document"]}   # a photo sent as a file
         u = user(phone)
         when = _closing(phone)
         if when:   # deleted, waiting to be erased: the book is not used; logging in on the app can still keep it
@@ -446,9 +603,13 @@ def handle(msg):
                 return send_text(phone, web.ASK_PHOTO["not_record"].get(lang, web.ASK_PHOTO["not_record"]["English"])
                                  .format(what=res["not_record"]))
             if not res["rows"]:
-                return send_text(phone, SAY["photo_none"])
-            st["photo_rows"] = res["rows"]
-            return _send_rows(phone, res["rows"], st.get("lang", u["lang"]))
+                caption = (msg["image"].get("caption") or "").strip()
+                if not caption:
+                    return send_text(phone, SAY["photo_none"])
+                text, kind = caption, "text"   # no lines in the photo, but words with it: answer the words
+            if res["rows"]:
+                st["photo_rows"] = res["rows"]
+                return _send_rows(phone, res["rows"], st.get("lang", u["lang"]))
 
         # 4) voice note -> text (Intron, in the trader's language)
         if kind == "audio":
@@ -542,8 +703,10 @@ def _safe(msg):
     token = ledger.use_book(accounts.normalize(msg.get("from", "")) or "unknown")  # the sender's own book
     try:
         handle(msg)
-        if msg.get("from") and not _closing(msg["from"]):
+        if msg.get("from") and msg.get("type") not in QUIET and not _closing(msg["from"]):
             _ask_training_once(msg["from"])
+    except TooBig:
+        send_text(msg["from"], SAY["too_big"])
     except Exception as e:  # noqa: BLE001 - never crash the server on one bad message
         STATS["last_error"] = f"{type(e).__name__}: {e}"[:400]
         print(f"whatsapp message failed: {type(e).__name__}: {e}")
@@ -565,12 +728,15 @@ async def incoming(request: Request, tasks: BackgroundTasks):
         good = "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(good, request.headers.get("X-Hub-Signature-256", "")):
             STATS["bad_signature"] += 1
-            print("whatsapp: message refused, WHATSAPP_APP_SECRET does not match (leave it empty to skip the check)")
+            print("whatsapp: message refused, the signature does not match WHATSAPP_APP_SECRET")
             raise HTTPException(401, "bad signature")
     body = json.loads(raw or b"{}")
     for entry in body.get("entry", []):
         for change in entry.get("changes", []):
-            for msg in change.get("value", {}).get("messages", []):  # statuses (sent/read) are ignored
+            value = change.get("value", {})
+            for st in value.get("statuses", []):   # delivery of what we sent: failures go to /team with the reason
+                status(st)
+            for msg in value.get("messages", []):
                 if msg.get("id") in SEEN:
                     continue
                 SEEN[msg.get("id")] = True
@@ -578,5 +744,8 @@ async def incoming(request: Request, tasks: BackgroundTasks):
                 print(f"whatsapp: {msg.get('type')} message from …{str(msg.get('from', ''))[-4:]}")
                 while len(SEEN) > 2000:
                     SEEN.popitem(last=False)
+                saw(msg.get("from", ""))   # their message opens Meta's 24-hour window
+                if _flooding(msg.get("from", "")):
+                    continue
                 tasks.add_task(_safe, msg)  # answer Meta at once; do the slow work after
     return {"ok": True}
