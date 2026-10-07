@@ -136,15 +136,30 @@
 
   /* Customers: a "+" to add a customer by hand (for traders who would rather type than talk): name, phone, what they
      owe, what for, pay-by date. Uses the server's own customer + record endpoints; a name already in the book adds to
-     that customer instead of making a second one. It sits in the search bar beside the filter button (the design's
-     own square), never floating over the list: the screen scrolls, so a floating button covered someone's amount. */
-  { const s = document.createElement("style"); s.textContent = ".fbtn.add{background:var(--accent);color:var(--accent-fg)}.fbtn.add svg{stroke:currentColor;fill:none;stroke-width:2}"; document.head.append(s); }
+     that customer instead of making a second one. The round button belongs to the app frame, not to the Customers
+     screen (that screen scrolls, and a button inside it scrolled away with the list), so it stays in its corner. It
+     shows on Customers only, never over a customer's page. The list leaves room at the end, so the last customer
+     scrolls clear of it, and shows 20 customers at a time: "Show more" adds the next 20. */
+  { const s = document.createElement("style"); s.textContent = ".addfab{position:absolute;right:var(--s4);bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:3;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-fg);box-shadow:0 10px 28px -10px var(--accent);opacity:0;visibility:hidden;transition:opacity var(--d2) var(--ease),visibility 0s var(--d2)}.addfab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2}#cust.on~.addfab{opacity:1;visibility:visible;transition-delay:0s}#det.on~.addfab{opacity:0;visibility:hidden}#cust{padding-bottom:calc(222px + env(safe-area-inset-bottom,0px))}"; document.head.append(s); }
+  $("#app").insertAdjacentHTML("beforeend", `<button class="addfab" data-a="addcust" aria-label="Add a customer">${IC.plus}</button>`);
+  const CUST_PAGE = 20;
+  let custMax = CUST_PAGE, custQ = "";
   const custDesign = cust;
   cust = function (...a) {
+    const q = a[0] !== undefined ? a[0] : CQ;
+    if (q !== custQ) { custQ = q; custMax = CUST_PAGE; }   // a new search starts again from the top 20
     custDesign(...a);
-    const bar = $("#cust .sbar");
-    if (bar && !$("[data-a=addcust]", bar)) bar.insertAdjacentHTML("beforeend", `<button class="fbtn add" data-a="addcust" aria-label="Add a customer">${IC.plus}</button>`);
+    const list = $("#cust .list"), rows = list ? [...list.children] : [];
+    if (rows.length > custMax) {
+      rows.slice(custMax).forEach(li => li.remove());
+      list.insertAdjacentHTML("afterend", `<div class="btns" style="margin-top:var(--s3)"><button class="btn w" data-a="custmore">Show more (${rows.length - custMax})</button></div>`);
+    }
   };
+  document.addEventListener("click", e => {
+    if (!e.target.closest("[data-a=custmore]")) return;
+    const v = $("#cust"), y = v.scrollTop;
+    custMax += CUST_PAGE; cust(); v.scrollTop = y;
+  });
   document.addEventListener("click", e => { if (e.target.closest("[data-a=addcust]")) addCustomer(); });
   function addCustomer() {
     const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);

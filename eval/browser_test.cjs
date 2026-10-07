@@ -510,23 +510,34 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       const back = ((await book()).customers.find(c => c.n === "Iya Bisi") || {}).b;
       if (back !== before) throw new Error(`undo left ${back}`);
     });
-    await check("Customers: the + sits in the search bar and never covers a row's amount, wherever the list is scrolled", async () => {
+    const fab = () => page.evaluate(() => {
+      const b = document.querySelector(".addfab"), r = b.getBoundingClientRect();
+      return { top: Math.round(r.top), left: Math.round(r.left), seen: getComputedStyle(b).visibility === "visible" };
+    });
+    await check("Customers: the round + stays in its corner while the list scrolls; only on Customers", async () => {
+      await tab("home");
+      if ((await fab()).seen) throw new Error("the + shows on Home");
       await tab("cust");
-      if (!await page.$("#cust .sbar [data-a=addcust]")) throw new Error("the + is not in the search bar");
-      for (const at of [0, 0.5, 1]) {
-        const hit = await page.evaluate(at => {
-          const v = document.querySelector("#cust");
-          v.scrollTop = (v.scrollHeight - v.clientHeight) * at;
-          const b = document.querySelector("#cust [data-a=addcust]").getBoundingClientRect();
-          return [...document.querySelectorAll("#cust .list .row")].map(r => r.getBoundingClientRect())
-            .filter(r => r.left < b.right && b.left < r.right && r.top < b.bottom && b.top < r.bottom).length;
-        }, at);
-        if (hit) throw new Error(`the + covers ${hit} row(s) when scrolled to ${at * 100}%`);
-      }
+      await page.waitForFunction(() => getComputedStyle(document.querySelector(".addfab")).visibility === "visible");
+      const at0 = await fab();
+      await page.evaluate(() => { const v = document.querySelector("#cust"); v.scrollTop = v.scrollHeight; });
+      const at1 = await fab();
+      if (at0.top !== at1.top || at0.left !== at1.left) throw new Error(`it moved: ${JSON.stringify([at0, at1])}`);
+      const hit = await page.evaluate(() => {   // scrolled to the end: the last customer is clear of it
+        const b = document.querySelector(".addfab").getBoundingClientRect();
+        return [...document.querySelectorAll("#cust .list .row")].map(r => r.getBoundingClientRect())
+          .filter(r => r.left < b.right && b.left < r.right && r.top < b.bottom && b.top < r.bottom).length;
+      });
+      if (hit) throw new Error(`at the end of the list the + still covers ${hit} row(s)`);
       await page.evaluate(() => { document.querySelector("#cust").scrollTop = 0; });
+      await page.click("#cust .list .row");
+      await page.waitForSelector("#det.on");
+      await page.waitForFunction(() => getComputedStyle(document.querySelector(".addfab")).visibility === "hidden");
+      await page.click("#det [data-a=back]");
+      await page.waitForFunction(() => !document.querySelector("#det.on"));
     });
     await check("Customers: a + to add a customer by hand: name, number, what they owe, what for, pay by", async () => {
-      await page.click("#cust [data-a=addcust]");
+      await page.click("[data-a=addcust]");
       await page.waitForSelector(".ov.on #cn");
       await page.click(".ov.on #cs");
       if (!/name/.test(await page.locator(".ov.on #cn-e").textContent())) throw new Error("no name: no error");
@@ -545,7 +556,7 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       await page.waitForFunction(() => /Baba Kunle/.test(document.querySelector("#cust").textContent));
     });
     await check("Customers: + with a name already in the book adds to that customer (no second Baba Kunle)", async () => {
-      await page.click("#cust [data-a=addcust]");
+      await page.click("[data-a=addcust]");
       await page.waitForSelector(".ov.on #cn");
       await page.fill(".ov.on #cn", "baba kunle");
       await page.fill(".ov.on #ca", "500");
@@ -559,6 +570,38 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       await page.evaluate(id => fetch(`/api/customers/${id}`, { method: "DELETE" }), id);
       await page.reload({ waitUntil: "domcontentloaded" });
       await page.waitForFunction(() => window.TVL && TVL.A && !document.querySelector("#gate"));
+    });
+    await check("Customers: 20 at a time, then 'Show more (N)' adds the rest", async () => {
+      const ids = await page.evaluate(async () => {
+        const out = [];
+        for (let i = 1; i <= 22; i++) {
+          const r = await fetch("/api/customers", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: `Test Buyer ${String(i).padStart(2, "0")}` }) });
+          out.push((await r.json()).id);
+        }
+        return out;
+      });
+      try {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.waitForFunction(() => window.TVL && TVL.A && !document.querySelector("#gate"));
+        await tab("cust");
+        const total = await page.evaluate(() => C.length);
+        await page.waitForSelector("#cust [data-a=custmore]");
+        const rows = await page.locator("#cust .list .row").count();
+        const label = await page.locator("#cust [data-a=custmore]").textContent();
+        if (rows !== 20 || label !== `Show more (${total - 20})`) throw new Error(`${rows} rows, '${label}', ${total} customers`);
+        await page.click("#cust [data-a=custmore]");
+        await page.waitForFunction(n => document.querySelectorAll("#cust .list .row").length === n, total);
+        if (await page.locator("#cust [data-a=custmore]").count()) throw new Error("'Show more' still there with everyone shown");
+        await page.fill("#q", "Test Buyer 0");   // a new search starts again from 20 (9 match here: no button)
+        await page.waitForFunction(() => document.querySelectorAll("#cust .list .row").length === 9);
+        await page.fill("#q", "");
+        await page.waitForSelector("#cust [data-a=custmore]");
+      } finally {
+        await page.evaluate(async ids => { for (const id of ids) await fetch(`/api/customers/${id}`, { method: "DELETE" }); }, ids);
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.waitForFunction(() => window.TVL && TVL.A && !document.querySelector("#gate"));
+      }
     });
     await check("Customers filter: '₦10,000 to ₦100,000' shows the right people, with a removable chip", async () => {
       await tab("cust");
