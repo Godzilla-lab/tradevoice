@@ -136,13 +136,14 @@
 
   /* Customers: a "+" to add a customer by hand (for traders who would rather type than talk): name, phone, what they
      owe, what for, pay-by date. Uses the server's own customer + record endpoints; a name already in the book adds to
-     that customer instead of making a second one. */
-  { const s = document.createElement("style"); s.textContent = ".addfab{position:absolute;right:var(--s4);bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:3;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-fg);box-shadow:0 10px 28px -10px var(--accent)}.addfab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2}"; document.head.append(s); }
+     that customer instead of making a second one. It sits in the search bar beside the filter button (the design's
+     own square), never floating over the list: the screen scrolls, so a floating button covered someone's amount. */
+  { const s = document.createElement("style"); s.textContent = ".fbtn.add{background:var(--accent);color:var(--accent-fg)}.fbtn.add svg{stroke:currentColor;fill:none;stroke-width:2}"; document.head.append(s); }
   const custDesign = cust;
   cust = function (...a) {
     custDesign(...a);
-    const c = $("#cust");
-    if (c && !$(".addfab", c)) c.insertAdjacentHTML("beforeend", `<button class="addfab" data-a="addcust" aria-label="Add a customer">${IC.plus}</button>`);
+    const bar = $("#cust .sbar");
+    if (bar && !$("[data-a=addcust]", bar)) bar.insertAdjacentHTML("beforeend", `<button class="fbtn add" data-a="addcust" aria-label="Add a customer">${IC.plus}</button>`);
   };
   document.addEventListener("click", e => { if (e.target.closest("[data-a=addcust]")) addCustomer(); });
   function addCustomer() {

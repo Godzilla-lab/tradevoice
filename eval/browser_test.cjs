@@ -510,8 +510,22 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       const back = ((await book()).customers.find(c => c.n === "Iya Bisi") || {}).b;
       if (back !== before) throw new Error(`undo left ${back}`);
     });
-    await check("Customers: a + to add a customer by hand: name, number, what they owe, what for, pay by", async () => {
+    await check("Customers: the + sits in the search bar and never covers a row's amount, wherever the list is scrolled", async () => {
       await tab("cust");
+      if (!await page.$("#cust .sbar [data-a=addcust]")) throw new Error("the + is not in the search bar");
+      for (const at of [0, 0.5, 1]) {
+        const hit = await page.evaluate(at => {
+          const v = document.querySelector("#cust");
+          v.scrollTop = (v.scrollHeight - v.clientHeight) * at;
+          const b = document.querySelector("#cust [data-a=addcust]").getBoundingClientRect();
+          return [...document.querySelectorAll("#cust .list .row")].map(r => r.getBoundingClientRect())
+            .filter(r => r.left < b.right && b.left < r.right && r.top < b.bottom && b.top < r.bottom).length;
+        }, at);
+        if (hit) throw new Error(`the + covers ${hit} row(s) when scrolled to ${at * 100}%`);
+      }
+      await page.evaluate(() => { document.querySelector("#cust").scrollTop = 0; });
+    });
+    await check("Customers: a + to add a customer by hand: name, number, what they owe, what for, pay by", async () => {
       await page.click("#cust [data-a=addcust]");
       await page.waitForSelector(".ov.on #cn");
       await page.click(".ov.on #cs");
