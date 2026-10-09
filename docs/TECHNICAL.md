@@ -874,7 +874,7 @@ python eval/test_telegram.py           # one suite: prints its checks and "N/M .
 NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the app in a real browser
 ```
 
-On 9 October 2026: 31 suites with 1,015 checks, all passing, and 80 of 80 browser checks.
+On 9 October 2026: 31 suites with 1,018 checks, all passing, and 80 of 80 browser checks.
 The browser test needs Node and Playwright with Chromium; it starts its own server with a fresh temporary database and
 uses made-up names and numbers.
 

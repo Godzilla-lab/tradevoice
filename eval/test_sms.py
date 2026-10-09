@@ -54,6 +54,8 @@ def fake_post(url, json=None, timeout=None, **kw):   # noqa: A002
         return Resp(400, {"message": "Insufficient balance"})
     if how == "key":
         return Resp(401, {"message": "Unauthorized"})
+    if how == "route":   # what the live account said on 9 Oct: the voice route isn't switched on for it yet
+        return Resp(400, {"message": "You are not set up on this route"})
     return Resp(200, {"code": "ok", "message_id": "301754", "message": "Successfully Sent", "balance": 900.5})
 
 
@@ -244,6 +246,20 @@ def main():
     st, detail = preflight.codes()
     check("…no sender ID: PASS, codes go by phone call, the wallet shown", st == "PASS" and "phone call" in detail
           and "900.50" in detail, (st, detail))
+    os.environ["TERMII_SENDER_ID"] = "TradeVoice"
+    # the voice route not switched on (the live account, 9 Oct): the wallet is fine, but no call can go
+    os.environ.pop("TERMII_SENDER_ID")   # the live setup: codes by phone call
+    MODE["call"] = "route"
+    r = start("08030000860", ip="10.0.6.1").json()
+    check("Termii: 'not set up on this route': sign-up goes on with number + password (nobody stuck)",
+          r.get("nocode") and not r.get("demo_code"), r)
+    st, detail = preflight.codes()
+    check("…and the pilot check says so (WARN with the reason), not a PASS just because the wallet has money",
+          st == "WARN" and "route is not switched on" in detail and "number + password" in detail, (st, detail))
+    MODE["call"] = "ok"
+    start("08030000861", ip="10.0.6.2")
+    st, detail = preflight.codes()
+    check("…once a code goes again: PASS", st == "PASS", (st, detail))
     os.environ["TERMII_SENDER_ID"] = "TradeVoice"
     SENDERS["content"][0]["status"] = "pending"
     st, detail = preflight.codes()

@@ -105,7 +105,7 @@ def _fail(why):
     STATS["failed"] += 1
     STATS["last_error"] = why
     _event("sms_failed", False, why)
-    print(f"code not sent by SMS: {why}")
+    print(f"code not sent by Termii: {why}")
     return ""
 
 
@@ -173,11 +173,39 @@ def send_code(phone, code):
     return _fail(why)
 
 
+def last_result(days=1):
+    """The newest code sent or failed in the last day, from the server's event log: (ok, reason) or None."""
+    try:
+        import events
+        rows = [r for r in events.rows(since_days=days, team=True) if r["kind"] in ("sms_sent", "sms_failed")]
+    except Exception:  # noqa: BLE001
+        return None
+    return (bool(rows[-1]["ok"]), rows[-1]["engine"] or "") if rows else None
+
+
 def check():
-    """For the pilot check: (ok, words); ok None = works, but not as meant yet (sender ID waiting for approval).
-    The wallet and, for texts, whether the sender ID is approved. Never the key."""
+    """For the pilot check: (ok, words); ok None = works, but not as meant yet (sender ID waiting for approval, or
+    the last code didn't go). The wallet, for texts whether the sender ID is approved, and the last code's result
+    (the wallet can be fine while Termii refuses the route). Never the key."""
     if not ready():
         return False, "not set up"
+    last = last_result()
+    if last and not last[0] and last[1] != "daily limit reached":
+        return None, (f"the last code did not go: {last[1]}. Until it does, sign-up goes on with number + password; "
+                      f"{_check_wallet()}")
+    return _check()
+
+
+def _check_wallet():
+    try:
+        r = requests.get(base() + "/api/get-balance", params={"api_key": os.environ["TERMII_API_KEY"]}, timeout=15)
+        b = r.json() if r.status_code < 400 else {}
+        return f"wallet {b.get('currency') or 'NGN'} {float(b.get('balance') or 0):,.2f}"
+    except (requests.RequestException, ValueError, TypeError, AttributeError):
+        return "wallet unknown"
+
+
+def _check():
     key = os.environ["TERMII_API_KEY"]
     try:
         r = requests.get(base() + "/api/get-balance", params={"api_key": key}, timeout=15)
