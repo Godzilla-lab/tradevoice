@@ -109,6 +109,11 @@ check("dashboard data needs the team key", all(client.get(u).status_code == 403 
 o = client.get("/team/api/overview?period=today", headers=K).json()
 check("overview: today's numbers, by the hour (24), with the day before to compare",
       len(o["series"]) == 24 and o["kpi"]["conversations"] >= 1 and "prev" in o and o["kpi"]["active"] == 1, o["kpi"])
+check("overview: N-ATLaS's share counts its real answers ('natlas:NCAIR1/N-ATLaS'): 2 of 3 answers = 67%",
+      o["kpi"]["natlas_share"] == 67, o["kpi"])
+sp = {name: n for name, n, *_ in events.speed(1)}
+check("speed table: N-ATLaS's answers are 'brain (N-ATLaS)', not counted as the backup AI",
+      sp.get("brain (N-ATLaS)") == 2 and sp.get("brain (backup AI)") == 1, sp)
 check("overview: 7 and 30 days, by the day", len(client.get("/team/api/overview?period=7d", headers=K).json()["series"]) == 7
       and len(client.get("/team/api/overview?period=30d", headers=K).json()["series"]) == 30)
 f = client.get("/team/api/feed", headers=K)
@@ -121,8 +126,9 @@ check("live activity: only what is new after the last one seen",
 me = events._hash(PHONE)
 st = client.get(f"/team/api/feed?who={me}", headers=K).json()["stats"]
 check("one trader: their all-time numbers", st["conversations"] >= 1 and st["first"] <= st["last"], st)
-check("a failed step reads as a problem", team.describe({"kind": "llm", "engine": "natlas", "ok": 0, "lang": ""})
-      == ("errors", "AI answered: failed"))
+check("a failed step reads as a problem, in words", team.describe({"kind": "llm", "engine": "natlas", "ok": 0, "lang": ""})
+      == ("errors", "N-ATLaS didn't answer in time (a backup AI answered)")
+      and team.describe({"kind": "hear", "engine": "intron", "ok": 0, "lang": ""}) == ("errors", "Heard speech: failed"))
 check("what traders said: nothing for a trader who hasn't said yes",
       client.get("/team/api/conversations", headers=K).json()["items"] == [])
 training.set_answer(PHONE, True)

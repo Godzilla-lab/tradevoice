@@ -169,10 +169,15 @@ def summary(now=None):
 
 
 # ---------------------------------------------------------------- speed of a voice turn, step by step (times only)
+def is_natlas(r):
+    """An answer from N-ATLaS: llm.py logs "natlas:NCAIR1/N-ATLaS" when it answers and "natlas" when it fails."""
+    return (r["engine"] or "").split(":")[0] == "natlas"
+
+
 STEPS = [("hearing", lambda r: r["kind"] == "hear" and r["ok"]),
-         ("brain (N-ATLaS)", lambda r: r["kind"] == "llm" and r["ok"] and r["engine"] == "natlas"),
-         ("brain (backup AI)", lambda r: r["kind"] == "llm" and r["ok"] and r["engine"] != "natlas"),
-         ("N-ATLaS didn't answer", lambda r: r["kind"] == "llm" and not r["ok"] and r["engine"] == "natlas"),
+         ("brain (N-ATLaS)", lambda r: r["kind"] == "llm" and r["ok"] and is_natlas(r)),
+         ("brain (backup AI)", lambda r: r["kind"] == "llm" and r["ok"] and not is_natlas(r)),
+         ("N-ATLaS didn't answer", lambda r: r["kind"] == "llm" and not r["ok"] and is_natlas(r)),
          ("merge two hearings (N-ATLaS)", lambda r: r["kind"] == "hear_merge" and r["ok"]),
          ("understand", lambda r: r["kind"] == "understand"),
          ("voice (Intron)", lambda r: r["kind"] == "voice" and r["ok"] and (r["engine"] or "").startswith("intron"))]

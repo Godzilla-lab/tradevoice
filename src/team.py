@@ -98,6 +98,8 @@ def describe(r):
     elif k == "wa_flood":
         return "errors", "Too many messages from one number in a minute: the rest were ignored"
     elif k == "llm":
+        if not r["ok"] and events.is_natlas(r):
+            return "errors", "N-ATLaS didn't answer in time (a backup AI answered)"
         cat, words = "ai", "AI answered"
     elif k == "ask_brain":
         cat, words = "ai", "Ask chat model step"
@@ -170,7 +172,7 @@ def _metrics(rows, first_seen, start, end):
         "customers": sum(1 for r in rs if r["kind"] == "customer_added"),
         "errors": sum(1 for r in rs if not r["ok"]),
         "reply_ms": int(statistics.median(ms)) if ms else None,
-        "natlas_share": round(100 * sum(1 for r in llm if r["engine"] == "natlas") / len(llm)) if llm else None,
+        "natlas_share": round(100 * sum(1 for r in llm if events.is_natlas(r)) / len(llm)) if llm else None,
     }
 
 
