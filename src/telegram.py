@@ -200,7 +200,8 @@ SAY = {
                "the number on your account, the same number you use in the TradeVoice app, so it is one book.",
     "not_yours": "Please share your own number with the button below (not someone else's contact).",
     "bad_number": "That number doesn't look right. Please try the button again.",
-    "linked": "Thank you. Your number is connected: Telegram and the TradeVoice app share one book.",
+    "linked": "Thank you. Your number is connected. To use the same book in the TradeVoice app on the web too, "
+              "sign up there with this number: Telegram and the app share one book.",
     "confirmed": "Done, your number is confirmed. Go back to TradeVoice: it continues by itself.",
     "old_word": "That confirmation is old or not for this number. On the website, start again and tap Confirm on "
                 "Telegram.",
@@ -214,6 +215,32 @@ def _say(chat, text, markup=None):
     if markup is not None:
         payload["reply_markup"] = markup
     return call("sendMessage", payload)
+
+
+def _welcome(phone):
+    """After the number is shared: a trader who already has the web app is welcomed back by name, and their language
+    and the terms they agreed to at sign-up carry over (no second language question, no second "I agree")."""
+    import html as _html
+
+    import ledger
+    import v2
+    import whatsapp
+    acct = v2._user(phone) if v2._has_account(phone) else None
+    if not acct:
+        return SAY["linked"]
+    tok = ledger.use_book(phone)
+    try:
+        u = whatsapp.user(phone)
+        if not u.get("lang"):
+            whatsapp.set_user(phone, lang=acct.get("lang") or "English")
+        if not u.get("consent_at"):
+            whatsapp.set_user(phone, consent_at=acct.get("created_at") or "web sign-up")
+    finally:
+        ledger.done_with_book(tok)
+    name = (acct.get("name") or "").split(" ")[0]
+    shop = acct.get("shop") or ""
+    return (f"Welcome back{', ' + _html.escape(name) if name else ''}. This is the same book as your TradeVoice app"
+            f"{' (' + _html.escape(shop) + ')' if shop else ''}: what you save here shows there, and the other way round.")
 
 
 def _confirm(chat, phone, word):
@@ -284,7 +311,7 @@ def handle_update(upd):
                 return _say(chat, SAY["bad_number"], SHARE)
             link(tg_id, chat, phone)
             events.log("tg_linked", phone, "telegram")
-            _say(chat, SAY["linked"], {"remove_keyboard": True})
+            _say(chat, _welcome(phone), {"remove_keyboard": True})
             if tg_id in PENDING:
                 return _confirm(chat, phone, PENDING.pop(tg_id))
             msg = {"from": phone, "id": f"tg{m.get('message_id')}", "type": "text", "text": {"body": "hi"}}

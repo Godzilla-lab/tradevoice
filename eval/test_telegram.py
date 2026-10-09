@@ -203,6 +203,41 @@ def main():
           c.post("/api/auth/v2/code/poll", json={"login_id": r["login_id"]}).json() == {"ok": False}, said(n))
     os.environ.pop("SIGNUP_CODE")
 
+    # one book, whichever way they came in
+    r = c.post("/api/auth/v2/code/start", json={"phone": "08030000905", "purpose": "signup"}).json()
+    c.post("/api/auth/v2/signup", json={"login_id": r["login_id"], "pw": hashlib.sha256(b"pw:Ngozi-pass-2026").hexdigest(),
+                                        "name": "Ngozi Testtrader", "biz": "Ngozi Test Stores", "lang": "Hausa"})
+    c.post("/api/auth/v2/logout")
+    WEB = 7005
+    msg(frm=WEB, text="/start")
+    n = len(CALLS)
+    msg(frm=WEB, contact={"phone_number": "2348030000905", "user_id": WEB})
+    check("a trader who already uses the web app: welcomed back by name, told it's the same book",
+          "Welcome back, Ngozi" in said(n) and "Ngozi Test Stores" in said(n) and "same book" in said(n), said(n))
+    check("…no second language question and no second 'I agree' (their sign-up carries over)",
+          "lang:" not in said(n) and "consent:yes" not in said(n), said(n))
+    n = len(CALLS)
+    msg(frm=WEB, text="Mama Ngozi took goods worth 4000 on credit")
+    check("…and they can record straight away", "4,000" in said(n) or "4000" in said(n), said(n))
+
+    TG_FIRST = 7006
+    msg(frm=TG_FIRST, text="/start")
+    n = len(CALLS)
+    msg(frm=TG_FIRST, contact={"phone_number": "2348030000906", "user_id": TG_FIRST})
+    check("someone new on Telegram: told how to use the same book in the app (sign up with this number)",
+          "sign up there with this number" in said(n), said(n))
+    n = len(CALLS)
+    r = c.post("/api/auth/v2/code/start", json={"phone": "08030000906", "purpose": "signup"}).json()
+    sent_code = "".join(ch for ch in said(n) if ch.isdigit())[-6:]
+    check("their number on the website: sign-up needs the code sent to their Telegram (nobody else opens that book)",
+          r.get("channel") == "telegram" and r["sent"] and not r.get("nocode") and len(sent_code) == 6, (r, said(n)))
+    ok = c.post("/api/auth/v2/code/check", json={"login_id": r["login_id"], "code": sent_code, "purpose": "signup"})
+    s2 = c.post("/api/auth/v2/signup", json={"login_id": r["login_id"], "pw": hashlib.sha256(b"pw:Tg-pass-2026").hexdigest(),
+                                            "name": "Tolu Testtrader", "biz": "Tolu Test Stores"})
+    check("…with that code, the account is made on the same book", ok.status_code == 200 and s2.status_code == 200,
+          (ok.text, s2.text))
+    c.post("/api/auth/v2/logout")
+
     # messages we send first, to a trader linked on Telegram (no 24-hour window there)
     n = len(CALLS)
     check("a daily summary or paid notice reaches a trader linked on Telegram",

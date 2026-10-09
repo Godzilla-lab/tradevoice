@@ -345,12 +345,20 @@ def _money(x):
     return f"₦{x:,.0f}"
 
 
+LOCAL = ("Yoruba", "Hausa", "Igbo")
+
+
 def _lang(text, state):
     lang = askbook.guess_language(text)
     prefer = state.get("prefer")
     # nothing in the words says which language (e.g. "hi", Yoruba heard without tone marks): use the one the
     # trader chose, so picking Yoruba really means Yoruba replies
     if lang == "English" and prefer and prefer != "English":
+        return prefer
+    # the trader chose Yoruba, Hausa or Igbo: the reply (and its voice) stays in it. Their words were heard by that
+    # language's model, so a word another language shares must never turn a Yoruba reply into Igbo. To change
+    # language they say so ("change language"), or choose it in the app.
+    if prefer in LOCAL and lang in LOCAL and lang != prefer:
         return prefer
     # a bare "yes"/"ok"/"45k" says nothing about language: keep the one we were talking in
     if len(fold(text).split()) <= 2 and lang in ("English", "Pidgin"):

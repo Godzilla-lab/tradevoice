@@ -180,8 +180,10 @@ def code_start(b: CodeStart, request: Request):
         # the other way, always open: the trader sends "LOGIN MANGO-123" to the bot from that phone (they write first,
         # so no template is needed); the page continues by itself (/api/auth/v2/code/poll)
         bot = whatsapp.bot_number() if whatsapp.login_by_message_ok() else ""
-    if not sent and b.purpose in ("login", "reset"):
-        import telegram   # a trader who shared their number with the Telegram bot gets the code there, for free
+    if not sent:
+        # a number shared with the Telegram bot gets its code there, for free: log in, reset, and sign-up too (a
+        # trader who started on Telegram has a book already; nobody else may open it from the website without a code)
+        import telegram
         sent = telegram.send_code(phone, login["code"])
         via = "telegram" if sent else via
     if not sent and not bot and ch["sms"]:

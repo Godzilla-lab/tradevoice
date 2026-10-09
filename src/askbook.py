@@ -76,8 +76,16 @@ WHAT_WORDS = [
 ]
 LANG_HINTS = {"Yoruba": ["mo", "melo", "elo", "loni", "yii", "ni", "ta", "iresi", "ose", "osu", "gbese", "se", "lowo",
                         "owo", "mi"],
-              "Hausa": ["nawa", "na", "yau", "wannan", "sayar", "shinkafa", "mako", "wata", "bashi", "nake"],
-              "Igbo": ["m", "ole", "taa", "rere", "ere", "ahia", "osikapa", "izu", "onwa", "ugwo", "ka"],
+              # Hausa had too few markers: 127 of 333 Hausa sentences read as English (9 Oct). These are everyday
+              # market words (pay, debt, thousand, money, to, from, the days and numbers), none used in Yoruba or Igbo
+              "Hausa": ["nawa", "na", "yau", "wannan", "sayar", "shinkafa", "mako", "wata", "bashi", "nake", "biya",
+                        "bashin", "dubu", "kudi", "kudin", "zuwa", "daga", "cikin", "saura", "ranar", "kasuwa", "buhu",
+                        "buhun", "ashirin", "talatin", "arba'in", "hamsin", "biyar", "goma", "yaushe", "lambar",
+                        "wayarsa", "sayi", "saya", "asabar", "lahadi", "litinin", "talata", "laraba", "alhamis",
+                        "juma'a", "gobe", "jiya", "kwana", "zai", "zata", "ciniki", "riba", "kowanne"],
+              "Igbo": ["m", "ole", "taa", "rere", "ere", "ahia", "osikapa", "izu", "onwa", "ugwo", "ka", "kwuru",
+                       "kwụrụ", "kwụọ", "kwuo", "puku", "nari", "iri", "zụrụ", "zuru", "nyere", "akwụkwọ", "ego",
+                       "ụbọchị", "ubochi", "echi", "unyahụ", "nke", "ọ", "o bu", "otu ọ bụla", "ụgwọ", "ahịa"],
               "Pidgin": ["wetin", "dey", "don", "abeg", "how many i", "wey", "na im", "dis", "sell pass"]}
 
 QUERY_PROMPT = """A Nigerian market trader asks a question about their own record book, in English, Pidgin, Yoruba,

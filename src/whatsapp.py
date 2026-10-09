@@ -643,7 +643,9 @@ def handle(msg):
                 text = heard["text"].strip()
                 st["heard_check"] = heard.get("check")   # unclear amount or name: the chat asks for just that
                 new = {"English / Pidgin": None}.get(heard.get("detected"), heard.get("detected"))
-                if new and new != u["lang"]:  # they spoke another of our languages: use it from now on
+                # an English trader who speaks Yoruba / Hausa / Igbo: that language from now on. A trader who chose
+                # one of them keeps it (one note must never move a Yoruba trader to Igbo); "change language" does that
+                if new and new != u["lang"] and u["lang"] in (None, "English", "Pidgin"):
                     set_user(phone, lang=new)
                     u["lang"] = new
             except Exception as e:  # noqa: BLE001
@@ -666,7 +668,7 @@ def handle(msg):
         r = converse.reply(text, st, shop=os.getenv("SHOP_NAME", "my shop"))
         training.keep_turn("whatsapp_turn", text, r.get("text"), r.get("lang"), {"engine": r.get("engine"),
                            "voice_note": kind == "audio"}, phone=phone)   # only if this trader said yes
-        if kind == "text" and r["lang"] in ("Yoruba", "Hausa", "Igbo") and r["lang"] != u["lang"]:
+        if kind == "text" and r["lang"] in ("Yoruba", "Hausa", "Igbo") and u["lang"] in (None, "English", "Pidgin"):
             set_user(phone, lang=r["lang"])  # they wrote in another of our languages: hear voice notes in it too
         if r.get("rows"):   # a list in one message: the lines to check, like a photo (yes / no / "3 = 40k" / "no 3")
             st["photo_rows"], st["rows_from"] = r["rows"], "list"
