@@ -448,7 +448,8 @@
     const r = await api("/api/voice", { form: fd });
     clearTimeout(slow); clearTimeout(waking);
     if (!o.isConnected) return;
-    if (!r.ok) return err("I couldn't hear you", r.data.error || "It was too noisy or too short. Move closer and say it again.");
+    if (!r.ok) return err(r.data.hearing_down ? "Voice notes are off for now" : "I couldn't hear you",   // our hearing server is down, not their voice
+      r.data.error || "It was too noisy or too short. Move closer and say it again.");
     const words = (r.data.heard || "").split(" "); let s = "";
     for (const w of words) { if (!o.isConnected) return; s += (s ? " " : "") + w; const q = $("#qt", o); if (q) q.textContent = s; await sleep(60); }
     box.innerHTML = `<h3>${t("think")}…</h3>` + live(2); $("#qt", o).textContent = s; await sleep(500);

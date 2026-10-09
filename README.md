@@ -85,7 +85,8 @@ the trader's own book: answers, reminder drafts, lender report   (plain Python m
 - **Hearing.** Voice notes are heard by the four N-ATLaS speech models: Yoruba-ASR, Hausa-ASR, Igbo-ASR and
   NigerianAccentedEnglish for English and Pidgin (`deploy/modal_asr.py`, `src/asr.py`). Traders mix languages, so
   a Yorùbá, Hausa or Igbo note is heard twice, by its language model and the English model, and N-ATLaS merges the
-  two (`src/hearing.py`). An amount is kept only if a speech model really heard it.
+  two (`src/hearing.py`). An amount is kept only if a speech model really heard it. While the speech server is
+  down, Intron hears the notes instead.
 - **Live talk** uses Intron's streaming speech in and out, so words appear while the trader talks. N-ATLaS still
   writes the answer (`src/intron_live.py`).
 - **Ask chat** (`src/agent.py`): an NVIDIA model first with N-ATLaS as the backup; in Yorùbá, Hausa and Igbo,
@@ -178,12 +179,12 @@ design/         the app design the web app is built from
 
 ## Tests
 ```bash
-python eval/run_all.py                                 # 29 suites, no keys, no network
+python eval/run_all.py                                 # 31 suites, no keys, no network
 NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the whole app in Chromium (needs Playwright)
 python eval/run_tools_eval.py                          # tool choice on 203 sentences, offline
 python eval/run_eval.py --cases eval/cases_1000.jsonl --llm natlas --raw --workers 8   # the benchmark (needs NATLAS_URL)
 ```
-- `eval/run_all.py`: 921 checks in 29 suites, all passing on 9 Oct 2026. They cover records, corrections, the
+- `eval/run_all.py`: 983 checks in 31 suites, all passing on 9 Oct 2026. They cover records, corrections, the
   Ask chat, hearing, sign-up, optional SMS codes, Telegram, WhatsApp (against a faked Meta API), backups and the dashboard.
 - `eval/browser_test.cjs`: 75 checks in a real browser, from sign-up to a reminder draft, the Ask tab and log out.
 
@@ -194,7 +195,10 @@ More in [`docs/TESTING.md`](docs/TESTING.md).
 - The Yorùbá, Hausa and Igbo wording and voices still need review by native speakers.
 - Heavy market noise lowers speech accuracy.
 - After an idle hour the N-ATLaS GPU sleeps, and waking it takes a few minutes; the backup models answer meanwhile.
-  The server can keep it awake in market hours (`NATLAS_WATCH`, 7am to 8pm Nigeria time).
+  The server can keep it awake in market hours (`NATLAS_WATCH`, 7am to 8pm Nigeria time, or only on chosen days).
+- The app keeps working when Modal is asleep, broken or out of credits: the trader waits at most 12 s once, then
+  NVIDIA answers and Intron hears until N-ATLaS is back. `NATLAS_MODE=off` runs it with no Modal at all
+  (`docs/TECHNICAL.md`, section 5).
 
 ## Team
 See [`docs/naic/TEAM_PROFILE.md`](docs/naic/TEAM_PROFILE.md).

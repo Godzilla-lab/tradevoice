@@ -66,6 +66,7 @@ SAY = {
     "photo_cancel": "OK, I didn't save anything from the photo.",
     "busy": "One moment…",
     "cant_hear": "I couldn't hear that voice note. Try again closer to the phone, or type it.",
+    "hear_down": "I can't take voice notes right now. Please type it, and try voice again later.",
     "cant_read": "I couldn't read that photo right now. Try again, or type the lines.",
     "voice_off": "OK, text only. Send *voice on* to hear me again.",
     "voice_on": "OK, I'll answer with voice notes too.",
@@ -649,8 +650,9 @@ def handle(msg):
                     set_user(phone, lang=new)
                     u["lang"] = new
             except Exception as e:  # noqa: BLE001
+                import asr
                 print(f"whatsapp voice-note failed: {type(e).__name__}: {e}")
-                return send_text(phone, SAY["cant_hear"])
+                return send_text(phone, SAY["hear_down" if isinstance(e, asr.Down) else "cant_hear"])
             finally:
                 training.keep(path, "voice", u["lang"], heard, phone=phone)   # only if they said yes to training
                 os.remove(path)  # the voice note is deleted as soon as it is read

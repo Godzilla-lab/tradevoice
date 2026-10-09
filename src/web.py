@@ -280,6 +280,17 @@ def voice(file: UploadFile = File(...), session: str = Form("anon"), lang: str =
     return out
 
 
+HEAR_DOWN = "I can't take voice notes right now. Please type it, and try voice again later."
+
+
+def _cant_hear(err):
+    """The hearing server is down (not the trader's voice): say so, and ask for typing instead of a retry."""
+    import asr
+    if isinstance(err, asr.Down):
+        return JSONResponse({"error": HEAR_DOWN, "hearing_down": True}, 503)
+    return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
+
+
 def _hear(file, lang, consent):
     """Voice note -> words (nothing else changes: safe to run early and to throw away)."""
     if consent != "yes":
@@ -291,7 +302,7 @@ def _hear(file, lang, consent):
         heard = transcribe_auto(path, VOICE_LANGS.get(lang, "English / Pidgin"), vocab=ledger.known_words())
     except Exception as e:  # noqa: BLE001
         print(f"hearing failed: {type(e).__name__}: {e}")
-        return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
+        return _cant_hear(e)
     finally:
         training.keep(path, "voice", lang, heard)   # only if this trader said yes to helping train TradeVoice
         os.remove(path)  # the voice note is deleted as soon as it is read
@@ -1073,7 +1084,7 @@ def assist(screen: str = Form("today"), lang: str = Form("English"), session: st
             heard, detected = h["text"].strip(), h.get("detected")
         except Exception as e:  # noqa: BLE001
             print(f"hearing failed: {type(e).__name__}: {e}")
-            return JSONResponse({"error": "Sorry, I couldn't hear that. Please try again, or type it."}, 502)
+            return _cant_hear(e)
         finally:
             training.keep(path, "voice", speak_lang, h)   # only if this trader said yes to helping train TradeVoice
             os.remove(path)  # the voice note is deleted as soon as it is read
@@ -1116,13 +1127,20 @@ def ui(lang: str = "English"):
 def status():
     import llm
 
-    hearing = os.getenv("ASR_ENGINE") or ("natlas" if os.getenv("NATLAS_ASR_URL") else
+    import asr
+    import natlas_watch
+
+    hearing = os.getenv("ASR_ENGINE") or ("natlas" if llm.natlas_hearing_on() else
                                           "intron" if os.getenv("INTRON_API_KEY") else "local")
     brain = ("natlas" if llm.natlas_on() else "brev" if os.getenv("LOCAL_LLM_URL") else
              "nvidia" if os.getenv("NVIDIA_API_KEY") else "offline")
     # counts only: no error text or tokens on this public page (details are on /team)
-    return {"hearing": hearing, "voice": tts.backend(), "brain": brain,
-            "keep_awake": bool(os.getenv("NATLAS_URL")) and os.getenv("NATLAS_WATCH", "1") == "1",
+    return {"hearing": hearing, "voice": tts.backend(), "brain": brain, "natlas_mode": llm.natlas_mode(),
+            # N-ATLaS marked down right now (the backups answer / hear until a background check finds it up)
+            "natlas_down": llm.natlas_on() and llm.natlas_resting("natlas"),
+            "natlas_hearing_down": llm.natlas_hearing_on() and llm.natlas_resting("natlas_asr"),
+            "hearing_backup": asr.down_backup_name(),
+            "keep_awake": llm.natlas_on() and os.getenv("NATLAS_WATCH", "1") == "1" and natlas_watch._watch_day(),
             "photos": "brev" if os.getenv("LOCAL_VISION_URL") else ("nvidia" if llm.available("vision") else "off"),
             "shop": SHOP_NAME, "whatsapp": v2.whatsapp_on(), "telegram": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
             "signup_code": not v2.channels()["nocode"]}

@@ -76,14 +76,16 @@ def app_public():
 
 
 def natlas_brain():
+    import llm
+    if llm.natlas_mode() == "off":
+        return WARN, "switched off (NATLAS_MODE=off): the backups answer. keys.sh NATLAS_MODE, then auto, to use it again"
     if not os.getenv("NATLAS_URL"):
         return FAIL, "NATLAS_URL is not set: N-ATLaS is the main model (keys.sh NATLAS_URL)"
-    import llm
     t0 = time.perf_counter()
     text, used = llm.chat([{"role": "user", "content": "Reply with the single word OK."}], models=["natlas"],
                           max_tokens=5, timeout=240, deadline=240, long=True)
     took = time.perf_counter() - t0
-    if used != "natlas" or not text:
+    if not llm.is_natlas(used) or not text:
         return FAIL, "N-ATLaS did not answer in 4 minutes: check the Modal app (modal app list) and NATLAS_KEY"
     if took > 20:
         return WARN, f"answered, but took {took:.0f} s: it was asleep. Turn NATLAS_WATCH=1 on for the pilot days"
@@ -91,8 +93,14 @@ def natlas_brain():
 
 
 def natlas_hearing():
+    import asr
+    import llm
+    other = asr.down_backup_name()
+    other = f"voice notes are heard by {other.title()}" if other else "nobody hears voice notes (no INTRON_API_KEY)"
+    if llm.natlas_mode() == "off":
+        return WARN, f"switched off (NATLAS_MODE=off): {other}"
     if not os.getenv("NATLAS_ASR_URL"):
-        return WARN, "NATLAS_ASR_URL is not set: voice notes are heard by the backups only"
+        return WARN, f"NATLAS_ASR_URL is not set: {other}"
     import requests
     t0 = time.perf_counter()
     r = requests.get(os.environ["NATLAS_ASR_URL"].rstrip("/") + "/health", timeout=240,
@@ -235,11 +243,28 @@ def settings_needed():
 
 
 def keep_awake():
+    import llm
+    if llm.natlas_mode() == "off":
+        return WARN, "N-ATLaS is switched off (NATLAS_MODE=off): nothing to keep awake"
     if os.getenv("NATLAS_WATCH", "1") != "1":
-        return WARN, "NATLAS_WATCH is off: N-ATLaS sleeps after an hour and the first trader waits 1-3 minutes"
+        return WARN, ("NATLAS_WATCH is off: N-ATLaS sleeps after an hour; the first message wakes it and the backups "
+                      "answer until it is up")
     hours = os.getenv("NATLAS_WATCH_HOURS", "7-20")
-    alerts = "alerts go to TEAM_WHATSAPP" if os.getenv("TEAM_WHATSAPP") else "no TEAM_WHATSAPP for alerts"
-    return (PASS if os.getenv("TEAM_WHATSAPP") else WARN), f"N-ATLaS kept awake {hours}h Lagos time; {alerts}"
+    days = os.getenv("NATLAS_WATCH_DATES", "").strip()
+    days = f"on {days}" if days else "every day (uses Modal credits: NATLAS_WATCH_DATES limits it)"
+    team = [n for n in ("TEAM_TELEGRAM", "TEAM_WHATSAPP") if os.getenv(n)]
+    alerts = f"alerts go to {' and '.join(team)}" if team else "no TEAM_TELEGRAM or TEAM_WHATSAPP for alerts"
+    return (PASS if team else WARN), f"N-ATLaS kept awake {hours}h Lagos time {days}; {alerts}"
+
+
+def without_modal():
+    """If the Modal servers stop (no credits, broken), what do traders get? Read from the settings, no calls."""
+    import asr
+    brain = ("NVIDIA" if os.getenv("NVIDIA_API_KEY") else "our backup GPU" if os.getenv("LOCAL_LLM_URL") else None)
+    hear = asr.down_backup_name()
+    said = (f"answers from {brain or 'the offline rules only'}; "
+            f"voice notes heard by {hear.title() if hear else 'nobody (traders asked to type)'}")
+    return (PASS if brain and hear else WARN), said
 
 
 def backups():
@@ -290,7 +315,7 @@ CHECKS = [("App answering", app_local), ("Public link", app_public), ("N-ATLaS b
           ("N-ATLaS hearing", natlas_hearing), ("NVIDIA models", nvidia), ("Intron voice replies", intron_voice),
           ("Intron live hearing", intron_hearing), ("WhatsApp bot", whatsapp), ("Sign-up codes", codes),
           ("Telegram bot", telegram_bot), ("Settings", settings_needed),
-          ("Keep N-ATLaS awake", keep_awake), ("Backups", backups), ("Disk space", disk), ("Tools and folders", tools)]
+          ("Keep N-ATLaS awake", keep_awake), ("If Modal stops", without_modal), ("Backups", backups), ("Disk space", disk), ("Tools and folders", tools)]
 
 
 def run(checks=CHECKS, timeout=300):

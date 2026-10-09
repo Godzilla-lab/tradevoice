@@ -31,6 +31,9 @@ Code, never the AI, does the arithmetic and checks every record before it is sav
 - **The official weights are served**, not a quantised copy.
 - **Model card settings:** temperature 0.1, repetition penalty 1.12, context up to 8,192 tokens, and the Llama-3.1 chat template with today's date.
 - **Market hours:** both Modal apps sleep when idle. The web server keeps them awake from 7am to 8pm Lagos time during the pilot and the integration check (`src/natlas_watch.py`, `NATLAS_WATCH=1`), and tells the team if N-ATLaS stops answering.
+- **If Modal stops answering** (asleep, broken, or out of credits), the app marks it down after one short wait and
+  checks it in the background until it answers again. Meanwhile NVIDIA models answer and Intron hears voice notes, so
+  traders are still served; N-ATLaS's share of answers is what drops.
 
 ## 3. Architecture
 
@@ -43,6 +46,7 @@ Code, never the AI, does the arithmetic and checks every record before it is sav
    |-- voice note --> N-ATLaS speech model for the trader's language (Modal)
    |                  + NigerianAccentedEnglish on the same note
    |                  -> the N-ATLaS language model merges the two hearings
+   |                  (Intron hears only while the speech server is down)
    |
    |-- words -------> N-ATLaS language model writes the record as JSON
    |                  (Modal, vLLM guided decoding). Backups only if N-ATLaS

@@ -16,6 +16,8 @@ NATLAS_ASR_URL|no|N-ATLaS speech link from Modal (starts https://)
 NATLAS_KEY|yes|N-ATLaS key (the same one you set on Modal)
 NVIDIA_API_KEY|yes|Backup AI key from build.nvidia.com (starts nvapi-)
 NATLAS_WATCH|no|Keep N-ATLaS awake 7am to 8pm Nigeria time? 1 = yes (pilot days; about 10 dollars a day on Modal), 0 = no (it sleeps after an hour)
+NATLAS_WATCH_DATES|no|Only keep it awake on these days, to save Modal credits, e.g. 2026-10-11,2026-10-15..2026-10-17 (- = every day)
+NATLAS_MODE|no|Use N-ATLaS? auto = yes, N-ATLaS first (normal). off = run without Modal: NVIDIA answers, Intron hears voice notes
 TELEGRAM_BOT_TOKEN|yes|Telegram bot token from @BotFather (digits:letters); the app sets up the webhook itself
 TEAM_TELEGRAM|no|Team Telegram chat IDs for alerts (the bot tells you yours when you send /id), comma between
 WHATSAPP_TOKEN|yes|WhatsApp token from Meta (long, starts EA)
@@ -73,6 +75,9 @@ check() {   # NAME VALUE -> a warning when it looks wrong (the value itself is n
     NVIDIA_API_KEY) case "$2" in nvapi-*) ;; *) echo "   ⚠️  NVIDIA keys start with nvapi-";; esac ;;
     PAYSTACK_SECRET_KEY) case "$2" in sk_test_*|sk_live_*) ;; *) echo "   ⚠️  Paystack secret keys start with sk_test_ or sk_live_";; esac ;;
     NATLAS_WATCH) case "$2" in 0|1|-) ;; *) echo "   ⚠️  type 1 (keep awake) or 0 (let it sleep)";; esac ;;
+    NATLAS_MODE) case "$2" in auto|off|-) ;; *) echo "   ⚠️  type auto (use N-ATLaS) or off (run without Modal)";; esac ;;
+    NATLAS_WATCH_DATES) [[ "$2" =~ ^(-|[0-9]{4}-[0-9]{2}-[0-9]{2}(\.\.[0-9]{4}-[0-9]{2}-[0-9]{2})?(,[0-9]{4}-[0-9]{2}-[0-9]{2}(\.\.[0-9]{4}-[0-9]{2}-[0-9]{2})?)*)$ ]] \
+      || echo "   ⚠️  dates like 2026-10-11, or a range 2026-10-15..2026-10-17, comma between";;
     TEAM_PHONES|TEAM_WHATSAPP) case "$2" in *[!0-9,]*) echo "   ⚠️  digits and commas only, e.g. 2348012345678,2348098765432";; esac ;;
     TELEGRAM_BOT_TOKEN) case "$2" in [0-9]*:*) ;; *) echo "   ⚠️  a bot token looks like 123456789:ABC... (from @BotFather)";; esac ;;
   esac
@@ -95,6 +100,7 @@ while IFS='|' read -r name secret what <&3; do
   if [ -z "$val" ]; then echo "   kept"; continue; fi
   check "$name" "$val"
   if [ "$name" = NATLAS_WATCH ] && ! [[ "$val" =~ ^[01-]$ ]]; then echo "   not saved"; continue; fi
+  if [ "$name" = NATLAS_MODE ] && ! [[ "$val" =~ ^(auto|off|-)$ ]]; then echo "   not saved"; continue; fi
   put "$name" "$val"
   if [ "$val" = "-" ]; then echo "   removed"; else echo "   saved ✅"; fi
 done 3<<< "$KEYS"
@@ -115,7 +121,10 @@ brain, hearing, voice = s.get("brain"), s.get("hearing"), s.get("voice") or "off
 mark = lambda b: "✅" if b else "❌"
 print(" ✅\n")
 print("  brain (AI that understands):", brain, mark(brain == "natlas"), "(natlas = N-ATLaS on Modal)")
-print("  hearing (voice notes):      ", hearing, mark(hearing == "natlas"))
+print("  hearing (voice notes):      ", hearing, mark(hearing == "natlas"),
+      "(if N-ATLaS is down: " + (s.get("hearing_backup") or "nobody, traders type") + ")")
+if s.get("natlas_mode") == "off":
+    print("  N-ATLaS:                     switched off (NATLAS_MODE=off): the backups answer and hear")
 print("  WhatsApp:                   ", mark(s.get("whatsapp")))
 print("  voice replies:              ", voice)
 print("  N-ATLaS kept awake 7am-8pm: ", "yes" if s.get("keep_awake") else "no (it sleeps after an hour; first voice note then waits 1-2 min)")

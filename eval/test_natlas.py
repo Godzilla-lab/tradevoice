@@ -37,6 +37,9 @@ def fake_client(kind, timeout, retries=0, model=None):
 
 
 llm._client = fake_client
+import natlas_watch  # noqa: E402
+
+natlas_watch._probe = lambda part: (False, "test")   # the background check after a failure: no network in tests
 passed = total = 0
 
 
@@ -154,8 +157,6 @@ for text, answer in extract.SHOTS:
 check("worked examples are valid records with names that appear in the sentence", ok)
 
 # 10. health watch: alerts the team once after 2 fails, once when back; quiet at night
-import natlas_watch  # noqa: E402
-
 sent, answers = [], []
 natlas_watch.check = lambda: answers.pop(0)
 for a in (True, False, False, False, True):
@@ -280,9 +281,19 @@ HEARD.clear()
 HEARD.update(text="Iya Bisi paid 5000", model="NCAIR1/NigerianAccentedEnglish", seconds=2.0)
 COLD["left"], n = 1, len(POSTS)
 out = asr.transcribe(note.name, "English / Pidgin")
-check("asleep: the first try times out -> it wakes the server (/health) and tries once more with a long wait",
+check("asleep, Intron set: one short try, then Intron hears this note (no 4-minute wait)",
+      out["engine"] == "intron" and len(POSTS) == n + 1 and POSTS[-1][2] <= 15)
+out = asr.transcribe(note.name, "English / Pidgin")
+check("…and the next note goes straight to Intron while N-ATLaS hearing is marked down",
+      out["engine"] == "intron" and len(POSTS) == n + 1)
+llm._resting.pop("natlas_asr", None)
+os.environ["ASR_DOWN_BACKUP"] = "none"
+COLD["left"], n = 1, len(POSTS)
+out = asr.transcribe(note.name, "English / Pidgin")
+check("asleep, no backup: the first try times out -> it wakes the server (/health) and tries once more with a long wait",
       out["text"] == "Iya Bisi paid 5000" and len(POSTS) == n + 2 and GETS and GETS[-1][0].endswith("/health")
       and POSTS[-1][2] >= 240 > POSTS[-2][2])
+os.environ.pop("ASR_DOWN_BACKUP")
 os.environ["ASR_ENGINE"] = "intron"
 check("tests can still pick Intron to compare (ASR_ENGINE=intron)",
       asr.transcribe(note.name, "Igbo")["engine"] == "intron")

@@ -100,6 +100,12 @@ def describe(r):
                           "alert": "Team alert not sent (no WhatsApp in 24 h, no template)"}.get(e, f"Not sent: {e}")
     elif k == "wa_flood":
         return "errors", "Too many messages from one number in a minute: the rest were ignored"
+    elif k in ("natlas_down", "natlas_up"):
+        part, _, why = e.partition(" ")
+        name = "N-ATLaS hearing" if part == "natlas_asr" else "N-ATLaS"
+        if k == "natlas_down":
+            return "errors", f"{name} stopped answering ({why or 'no answer'}): the backups took over"
+        cat, words = "ai", f"{name} answering again"
     elif k == "llm":
         if not r["ok"] and events.is_natlas(r):
             return "errors", "N-ATLaS didn't answer in time (a backup AI answered)"

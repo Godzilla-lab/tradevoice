@@ -1,8 +1,12 @@
 """Speech-to-text. N-ATLaS first when NATLAS_ASR_URL is set: the 4 NCAIR1 Whisper-Small models on Modal
 (deploy/modal_asr.py; Yoruba-ASR, Hausa-ASR, Igbo-ASR, NigerianAccentedEnglish for English and Pidgin).
-Intron and Spitch are NOT used by the app (team decision 2 Oct): they stay only to compare against
-(eval/run_eval.py --audio --asr natlas|intron|spitch). When N-ATLaS can't hear a note, the trader is asked to send
-it again or type it.
+Intron and Spitch are NOT used while N-ATLaS hears (team decision 2 Oct): they stay to compare against
+(eval/run_eval.py --audio --asr natlas|intron|spitch). When N-ATLaS can't make out a note (silence, unclear audio),
+the trader is asked to send it again or type it.
+Only when the N-ATLaS hearing SERVER is down (asleep, broken, or the Modal credits are used up) does Intron hear the
+note instead (ASR_DOWN_BACKUP, default intron when INTRON_API_KEY is set; "none" = nobody, the trader is asked to
+type). The server is then marked down for the whole app and checked in the background (natlas_watch.down), so the
+next notes go straight to Intron until N-ATLaS answers again.
 
 Before N-ATLaS: Whisper for English/Pidgin, Meta omniASR for Yoruba, Hausa and Igbo.
 
@@ -205,11 +209,31 @@ def looping(text, seconds=None):
     return False
 
 
+class Down(RuntimeError):
+    """The N-ATLaS hearing server didn't answer (asleep, broken, no credits): not the trader's audio."""
+
+
+def down_backup_name():
+    """Who hears voice notes while the N-ATLaS hearing server is down (None = nobody)."""
+    name = (os.getenv("ASR_DOWN_BACKUP") or "intron").strip().lower()
+    key = {"intron": "INTRON_API_KEY", "spitch": "SPITCH_API_KEY"}.get(name)
+    return name if key and os.getenv(key) else None
+
+
+def _down_backup():
+    if os.getenv("ASR_ONLY"):   # benchmarks: the engine alone, nothing hiding its failures
+        return None
+    return {"intron": _intron_transcribe, "spitch": _spitch_transcribe}.get(down_backup_name() or "")
+
+
 def _natlas_transcribe(path, language, vocab=None):
     """N-ATLaS speech model for the trader's language, on our Modal server.
-    The server sleeps after an hour with no voice notes and takes a minute or two to wake. So: one normal try
-    (NATLAS_ASR_TIMEOUT, 60 s); if it doesn't answer, wake it (/health waits until it is up) and try once more with
-    the long wait (NATLAS_ASR_TIMEOUT_COLD, 240 s), instead of telling the trader "I couldn't hear you"."""
+    The server sleeps after an hour with no voice notes and takes a minute or two to wake.
+    - A backup can hear (Intron): one try of NATLAS_ASR_FIRST (15 s). No answer -> Down: the backup hears this note,
+      and the server is woken and checked in the background (the trader doesn't wait for it).
+    - No backup: one normal try (NATLAS_ASR_TIMEOUT, 60 s); if it doesn't answer, wake it (/health waits until it is
+      up) and try once more with the long wait (NATLAS_ASR_TIMEOUT_COLD, 240 s), instead of telling the trader
+      "I couldn't hear you"."""
     import requests
 
     lang = NATLAS_ASR_LANG.get(language or "English / Pidgin", "english")
@@ -227,20 +251,39 @@ def _natlas_transcribe(path, language, vocab=None):
                                  data=form, headers=head, timeout=timeout)
     slow = (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
     try:
-        r = send(float(os.getenv("NATLAS_ASR_TIMEOUT", "60")))
-    except slow:
-        print("N-ATLaS speech server didn't answer in time: waking it, then one more try")
-        try:
-            requests.get(base + "/health", headers=head, timeout=float(os.getenv("NATLAS_ASR_TIMEOUT_COLD", "240")))
-        except slow:
-            pass
-        r = send(float(os.getenv("NATLAS_ASR_TIMEOUT_COLD", "240")))
-    if getattr(r, "status_code", 200) == 401:
-        raise RuntimeError("N-ATLaS speech server refused the key: NATLAS_KEY on the server and on Modal differ")
-    if getattr(r, "status_code", 200) == 404:
-        raise RuntimeError("N-ATLaS speech server link is wrong (404): check NATLAS_ASR_URL")
-    r.raise_for_status()
-    out = r.json()
+        if _down_backup():
+            try:
+                r = send(float(os.getenv("NATLAS_ASR_FIRST", "15")))
+            except slow as e:
+                raise Down(f"N-ATLaS speech server didn't answer in time ({type(e).__name__})") from e
+        else:
+            try:
+                r = send(float(os.getenv("NATLAS_ASR_TIMEOUT", "60")))
+            except slow:
+                print("N-ATLaS speech server didn't answer in time: waking it, then one more try")
+                try:
+                    requests.get(base + "/health", headers=head,
+                                 timeout=float(os.getenv("NATLAS_ASR_TIMEOUT_COLD", "240")))
+                except slow:
+                    pass
+                r = send(float(os.getenv("NATLAS_ASR_TIMEOUT_COLD", "240")))
+        status = getattr(r, "status_code", 200)
+        if status == 401:
+            raise Down("N-ATLaS speech server refused the key: NATLAS_KEY on the server and on Modal differ")
+        if status == 404:
+            raise Down("N-ATLaS speech server link is wrong (404): check NATLAS_ASR_URL")
+        if status in (402, 403, 429) or status >= 500:
+            raise Down(f"N-ATLaS speech server error (HTTP {status})")
+        r.raise_for_status()
+        out = r.json()
+    except Down as e:
+        import llm
+        llm._natlas_down("natlas_asr", e)   # the next notes skip it until a background check finds it up
+        raise
+    except slow as e:   # the long wait ran out too
+        import llm
+        llm._natlas_down("natlas_asr", e)
+        raise Down(f"N-ATLaS speech server didn't answer ({type(e).__name__})") from e
     if out.get("no_speech"):
         raise RuntimeError("no speech heard (silence or too quiet)")
     if looping(out.get("text"), out.get("seconds")):
@@ -294,33 +337,46 @@ def transcribe(path, language=None, vocab=None):
         out["engine"] = f"remote:{out.get('engine', out.get('model', 'asr'))}"
     else:
         # default: Intron when its key is set (best for our 5 languages), else our own models
-        mode = (os.getenv("ASR_ENGINE") or ("natlas" if os.getenv("NATLAS_ASR_URL") else
+        import llm
+
+        natlas = llm.natlas_hearing_on()
+        mode = (os.getenv("ASR_ENGINE") or ("natlas" if natlas else
                                             "intron" if os.getenv("INTRON_API_KEY") else "local")).lower()
         clouds = {"natlas": (_natlas_transcribe, "NATLAS_ASR_URL"),
                   "spitch": (_spitch_transcribe, "SPITCH_API_KEY"), "intron": (_intron_transcribe, "INTRON_API_KEY")}
         chosen = mode.replace("-local", "")
         cloud_first = chosen in clouds and (not mode.endswith("-local") or engine == "omni")
-        ready = [name for name, (_, key) in clouds.items() if os.getenv(key)]  # cloud engines with a key
+        ready = [name for name, (_, key) in clouds.items()   # cloud engines with a key (N-ATLaS: unless switched off)
+                 if os.getenv(key) and (name != "natlas" or natlas)]
         order = ([clouds[chosen][0]] if cloud_first and chosen in ready else []) + [_local_transcribe]
         if os.getenv("ASR_ONLY"):   # benchmarks: this engine alone, no fallback hiding its failures
             order = order[:1]
-        elif os.getenv("NATLAS_ASR_URL") and mode == "natlas":
-            # the app hears with N-ATLaS only (team decision 2 Oct): Intron/Spitch are for comparison tests, not
-            # backups. Name them in ASR_BACKUPS (e.g. "intron") only if the team decides otherwise.
+        elif natlas and mode == "natlas":
+            # the app hears with N-ATLaS (team decision 2 Oct): Intron/Spitch are for comparison tests, and hear
+            # only while the N-ATLaS server is down (below). ASR_BACKUPS (e.g. "intron") = also on unclear audio.
             order = [_natlas_transcribe] + [clouds[n][0] for n in os.getenv("ASR_BACKUPS", "").split(",")
                                             if n.strip() in ready and n.strip() != "natlas"]
+            if _down_backup() and llm.natlas_resting("natlas_asr"):
+                order = [_down_backup()]   # marked down: no wait at all (a background check brings N-ATLaS back)
+        elif mode == "natlas":   # ASR_ENGINE=natlas but NATLAS_MODE=off: the backup that hears while it is down
+            order = [f for f in (_down_backup(),) if f]
         else:
             order += [clouds[name][0] for name in ready if clouds[name][0] not in order]  # the rest = fallbacks
-        out, errors = None, []
+        out, errors, was_down = None, [], False
         for fn in order:
             try:
                 out = fn(path, language, vocab)
                 break
             except Exception as e:  # noqa: BLE001 - try the other engine
                 errors.append(f"{fn.__name__.strip('_').split('_')[0]}: {type(e).__name__}: {str(e)[:80]}")
+                if isinstance(e, Down):
+                    was_down = True
+                    if _down_backup() and _down_backup() not in order:
+                        order.append(_down_backup())   # the server is down, not the audio: the backup hears it
         if out is None:
             _event("natlas" if mode == "natlas" else mode, False, (time.perf_counter() - start) * 1000, language)
-            raise RuntimeError("Speech-to-text failed: " + " | ".join(errors))
+            raise (Down if was_down or not order else RuntimeError)(
+                "Speech-to-text failed: " + (" | ".join(errors) or "N-ATLaS hearing is switched off and no backup is set"))
         if errors:
             out["note"] = ((out.get("note") or "") + f" (first engine failed: {errors[0]})").strip()
     out["latency_ms"] = round((time.perf_counter() - start) * 1000)

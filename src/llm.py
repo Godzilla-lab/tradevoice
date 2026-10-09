@@ -46,8 +46,24 @@ _working = {}  # kind -> model that last worked
 _resting = {}  # model -> time until which we skip it (timed out / overloaded recently)
 
 
+def natlas_mode():
+    """NATLAS_MODE=off: the app runs without our Modal servers (no credits left, or a server is broken): the backups
+    answer and hear, and nothing waits on or wakes N-ATLaS. auto (default): N-ATLaS first whenever its link is set."""
+    return (os.getenv("NATLAS_MODE") or "auto").strip().lower()
+
+
 def natlas_on():
-    return bool(os.getenv("NATLAS_URL"))
+    return bool(os.getenv("NATLAS_URL")) and natlas_mode() != "off"
+
+
+def natlas_hearing_on():
+    return bool(os.getenv("NATLAS_ASR_URL")) and natlas_mode() != "off"
+
+
+def natlas_resting(part="natlas"):
+    """Is N-ATLaS ("natlas", the brain) or its hearing ("natlas_asr") marked down right now? Then nothing waits on
+    it: the backups answer until one background check finds it up again (natlas_watch.down)."""
+    return _resting.get(part, 0) > time.time()
 
 
 def available(kind="llm"):
@@ -83,6 +99,14 @@ def wake_natlas():
             pass
     import threading
     threading.Thread(target=ping, daemon=True).start()
+
+
+def _natlas_down(part, err=None):
+    try:
+        import natlas_watch
+        natlas_watch.down(part, type(err).__name__ if err else "")
+    except Exception:  # noqa: BLE001  (never in the way of the answer)
+        _resting[part] = time.time() + COOLDOWN
 
 
 _CLIENTS = {}   # one client per server, kept: its connection stays open, so a call skips a new TLS handshake
@@ -178,12 +202,12 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
         models = [m for m in models if m in OWN_SERVERS]
     if not natlas_on():
         models = [m for m in models if m != "natlas"]
-    if not pinned:
+    if not pinned or len(models) > 1:             # one model asked for by name (a check, a benchmark): always tried
         now = time.time()
         fresh = [m for m in models if _resting.get(m, 0) <= now]
         models = fresh or models                  # skip models that just timed out (unless all did)
-        if _working.get(kind) in models and "natlas" not in models:   # try the last good model first
-            models = [_working[kind]] + [m for m in models if m != _working[kind]]   # (N-ATLaS always leads)
+    if not pinned and _working.get(kind) in models and "natlas" not in models:   # try the last good model first
+        models = [_working[kind]] + [m for m in models if m != _working[kind]]   # (N-ATLaS always leads)
     deadline = float(deadline or os.getenv("LLM_DEADLINE", "30"))
     if _budget_end.get() is not None:
         deadline = min(deadline, _budget_end.get() - time.time())
@@ -207,7 +231,13 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
         if SHOTS_FOR == "all" or model in SHOTS_FOR.split(","):
             msgs = _with_shots(messages, shots)
         if model == "natlas":
-            wait = min(timeout if long else float(os.getenv("NATLAS_TIMEOUT", timeout)), budget)
+            # a backup follows: N-ATLaS gets NATLAS_TIMEOUT (12 s), and the backup keeps time to answer, so a sleeping
+            # or gone Modal server costs the trader one short wait, then none (it is marked down below)
+            after = len(models) > i + 1
+            limit = float(os.getenv("NATLAS_TIMEOUT", "12" if after else timeout))
+            reserve = float(os.getenv("NATLAS_BACKUP_RESERVE", "6")) if after else 0
+            keep = reserve if budget - reserve >= 5 else 0
+            wait = min(timeout if long else min(timeout, limit), budget - keep)
             temp = NATLAS_TEMPERATURE
             extra = {"extra_body": {"repetition_penalty": NATLAS_REPETITION_PENALTY,
                                     "chat_template_kwargs": {"date_string": time.strftime("%d %b %Y")}}}
@@ -220,6 +250,7 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
                                                   temperature=temp, max_tokens=max_tokens, **extra)
             if not pinned:
                 _working[kind] = model
+            if not pinned or model == "natlas":
                 _resting.pop(model, None)
             _event(kind, _label(kind, model), True, start)
             return clean(resp.choices[0].message.content), _label(kind, model)
@@ -227,8 +258,9 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
             last = e
             if model == "natlas":
                 _event(kind, "natlas", False, start)
+                _natlas_down("natlas", e)   # skipped from now on, until a background check finds it answering
             if not _model_gone(e) and model != "natlas":   # N-ATLaS down for ANY reason -> the backups
                 raise  # network / auth / rate-limit after retries: let the caller fall back to rules
-            if not pinned:
+            if not pinned and model != "natlas":
                 _resting[model] = time.time() + COOLDOWN
     raise RuntimeError(f"No configured {kind} model is available (last error: {last})")

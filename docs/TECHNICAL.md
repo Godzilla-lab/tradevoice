@@ -139,7 +139,7 @@ This is the Talk button in the web app. File and function names are given for ea
 | 6 | `asr.transcribe_auto` | If the words look like another of the local languages, the note is heard again in that language |
 | 7 | `web._hear` | `training.keep` stores the audio only for a trader who said yes to helping improve TradeVoice. Then the file is deleted |
 | 8 | `web._say`, `converse.reply` | Runs inside `llm.budget(ASK_AI_SECONDS)` (20 s), so the trader gets an answer in time even while N-ATLaS wakes up. The reply follows the language of the message. The message is routed: yes/no, question, list, promise to pay, or a new record |
-| 9 | `converse._record`, `extract.extract` | `extract.rule_extract` reads the record offline first. Then `extract.llm_extract` calls `llm.chat(..., shots=SHOTS, schema=REC_SCHEMA)`. N-ATLaS is tried first, with guided JSON and the model card's settings (temperature 0.1, repetition penalty 1.12, today's date in the chat template). If it fails or takes longer than `NATLAS_TIMEOUT` (20 s), the NVIDIA models in `LLM_MODELS` are tried. If every model fails, the rules' record is used |
+| 9 | `converse._record`, `extract.extract` | `extract.rule_extract` reads the record offline first. Then `extract.llm_extract` calls `llm.chat(..., shots=SHOTS, schema=REC_SCHEMA)`. N-ATLaS is tried first, with guided JSON and the model card's settings (temperature 0.1, repetition penalty 1.12, today's date in the chat template). If it fails or takes longer than `NATLAS_TIMEOUT` (12 s, with time kept for the backup), the NVIDIA models in `LLM_MODELS` are tried, and N-ATLaS is marked down for the whole app until a background check finds it answering (section 5). If every model fails, the rules' record is used |
 | 10 | `extract._normalise`, `_sell_guard`, `_check_guard` | Code fills empty fields from the rules, multiplies "each" prices by the quantity, and corrects the type or amount when the words are clear (for example "not paid yet" is credit; an amount that was never said is replaced) |
 | 11 | `converse._pick_customer`, `_ask_again`, `price_check`, `draft_limit` | The name is matched to the book ("Which Alhaji?"). A missing amount gets "How much?". An unclear amount is asked again. A price far from this trader's usual price, or a sale over a customer's credit limit, is flagged |
 | 12 | `web._reply_json`, `web._draft` | The page gets the check card: type, amount, customer, item, quantity, due date, and the fields TradeVoice is unsure of (shown with "?"). Nothing is saved yet. The spoken read-back is made at once in the background (`tts.speak`, Intron) and fetched from `/api/speak/{id}` |
@@ -301,7 +301,41 @@ to start, the speech server a minute or two. Meanwhile the backups answer (NVIDI
 traders still get a reply. During market hours the web server keeps both awake: `src/natlas_watch.py` pings them
 every 10 minutes from 7am to 8pm Lagos time when `NATLAS_WATCH=1`, and tells the team (Telegram, WhatsApp) after two
 failed checks in a row. The L4 bills only while a container runs; keeping it warm in market hours costs about
-$10 a day.
+$10 a day. To spend credits only on the days that matter (a demo, the judges' check), list them in
+`NATLAS_WATCH_DATES`, for example `2026-10-11,2026-10-15..2026-10-17`. On other days the first message wakes it.
+
+**When Modal is asleep, broken or out of credits.** The app keeps working; only N-ATLaS's share drops.
+
+- **One health record for the whole app.** `llm._resting` holds `natlas` (the LLM) and `natlas_asr` (the speech
+  server). The first call that fails marks that part down (`natlas_watch.down`). From the next call nothing waits on it.
+- **The trader waits once, briefly.** The LLM gets `NATLAS_TIMEOUT` (12 s) when a backup follows, and
+  `NATLAS_BACKUP_RESERVE` (6 s) of the message's time is kept for that backup. A voice note gets one try of
+  `NATLAS_ASR_FIRST` (15 s), then Intron hears it (`ASR_DOWN_BACKUP`, default `intron` when `INTRON_API_KEY` is set).
+  A Modal account with no credits answers with an error at once, so there is no wait at all.
+- **It comes back by itself.** One background thread per part asks the server every `NATLAS_RECHECK` seconds (120)
+  until it answers. That request also wakes a sleeping GPU. Then N-ATLaS leads again from the next message.
+- **Intron hears only while the server is down.** Unclear audio (silence, a model repeating itself) still goes back to
+  the trader, as the team decided on 2 Oct. With no backup at all, the trader is told "I can't take voice notes right
+  now. Please type it" instead of "I couldn't hear you".
+- **Everyone can see it.** `/api/status` shows `natlas_down`, `natlas_hearing_down` and `hearing_backup`. `/team`
+  lists "N-ATLaS stopped answering: the backups took over" and "N-ATLaS answering again". The team alert says
+  which part is down and what traders get meanwhile. `preflight.sh` has an "If Modal stops" row.
+
+**Running with no Modal at all.** `sudo bash deploy/server/keys.sh NATLAS_MODE`, then type `off`. N-ATLaS is never
+called, woken or checked. NVIDIA answers and Intron hears. Type `auto` to use N-ATLaS again. Keep the links in
+`.env`; `off` only stops the app using them.
+
+**Moving to a new Modal workspace** (for example a new account with fresh credits):
+
+1. `modal setup` with the new account, then make the same secret there:
+   `modal secret create natlas NATLAS_KEY=YOUR_LONG_RANDOM_STRING HF_TOKEN=YOUR_HF_READ_TOKEN`. Using the same
+   `NATLAS_KEY` means the server's key stays as it is.
+2. `modal deploy deploy/modal_natlas.py` and `modal deploy deploy/modal_asr.py`. Each prints its new link.
+3. On the server: `keys.sh NATLAS_URL` (the link ends in `/v1`), then `keys.sh NATLAS_ASR_URL`. If you made a new key,
+   `keys.sh NATLAS_KEY` too. Then `keys.sh NATLAS_MODE`, `auto`, if it was off.
+4. `sudo bash deploy/server/preflight.sh`: the "N-ATLaS brain" and "N-ATLaS hearing" rows should PASS.
+5. On the old account, `modal app stop tradevoice-natlas` and `modal app stop tradevoice-natlas-asr`, so nothing
+   bills there.
 
 **Deploy-time options** (set in the shell that runs `modal deploy`, not in `.env`):
 
@@ -494,15 +528,22 @@ repository. On the server, use `keys.sh`. Defaults are what the code uses when a
 | `NATLAS_URL` | (none) | N-ATLaS LLM link from Modal, ending in `/v1`. When set, N-ATLaS is tried first for every record |
 | `NATLAS_KEY` | (none) | Secret. The same value as in the Modal secret `natlas`. Sent to both Modal apps |
 | `NATLAS_MODEL` | `natlas` | The served model name on the vLLM server |
-| `NATLAS_TIMEOUT` | 20 | Seconds N-ATLaS gets for one record before the backups answer |
+| `NATLAS_MODE` | `auto` | `auto`: N-ATLaS first whenever its links are set. `off`: run without Modal (NVIDIA answers, Intron hears; nothing is woken or checked) |
+| `NATLAS_TIMEOUT` | 12 when a backup follows | Seconds N-ATLaS gets for one answer before the backups answer. With no backup, the caller's own wait |
+| `NATLAS_BACKUP_RESERVE` | 6 | Seconds of a message's AI time kept for the backup after N-ATLaS |
+| `NATLAS_RECHECK` | 120 | While a part is down, seconds between background checks |
 | `NATLAS_TEMPERATURE` | 0.1 | Model card setting |
 | `NATLAS_REPETITION_PENALTY` | 1.12 | Model card setting |
-| `NATLAS_ASR_URL` | (none) | N-ATLaS speech server link from Modal. When set, voice notes are heard by N-ATLaS only |
+| `NATLAS_ASR_URL` | (none) | N-ATLaS speech server link from Modal. When set, voice notes are heard by N-ATLaS (Intron only while it is down) |
+| `NATLAS_ASR_FIRST` | 15 | Seconds a voice note waits for N-ATLaS when a backup can hear it |
+| `NATLAS_ASR_TIMEOUT` / `NATLAS_ASR_TIMEOUT_COLD` | 60 / 240 | With no backup: the first wait, then the wait after waking the server |
+| `ASR_DOWN_BACKUP` | `intron` | Who hears voice notes while the N-ATLaS speech server is down: `intron`, `spitch` or `none` (needs that key) |
 | `NATLAS_ASR_PREP` | 1 | Light audio prep on the speech server; 0 turns it off |
 | `NATLAS_ASR_MERGE` | 1 | Yorùbá, Hausa and Igbo notes are also heard by the English model and merged by N-ATLaS; 0 turns it off |
 | `NATLAS_MERGE_TIMEOUT` | 8 | Seconds to wait for the merge, then the language model's words are used |
 | `NATLAS_WATCH` | 1 | Keep N-ATLaS awake in market hours and alert the team; 0 lets it sleep after an hour |
 | `NATLAS_WATCH_HOURS` | `7-20` | Market hours, Nigeria time |
+| `NATLAS_WATCH_DATES` | (every day) | Keep it awake only on these days, e.g. `2026-10-11,2026-10-15..2026-10-17` |
 
 ### Other AI models
 
@@ -799,7 +840,7 @@ python eval/test_telegram.py           # one suite: prints its checks and "N/M .
 NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the app in a real browser
 ```
 
-On 9 October 2026: 29 suites with 921 checks, all passing, and 75 of 75 browser checks.
+On 9 October 2026: 31 suites with 983 checks, all passing, and 75 of 75 browser checks.
 The browser test needs Node and Playwright with Chromium; it starts its own server with a fresh temporary database and
 uses made-up names and numbers.
 
@@ -807,6 +848,7 @@ uses made-up names and numbers.
 |---|---|
 | `test_auth.py`, `test_accounts.py` | Codes, sessions, sign-up, log in, reset, delete, rate limits |
 | `test_natlas.py`, `test_guards.py` | N-ATLaS first with the card settings, backups when it is down; real AI mistakes caught by code |
+| `test_degraded.py` | Without Modal: one short wait then none, Intron hears while the speech server is down, the background check brings N-ATLaS back, `NATLAS_MODE=off`, keep-warm dates, honest alerts |
 | `test_hearing.py` | Audio prep, unsure words, merging two hearings, what to ask again |
 | `test_converse.py`, `test_chat_smart.py`, `test_corrections.py`, `test_list.py`, `test_clock.py` | The conversation: routing, follow-ups, corrections, lists, dates |
 | `test_agent.py`, `test_tools.py`, `test_ask.py`, `test_askbook.py` | The Ask chat, its tools and number checks |
@@ -831,8 +873,10 @@ The results and the commands for each run are in `docs/RESULTS.md`; the method i
   Business API access. It switches on when the Meta keys are set. Until then traders use the web app, and Telegram if
   they like.
 - **N-ATLaS cold start.** After an idle hour the N-ATLaS LLM takes about 3 to 4 minutes to start (the speech server a
-  minute or two). In market hours the server keeps both warm. Outside them, the first message after a quiet hour is
-  answered by the backup models and the rules while N-ATLaS starts.
+  minute or two). In market hours the server keeps both warm. Outside them, the first message after a quiet hour waits
+  up to 12 s (a voice note 15 s), then the backups answer and hear while N-ATLaS starts.
+- **N-ATLaS depends on Modal credits.** When they run out, NVIDIA answers and Intron hears (section 5). That costs
+  NVIDIA and Intron usage, and N-ATLaS's share on `/team` drops until a workspace with credits is set up.
 - **Yorùbá is N-ATLaS's weakest language.** The model card's human evaluation gives Yorùbá 2.69 out of 5, against 4.21
   for English. TradeVoice's code checks every record, and fixed reply sentences are used where it matters.
 - **Licence cap.** The N-ATLaS terms allow at most 1,000 active end-users in a rolling 30 days. `/team` counts active
