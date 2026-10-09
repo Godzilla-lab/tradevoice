@@ -1,6 +1,11 @@
 # NAIC to-do list: TradeVoice (Innovation & Enterprise track, PS2 Voice-First Access)
 
 **Deadline: Monday 12 Oct 2026, 15:59. Our target: submit Sunday 11 Oct.**
+
+**Update 9 Oct:** we could not get WhatsApp Business API access in time. The pilot and the submission use the **web
+app** (main) and a **Telegram bot** (same bot, free). The WhatsApp bot is built and tested and switches on later with
+the Meta keys. Sign-up: a 6-digit **SMS** code once the team's TextBee phone is set up, else number + password.
+Every NAIC document says this plainly.
 The N-ATLAS integration check is 15–17 Oct, so the live app must stay up and running on N-ATLAS until then.
 
 Write a name in **Owner** and tick each box when it's done. The full technical plan is in
@@ -99,13 +104,15 @@ Even an **unverified** business can use a real number. Traders message first, an
       Owner: ____
 - [ ] **Native speakers:** check the Yorùbá, Hausa and Igbo "just paid" message (`src/ui_text.py`, `paid_notice`).
       Owner: ____
-- [ ] **Live app:** the always-on web server and the WhatsApp bot, plus the N-ATLAS models on **Modal**, kept
+- [ ] **Live app:** the always-on web server and the Telegram bot, plus the N-ATLAS models on **Modal**, kept
       warm from 6 to 17 Oct. Set a Modal spending limit. Photos are read by the NVIDIA API, so the NVIDIA key
       needs credit. Owner: ____
-- [ ] **WhatsApp bot number** working for judges. Write the steps to try it in the README. Owner: ____
+- [ ] **Telegram bot** working for judges (keys.sh TELEGRAM_BOT_TOKEN), its link on the website. **SMS codes**
+      working (keys.sh TEXTBEE_API_KEY, TEXTBEE_DEVICE_ID; a team Android phone kept charged and online).
+      Steps to try it are in the README. Owner: ____
 - [ ] **Repo cleanup** (ROADMAP Part 1) and the README updated with links and how to test. Owner: ____
-- [ ] **Submit:** GitHub link `https://github.com/Godzilla-lab/tradevoice`, the live app link and the WhatsApp
-      number.
+- [ ] **Submit:** GitHub link `https://github.com/Godzilla-lab/tradevoice`, the live app link
+      (https://tradevoice.duckdns.org/app) and the Telegram bot link.
 
 - [x] ~~Public Hugging Face Space~~ **Dropped 3 Oct (team decision): no Space for now.** The plan was a Space, so we appear under "Spaces using NCAIR1/N-ATLaS" on the official
       model page, where Awarri, NCAIR and judges look.
@@ -159,10 +166,11 @@ results, or confirmation from beta testers.
 - [ ] **Collect short quotes or confirmations** from 3–5 testers, as written notes or voice notes, with
       permission. Owner: ____
 - [ ] **Export the anonymised session log** (`/team/export.csv`, built 2 Oct; open `/team?key=<ADMIN_TOKEN>`):
-      no names and no amounts. Watch "Real interactions" reach 50+. Owner: ____
-- [ ] **Write up the results:** the number of traders, languages, interactions, the funnel, what went wrong and
-      what we fixed. Owner: ____
-- [ ] Export to PDF. Owner: ____
+      no names and no amounts. Watch "Conversations" reach 50+. Owner: ____
+- [ ] **Make the numbers page:** `sudo bash /opt/tradevoice/app/deploy/server/validation_report.sh` on the server,
+      copy `validation.html` to a Mac, open it, Print > Save as PDF (how: `docs/naic/VALIDATION.md`). Owner: ____
+- [ ] **Write up the people part** in `docs/naic/VALIDATION.md` (how the pilot ran, testers, quotes, what we
+      fixed), then `python scripts/make_pdfs.py`. Hand in both PDFs together. Owner: ____
 
 ## 4. Technical documentation (PDF)
 **What NAIC wants:** architecture, setup and usage documentation good enough for an independent party to run or
@@ -173,8 +181,10 @@ integrate the build.
   - setup on Modal, the web server and a Mac;
   - every setting in `.env.example`;
   - the API endpoints;
-  - the WhatsApp setup;
+  - sign-up codes (SMS through TextBee, or none), Telegram, and the WhatsApp bot (built, not live);
   - how to run the tests.
+
+  Then `python scripts/make_pdfs.py` makes `docs/naic/pdf/TradeVoice-technical-documentation.pdf`.
 
   Owner: ____
 - [ ] **Have someone outside the team follow it** on a fresh machine and fix whatever they get stuck on.
@@ -185,12 +195,12 @@ integrate the build.
 **What NAIC wants:** 3–5 minutes showing the build working end to end, ideally with a real user speaking a
 Nigerian language.
 
-- [ ] **Write the script:** problem → a trader sends a WhatsApp voice note in Yorùbá, Hausa or Igbo →
-      confirmation → asks "who owes me?" → the private link opens the book on the web → reminder draft → N-ATLAS
-      explained → results. Owner: ____
+- [ ] **Script:** `docs/naic/VIDEO_SCRIPT.md` (the web app's live talk in Yorùbá, Hausa or Igbo, the check card,
+      "who owes me?", a reminder draft, a notebook photo, the same on Telegram, N-ATLaS explained, pilot numbers).
+      Owner: ____
 - [ ] **Film a real trader** at the market, with their consent. Have a backup take in a quiet place.
       Owner: ____  Due: 9 Oct
-- [ ] **Screen-record** the WhatsApp and web parts. Add English subtitles for the Nigerian-language speech.
+- [ ] **Screen-record** the web app and Telegram parts. Add English subtitles for the Nigerian-language speech.
       Owner: ____
 - [ ] **Edit to 3–5 minutes.** Upload to YouTube (unlisted) or Google Drive with "anyone with the link" access,
       and test the link logged out. Owner: ____
@@ -217,8 +227,8 @@ developer.
 - [ ] All 7 items are uploaded. Every link opens in a private, logged-out browser window.
 - [ ] Problem statement selected: **PS2, Voice-First Access** (one only).
 - [ ] Everything is in English (non-English speech in the video has subtitles).
-- [ ] The live app and WhatsApp bot are running and stay up through **17 Oct** for the N-ATLAS integration
-      check.
+- [ ] The live app, the Telegram bot and SMS codes are running and stay up through **17 Oct** for the N-ATLAS
+      integration check (NATLAS_WATCH=1 keeps N-ATLaS awake 7am to 8pm; the TextBee phone stays charged).
 - [ ] Submitted, and the confirmation screenshot is saved.
 
 ## Timeline at a glance
@@ -229,7 +239,7 @@ developer.
 | 6 Oct | N-ATLAS and WhatsApp ↔ web live (Modal kept warm); pilot starts |
 | 6–10 Oct | Pilot running: 50+ real interactions |
 | 8 Oct | Benchmark done |
-| 9 Oct | Video filmed (include a Paystack test payment → "just paid" WhatsApp) |
+| 9 Oct | WhatsApp access not granted: web app + Telegram + SMS codes instead; video filmed on the web app |
 | 10 Oct | All PDFs written; video edited |
 | 11 Oct | **Submit** |
 | 15–17 Oct | N-ATLAS integration check: keep everything running |

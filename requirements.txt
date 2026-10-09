@@ -1,8 +1,8 @@
-gradio>=4.44
-openai>=1.40
-requests>=2.31
-pandas>=2.0
-pillow>=10.0
-# Speech-to-text (needed where the audio is transcribed, i.e. on the Brev GPU box)
+# A laptop or a fresh machine: everything the live server needs, plus the optional extras below.
+-r requirements-server.txt
+# Speech-to-text on this machine, only when no speech server is set (NATLAS_ASR_URL / INTRON_API_KEY)
 faster-whisper>=1.1.0
-spitch            # only for the speech comparison tests (eval/run_eval.py --asr spitch)
+# Only for the speech comparison tests (eval/run_eval.py --asr spitch)
+spitch
+# Only for making the NAIC PDFs (scripts/make_pdfs.py)
+markdown>=3.5

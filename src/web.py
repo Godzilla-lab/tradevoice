@@ -1330,16 +1330,6 @@ def index():
     return _page("app.html")
 
 
-if os.getenv("TRADEVOICE_ADMIN", "1") == "1":  # the old Gradio screens, as a backup, at /admin
-    try:
-        import gradio as gr
-
-        from app import demo
-
-        app = gr.mount_gradio_app(app, demo, path="/admin")
-    except Exception as e:  # noqa: BLE001
-        print(f"/admin not mounted: {type(e).__name__}: {e}")
-
 if __name__ == "__main__":
     import uvicorn
 
