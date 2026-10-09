@@ -73,7 +73,7 @@ def demo_mode():
 
 def start(phone):
     """New login for `phone` -> {id, code (keep secret unless demo), word}."""
-    code, word = f"{secrets.randbelow(10**6):06d}", f"{secrets.choice(WORDS)}-{secrets.randbelow(900) + 100}"
+    code, word = str(100000 + secrets.randbelow(900000)), f"{secrets.choice(WORDS)}-{secrets.randbelow(900) + 100}"
     lid = secrets.token_urlsafe(16)
     with _lock, db() as c:
         # a fresh login cancels older unused ones for this number

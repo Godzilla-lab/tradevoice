@@ -62,7 +62,7 @@ def describe(r):
     elif k == "tg_linked":
         cat, words = "people", "Connected Telegram (shared their own number)"
     elif k == "sms_sent":
-        cat, words = "people", "Sent a code by SMS"
+        cat, words = "people", "Sent a code by phone call" if e.endswith(":call") else "Sent a code by SMS"
     elif k == "sms_failed":
         return "errors", f"Code not sent by SMS: {e or 'no reason given'}"
     elif k == "login":

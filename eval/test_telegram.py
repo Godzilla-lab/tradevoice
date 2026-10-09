@@ -12,7 +12,7 @@ import tempfile
 
 os.environ["TV_NO_DOTENV"] = "1"
 for k in list(os.environ):
-    if k.endswith("API_KEY") or k.startswith(("LOCAL_", "WHATSAPP_", "TEXTBEE_", "TELEGRAM_", "SMS_", "NATLAS", "INTRON")) \
+    if k.endswith("API_KEY") or k.startswith(("LOCAL_", "WHATSAPP_", "TERMII_", "TELEGRAM_", "SMS_", "NATLAS", "INTRON")) \
             or k in ("AUTH_DEMO", "TV_PUBLIC", "SIGNUP_CODE", "PUBLIC_URL"):
         os.environ.pop(k)
 os.environ.update(DB_PATH=os.path.join(tempfile.mkdtemp(), "shared.db"), BOOKS_DIR=tempfile.mkdtemp(),

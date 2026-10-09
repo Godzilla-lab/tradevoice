@@ -115,7 +115,7 @@ name), `nocode` and `team` (the privacy contact).
 | `src/intron_live.py`, `src/tts.py` | Live talk with Intron streaming; Intron voice replies |
 | `src/vision.py`, `src/photo.py` | Notebook photos to draft rows |
 | `src/natlas_watch.py` | Keeps N-ATLaS warm in market hours; alerts the team |
-| `src/telegram.py`, `src/whatsapp.py`, `src/sms.py` | The Telegram bot; the WhatsApp bot; optional SMS codes (off unless its keys are set) |
+| `src/telegram.py`, `src/whatsapp.py`, `src/sms.py` | The Telegram bot; the WhatsApp bot; sign-up codes through Termii, by text or phone call (off until its keys are set) |
 | `src/extras.py` | Lender link, pay links (Paystack), automatic reminders, receipts, PIN, CSV export |
 | `src/events.py`, `src/team.py`, `src/training.py` | Anonymous usage log; team dashboard; opt-in data for improving TradeVoice |
 | `src/insights.py`, `src/readaloud.py`, `src/assistant.py`, `src/tax.py`, `src/ui_text.py` | Forecast and statements; screens read aloud; screen help; tax facts; screen words in 4 languages |
@@ -460,8 +460,8 @@ rounds, random salt). 5 wrong passwords mean a 30-second wait.
 
 ### The live setup: no code at sign-up
 
-The live server has no WhatsApp and no SMS sender, so **sign-up is phone number and password, with no code**
-(`v2.channels()` reports `nocode`). Only a number with no account can sign up this way, so nobody can take over an
+Until the Termii keys are set (below), the live server has no WhatsApp and no SMS sender, so **sign-up is phone
+number and password, with no code** (`v2.channels()` reports `nocode`). Only a number with no account can sign up this way, so nobody can take over an
 existing book: opening a book always needs its password.
 
 - **Telegram users can confirm their number** with **Confirm on Telegram**. The button is on the code screen (log
@@ -483,12 +483,32 @@ existing book: opening a book always needs its password.
 |---|---|---|
 | 1 | WhatsApp message, or "Send it on WhatsApp" (`LOGIN WORD` sent to the bot) | Only when the WhatsApp keys are set (not live) |
 | 2 | A code in Telegram | Log in and reset, for a number already shared with the Telegram bot |
-| 3 | SMS | Only when `TEXTBEE_API_KEY` and `TEXTBEE_DEVICE_ID` are set. `src/sms.py` is optional plumbing: off on the live server, not asked for by `keys.sh`, still covered by `eval/test_sms.py` |
+| 3 | Termii: a text message | When `TERMII_API_KEY` and `TERMII_SENDER_ID` are set. Sign-up then needs a code again; if the text can't go (sender ID not approved yet, empty wallet), sign-up goes on with number + password unless `SIGNUP_CODE=required` |
 | 4 | No code | Sign-up, when nothing above can send and `SIGNUP_CODE` is not `required` |
 | 5 | Confirm on Telegram | Whenever the Telegram bot is set up and no code was sent (log in, reset, new phone number; also sign-up when `SIGNUP_CODE=required`) |
 
 Limits: 5 code requests an hour per number and 20 per connection; a code lasts 10 minutes and allows 5 tries. Codes
 are never shown on screen on the live server.
+
+### Codes by text or phone call (Termii, `src/sms.py`)
+
+TradeVoice makes the 6-digit code and checks it itself; Termii (termii.com, Lagos) only delivers it, paid from the
+Termii wallet.
+
+- **Text (`TERMII_CHANNEL=dnd`, the default and the team's choice):** `POST {TERMII_BASE_URL}/api/sms/send` with our sender ID on the DND
+  (transactional) route. It reaches numbers on DND and arrives at any hour. It needs a sender ID that Termii has
+  approved and the DND route switched on for the account (Termii support does that).
+- **When a text can't go** (sender ID waiting for approval, empty wallet, wrong key, no network), sign-up goes on
+  with number + password, as without Termii, and `/team` shows why. A password reset gets "can't send codes right
+  now". `SIGNUP_CODE=required` makes sign-up wait instead. Nothing is ever shown on screen.
+- **Phone call (not used; `TERMII_CHANNEL=voice`, or `TERMII_CALL_BACKUP=1` after a failed text):**
+  `POST /api/sms/otp/call` with our code; a voice reads it out. It needs no sender ID. Codes never start with 0 so a
+  call could read them.
+- **Never the generic route for codes:** Termii's own rule. It skips DND numbers, MTN blocks it from 8pm to 8am, and
+  sender IDs used for codes on it get blocked.
+- **Money cap:** `SMS_DAILY_MAX` (50) codes a day, on top of the hourly limits. `/team` lists each code sent (by text
+  or call) and each failure with its reason, never the number or the code. `preflight.sh` shows the wallet balance
+  and whether the sender ID is active or pending.
 
 ### The web app
 
@@ -591,9 +611,12 @@ repository. On the server, use `keys.sh`. Defaults are what the code uses when a
 |---|---|---|
 | `PUBLIC_URL` | the request's address | The public `https://` address: pay links, lender links, the Telegram webhook. `setup.sh` sets it |
 | `SIGNUP_CODE` | (none) | `required`: never sign up without a code (if nothing can send one, only Confirm on Telegram works). Not set on the live server |
-| `TEXTBEE_API_KEY` | (none) | Secret. Optional SMS codes through TextBee (`src/sms.py`). Not used by the team; not asked for by `keys.sh` |
-| `TEXTBEE_DEVICE_ID` | (none) | Optional: the Android phone that would send the texts |
-| `SMS_DAILY_MAX` | 50 | Optional: most code texts a day |
+| `TERMII_API_KEY` | (none) | Secret. Termii API key (dashboard, Settings, API token). When set, sign-up and resets use codes again |
+| `TERMII_BASE_URL` | `https://v4.api.termii.com` | The account's own base URL, shown on the Termii dashboard |
+| `TERMII_SENDER_ID` | (none) | The sender ID Termii approved (3 to 11 letters) |
+| `TERMII_CHANNEL` | `dnd` | `dnd`: a text on the transactional route (used). `voice`: a phone call reads the code (not used). `generic`: tests only |
+| `TERMII_CALL_BACKUP` | 0 | 1: a text that can't go becomes a phone call (not used) |
+| `SMS_DAILY_MAX` | 50 | Most codes a day (texts and calls): a cap on what the wallet can spend |
 | `TELEGRAM_BOT_TOKEN` | (none) | Secret. The Telegram bot; the webhook is set up at start |
 | `TELEGRAM_BOT_USERNAME` | asked from Telegram | The bot's name for `t.me` links |
 | `WHATSAPP_TOKEN` | (none) | Secret. Meta Cloud API token |
@@ -832,7 +855,7 @@ dashboard needs `ADMIN_TOKEN` on every page, call and file.
 ## 11. Tests
 
 Every automated test runs without keys, network or GPU: each suite fakes the services it touches (N-ATLaS, NVIDIA,
-Intron, Meta, Telegram, TextBee, Paystack) and uses its own temporary databases.
+Intron, Meta, Telegram, Termii, Paystack) and uses its own temporary databases.
 
 ```bash
 python eval/run_all.py                 # every suite: N/M per suite and the total
@@ -840,7 +863,7 @@ python eval/test_telegram.py           # one suite: prints its checks and "N/M .
 NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the app in a real browser
 ```
 
-On 9 October 2026: 31 suites with 983 checks, all passing, and 75 of 75 browser checks.
+On 9 October 2026: 31 suites with 992 checks, all passing, and 76 of 76 browser checks.
 The browser test needs Node and Playwright with Chromium; it starts its own server with a fresh temporary database and
 uses made-up names and numbers.
 
@@ -853,7 +876,7 @@ uses made-up names and numbers.
 | `test_converse.py`, `test_chat_smart.py`, `test_corrections.py`, `test_list.py`, `test_clock.py` | The conversation: routing, follow-ups, corrections, lists, dates |
 | `test_agent.py`, `test_tools.py`, `test_ask.py`, `test_askbook.py` | The Ask chat, its tools and number checks |
 | `test_live_intron.py`, `test_intron_tts.py` | Live talk relay and voice replies, against a faked Intron |
-| `test_whatsapp.py`, `test_whatsapp_send.py`, `test_telegram.py`, `test_sms.py` | The bots and the optional SMS codes, against faked services |
+| `test_whatsapp.py`, `test_whatsapp_send.py`, `test_telegram.py`, `test_sms.py` | The bots and the Termii codes (text, call when the text can't go), against faked services |
 | `test_extras.py`, `test_wholesale.py`, `test_demo_flow.py` | Lender and pay links, PIN, wholesale tools, the demo flow end to end |
 | `test_team.py`, `test_training.py`, `test_backup.py`, `test_preflight.py`, `test_validation_report.py`, `test_design.py` | Dashboard, opt-in data, backups, pilot check, validation report, the front-end build |
 
@@ -885,8 +908,9 @@ The results and the commands for each run are in `docs/RESULTS.md`; the method i
   TradeVoice is for adult traders.
 - **Wording in Yorùbá, Hausa and Igbo.** The fixed reply sentences and test sentences were written by the team; a
   native-speaker review is still to do.
-- **Numbers are not checked at sign-up.** With no WhatsApp and no SMS sender, a new account is phone number and
-  password only. Telegram users can confirm their number; anyone else who forgets their password needs the team to
-  reset it.
+- **Numbers are checked only once Termii is set up.** Without the Termii keys (and with no WhatsApp), a new account
+  is phone number and password only. Telegram users can confirm their number; anyone else who forgets their password
+  needs the team to reset it. With Termii, every code costs a little from its wallet, and texts need a sender ID that
+  Termii has approved.
 - **One server, one process.** The books are SQLite files with a single writer. This suits a pilot; many thousands of
   traders would need a different database.

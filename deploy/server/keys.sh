@@ -19,6 +19,10 @@ NATLAS_WATCH|no|Keep N-ATLaS awake 7am to 8pm Nigeria time? 1 = yes (pilot days;
 NATLAS_WATCH_DATES|no|Only keep it awake on these days, to save Modal credits, e.g. 2026-10-11,2026-10-15..2026-10-17 (- = every day)
 NATLAS_MODE|no|Use N-ATLaS? auto = yes, N-ATLaS first (normal). off = run without Modal: NVIDIA answers, Intron hears voice notes
 TELEGRAM_BOT_TOKEN|yes|Telegram bot token from @BotFather (digits:letters); the app sets up the webhook itself
+TERMII_API_KEY|yes|Termii API key (dashboard: Settings, API token): sign-up codes by text message
+TERMII_BASE_URL|no|Termii base URL shown on your dashboard (starts https://), e.g. https://v4.api.termii.com
+TERMII_SENDER_ID|no|Your Termii sender ID exactly as approved, 3 to 11 letters, e.g. TradeVoice (until approved, sign-up stays number + password)
+SMS_DAILY_MAX|no|Most codes a day (caps what the Termii wallet can spend), e.g. 50
 TEAM_TELEGRAM|no|Team Telegram chat IDs for alerts (the bot tells you yours when you send /id), comma between
 WHATSAPP_TOKEN|yes|WhatsApp token from Meta (long, starts EA)
 WHATSAPP_PHONE_ID|no|WhatsApp Phone number ID from Meta (digits only)
@@ -67,7 +71,7 @@ has() { grep -qE "^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=[[:space:]]*[
 put() { TV_K="$1" TV_V="$2" "$PY" -c "$EDIT_PY" "$ENV"; }
 check() {   # NAME VALUE -> a warning when it looks wrong (the value itself is never printed)
   case "$1" in
-    NATLAS_URL|NATLAS_ASR_URL|BACKUP_SUPABASE_URL) case "$2" in https://*) ;; *) echo "   ⚠️  links start with https:// (check it)";; esac ;;
+    NATLAS_URL|NATLAS_ASR_URL|BACKUP_SUPABASE_URL|TERMII_BASE_URL) case "$2" in https://*) ;; *) echo "   ⚠️  links start with https:// (check it)";; esac ;;
   esac
   case "$1" in
     NATLAS_URL) case "$2" in */v1|*/v1/) ;; *) echo "   ⚠️  the N-ATLaS brain link usually ends in /v1";; esac ;;
@@ -76,6 +80,8 @@ check() {   # NAME VALUE -> a warning when it looks wrong (the value itself is n
     PAYSTACK_SECRET_KEY) case "$2" in sk_test_*|sk_live_*) ;; *) echo "   ⚠️  Paystack secret keys start with sk_test_ or sk_live_";; esac ;;
     NATLAS_WATCH) case "$2" in 0|1|-) ;; *) echo "   ⚠️  type 1 (keep awake) or 0 (let it sleep)";; esac ;;
     NATLAS_MODE) case "$2" in auto|off|-) ;; *) echo "   ⚠️  type auto (use N-ATLaS) or off (run without Modal)";; esac ;;
+    TERMII_SENDER_ID) [[ "$2" =~ ^(-|[A-Za-z0-9]{3,11})$ ]] || echo "   ⚠️  3 to 11 letters or digits, no spaces, exactly as approved on Termii";;
+    SMS_DAILY_MAX) case "$2" in *[!0-9]*) echo "   ⚠️  a number, e.g. 50";; esac ;;
     NATLAS_WATCH_DATES) [[ "$2" =~ ^(-|[0-9]{4}-[0-9]{2}-[0-9]{2}(\.\.[0-9]{4}-[0-9]{2}-[0-9]{2})?(,[0-9]{4}-[0-9]{2}-[0-9]{2}(\.\.[0-9]{4}-[0-9]{2}-[0-9]{2})?)*)$ ]] \
       || echo "   ⚠️  dates like 2026-10-11, or a range 2026-10-15..2026-10-17, comma between";;
     TEAM_PHONES|TEAM_WHATSAPP) case "$2" in *[!0-9,]*) echo "   ⚠️  digits and commas only, e.g. 2348012345678,2348098765432";; esac ;;
@@ -126,6 +132,7 @@ print("  hearing (voice notes):      ", hearing, mark(hearing == "natlas"),
 if s.get("natlas_mode") == "off":
     print("  N-ATLaS:                     switched off (NATLAS_MODE=off): the backups answer and hear")
 print("  WhatsApp:                   ", mark(s.get("whatsapp")))
+print("  sign-up codes:              ", "none: number + password" if not s.get("signup_code") else "on")
 print("  voice replies:              ", voice)
 print("  N-ATLaS kept awake 7am-8pm: ", "yes" if s.get("keep_awake") else "no (it sleeps after an hour; first voice note then waits 1-2 min)")
 '

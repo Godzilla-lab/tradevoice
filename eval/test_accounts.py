@@ -11,7 +11,7 @@ import tempfile
 
 os.environ["TV_NO_DOTENV"] = "1"  # never let the real .env keys into a test
 for k in list(os.environ):
-    if k.endswith("API_KEY") or k.startswith(("LOCAL_", "WHATSAPP_", "TEXTBEE_", "TELEGRAM_", "SMS_")) or k in ("AUTH_DEMO", "TV_PUBLIC", "SIGNUP_CODE"):
+    if k.endswith("API_KEY") or k.startswith(("LOCAL_", "WHATSAPP_", "TERMII_", "TELEGRAM_", "SMS_")) or k in ("AUTH_DEMO", "TV_PUBLIC", "SIGNUP_CODE"):
         os.environ.pop(k)
 os.environ.update(DB_PATH=os.path.join(tempfile.mkdtemp(), "shared.db"), BOOKS_DIR=tempfile.mkdtemp(),
                   ACCOUNTS_DB=os.path.join(tempfile.mkdtemp(), "a.db"), TRADEVOICE_ADMIN="0", AUTH_REQUIRED="1")

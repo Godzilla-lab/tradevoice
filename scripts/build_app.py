@@ -169,22 +169,22 @@ PATCHES = [
     ("pin lockout", 'Too many tries. Wait ${s}s, or use WhatsApp.', 'Too many tries. Wait ${s}s.'),
     ("pin forgot", 'Forgot PIN? Get back in with WhatsApp', 'Forgot PIN?'),
     ("welcome line", 'A phone number and a 6-digit code. No long forms.',
-     '${CH.nocode?"A phone number and a password. No long forms.":CH.codes=="sms"?"A phone number and a 6-digit code by '
-     'SMS. No long forms.":"A phone number and a 6-digit code. No long forms."}'),
+     '${CH.nocode?"A phone number and a password. No long forms.":"A phone number and a 6-digit code. No long forms."}'),
     ("sign-up why", 'We use it to keep your book safe and to send your code on WhatsApp.',
      '${CH.nocode?"We use it to keep your book safe. It is how you log in.":CH.codes=="sms"?"We use it to keep your '
-     'book safe and to send your code by SMS.":"We use it to keep your book safe and to send your code on WhatsApp."}'),
+     'book safe and to send your code by text message.":"We use it to keep your book safe and to send your code on '
+     'WhatsApp."}'),
     ("sign-up label", 'fld("ph","WhatsApp number",', 'fld("ph",CH.codes=="whatsapp"?"WhatsApp number":"Phone number",'),
     ("sign-up step 2", '<h1 class="sm">Check WhatsApp</h1>',
-     '<h1 class="sm">${CH.nocode?"One moment":CH.codes=="sms"?"Check your messages":"Check WhatsApp"}</h1>'),
+     '<h1 class="sm">${CH.nocode?"One moment":CH.codes=="sms"?"Check your phone":"Check WhatsApp"}</h1>'),
     ("code log in link", ' · <button data-g="otpin" style="text-decoration:underline">Log in with a WhatsApp code</button>',
      '${CH.codes||CH.tg?` · <button data-g="otpin" style="text-decoration:underline">Log in with a code</button>`:""}'),
     ("code log in where", "We'll send a code to your WhatsApp.",
-     '${CH.codes=="whatsapp"?"We\'ll send a code to your WhatsApp.":CH.codes=="sms"?"We\'ll send a code by SMS.":'
+     '${CH.codes=="whatsapp"?"We\'ll send a code to your WhatsApp.":CH.codes=="sms"?"We\'ll send a code to your phone.":'
      '"We\'ll send it to TradeVoice on Telegram, if you shared your number with the bot."}'),
     ("reset where", "Enter your phone number or email. We'll send a code.",
      '${CH.codes=="whatsapp"?"Enter your phone number or email. We\'ll send a code.":CH.codes=="sms"?"Enter your '
-     'phone number. We\'ll send a code by SMS.":"Enter your phone number. If you shared it with TradeVoice on '
+     'phone number. We\'ll send a code to it.":"Enter your phone number. If you shared it with TradeVoice on '
      'Telegram, the code comes there."}'),
     ("notifications where", 'We send these on WhatsApp. You can stop them any time.',
      '${CH.wa?"We send these on WhatsApp. You can stop them any time.":CH.tg?"We send these on Telegram once you '

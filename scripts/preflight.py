@@ -195,7 +195,7 @@ def whatsapp():
 
 
 def codes():
-    """How a new trader proves their number: WhatsApp, SMS (optional, off unless set) or, with neither, no code."""
+    """How a new trader proves their number: WhatsApp, Termii (a text) or, with neither, no code."""
     import sms
     import v2
     ch = v2.channels()
@@ -203,7 +203,8 @@ def codes():
         return PASS, "codes go by WhatsApp"
     if ch["codes"] == "sms":
         ok, words = sms.check()
-        return (PASS if ok else FAIL), ("codes go by SMS (TextBee): " if ok else "SMS codes can't go out: ") + scrub(words)
+        return ({True: PASS, None: WARN}.get(ok, FAIL),
+                ("codes go by Termii: " if ok is not False else "codes can't go out by Termii: ") + scrub(words))
     if not ch["nocode"]:
         return FAIL, "SIGNUP_CODE=required but nothing can send a code: nobody can sign up (remove SIGNUP_CODE)"
     return WARN, ("sign-up with number + password, no code (numbers aren't checked; Telegram users can confirm "

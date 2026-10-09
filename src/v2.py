@@ -187,14 +187,15 @@ def code_start(b: CodeStart, request: Request):
         sent = telegram.send_code(phone, login["code"])
         via = "telegram" if sent else via
     if not sent and not bot and ch["sms"]:
-        import sms        # everyone else: an ordinary text to the phone (the team's TextBee phone sends it)
-        sent = sms.send_code(phone, login["code"])
-        via = "sms" if sent else via
+        import sms        # everyone else: a text through Termii, or a call that reads the code out (src/sms.py)
+        way = sms.send_code(phone, login["code"])
+        sent, via = bool(way), way or via
     demo = accounts.demo_mode()
     tg = ch["tg"]   # Telegram users can always confirm their number there, free: "Confirm on Telegram" (LOGIN word)
     if not sent and not demo and not bot:
-        if b.purpose == "signup" and ch["nocode"]:
-            # no way to send a code (no WhatsApp yet): sign-up goes straight on with number + password. Only a number
+        if b.purpose == "signup" and (ch["nocode"] or (ch["sms"] and os.getenv("SIGNUP_CODE", "").lower() != "required")):
+            # no way to send a code (no WhatsApp, or the text couldn't go: sender ID not approved yet, wallet empty):
+            # sign-up goes straight on with number + password, and /team shows why the text failed. Only a number
             # with no account gets here (409 above), so nobody can take over a book; resets still need a code.
             CODE_TICKETS[login["id"]] = (phone, "signup", time.time())
             NOCODE.add(login["id"])
@@ -217,7 +218,7 @@ def whatsapp_on():
 
 def channels():
     """How codes reach traders, for the server and the page alike: 'whatsapp' when the bot is set up, else 'sms' when
-    the SMS gateway is (src/sms.py); Telegram for numbers shared with the Telegram bot (log in and reset only). With
+    Termii is (src/sms.py: a text, or a phone call); Telegram for numbers shared with the Telegram bot (log in and reset only). With
     neither WhatsApp nor SMS, sign-up needs no code, unless SIGNUP_CODE=required. `team` is the address shown for
     "ask the team" (the privacy contact, never a phone number)."""
     import sms

@@ -37,11 +37,10 @@
     swap("p", "A phone number and a 6-digit code. No long forms. No card.", "A phone number and a password. No long forms. No card.");
     swap("details p", "A WhatsApp number, a 6-digit code and a password you choose.", "A phone number and a password you choose.");
   } else if (C.codes == "sms") {
-    swap("p", "A phone number and a 6-digit code. No long forms. No card.", "A phone number and a 6-digit code by SMS. No long forms. No card.");
-    swap("details p", "A WhatsApp number, a 6-digit code and a password you choose.", "A phone number, a 6-digit code by SMS and a password you choose.");
+    swap("details p", "A WhatsApp number, a 6-digit code and a password you choose.", "A phone number, a 6-digit code sent to it and a password you choose.");
   }
   swap("details p", "Reset it in a minute with a code on WhatsApp or email. When you do, we log you out of your other phones.",
-    (C.codes == "sms" ? "Reset it in a minute with a code by SMS."
+    (C.codes == "sms" ? "Reset it in a minute with a code sent to your phone."
       : tg ? "Reset it with a code from TradeVoice on Telegram, if you shared your number with the bot. Otherwise the TradeVoice team resets it for you."
       : "The TradeVoice team resets it for you.") + " When it is reset, we log you out of your other phones.");
   if (!C.codes) swap("details p", "Changing your number needs a fresh code, so nobody else can take over your book.",
