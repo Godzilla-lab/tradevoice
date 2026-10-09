@@ -21,6 +21,9 @@ LANDING_OUT = os.path.join(ROOT, "web", "landing.html")
 # the website: "Open the app" goes to our app (the design pointed at a preview link); the design editor button only
 # with ?demo=1. The WhatsApp links get the bot's number when the server sends the page (WHATSAPP_BOT_NUMBER).
 LANDING_PATCHES = [
+    ("privacy in the footer", '<div>All names and numbers in examples are made up.</div>',
+     '<div>All names and numbers in examples are made up.<br><a href="/privacy" style="text-decoration:underline">'
+     'Privacy notice</a></div>', 1),
     ("app links", 'href="https://claude.ai/artifact/6R1XDoNUaLC2YsE7JjyFJD"', 'href="/app"', 4),
     # its settings key: "tv-ed-site", as the app's new editor names it (the app clears the old shared "tv-ed" key)
     ("editor button", '<script>\n(()=>{const K="tv-ed"',
@@ -46,12 +49,14 @@ PATCHES = [
      'Your records, customers and settings are deleted after 90 days. Log in before then to cancel.'),
     ("delete toast", 'Account scheduled for deletion. Log in within 7 days to cancel.',
      'Account scheduled for deletion. Log in within 90 days to cancel.'),
-    ("privacy link", 'priv:()=>toast("Privacy notice opens here.")', 'priv:()=>open("/privacy","_blank")'),
+    # the notice opens inside the app (a new tab would take a trader in Telegram out of TradeVoice): TVL.privacy
+    ("privacy link", 'priv:()=>toast("Privacy notice opens here.")', 'priv:()=>TVL.privacy()'),
+    ("privacy before we start", 'if(k=="more")toast("Full privacy notice opens here.");', 'if(k=="more")TVL.privacy();'),
     ("improve row", '${B("Privacy notice","","priv")}',
      '${B("Privacy notice","","priv")}${window.TVL&&TVL.trainRow?B(...TVL.trainRow(),"train"):""}'),
     ("improve action", 'del:delSheet};', 'del:delSheet,train:()=>TVL.trainSheet()};'),
     ("privacy at sign-up", 'I agree to the Terms and the Privacy Notice.',
-     'I agree to the Terms and the <a href="/privacy" target="_blank" style="color:var(--accent)">Privacy Notice</a>.'),
+     'I agree to the Terms and the <a href="/privacy" data-pv="open" style="color:var(--accent)">Privacy Notice</a>.'),
     # --- 4 languages to choose (Pidgin is still understood: it is English's voice and the brain reads it)
     ("no Pidgin tile", 'LG=[["en","English"],["pcm","Pidgin"],', 'LG=[["en","English"],'),
     # --- the N-ATLaS licence sentence in Me > About

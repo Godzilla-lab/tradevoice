@@ -1100,6 +1100,27 @@ button.tvc-say{text-decoration:none}
     askNow(r.data.heard, "voice");
   };
 
+  /* ---------------------------------------------------------------- the privacy notice, inside the app
+     A sheet, not a new tab (in Telegram a new tab takes the trader out of TradeVoice). The words come from /privacy,
+     the website's page (filled in by the server), so they are written in one place. */
+  TVL.privacy = async function () {
+    if (!document.getElementById("pv-css")) document.head.insertAdjacentHTML("beforeend", `<style id="pv-css">.tv-privacy h2{display:block;color:var(--label);font-size:1.0625rem;font-weight:500;letter-spacing:-.01em;margin:var(--s5) 0 var(--s2)}.tv-privacy p,.tv-privacy li{font-size:.9375rem;line-height:1.55;margin:0 0 var(--s2)}.tv-privacy ul{padding-left:1.2em;margin:0 0 var(--s2)}.tv-privacy li::marker{color:var(--label2)}.tv-privacy b{font-weight:500}.tv-privacy .muted,.tv-privacy .upd{color:var(--label2)}.tv-privacy .card{margin:var(--s3) 0}.tv-privacy a{color:var(--accent);text-decoration:underline}</style>`);
+    const o = sheet(`<h3>Privacy notice</h3><p class="s">Opening…</p>`);
+    o.style.zIndex = 30;   // above the sign-up screens too
+    const html = await fetch("/privacy").then(r => (r.ok ? r.text() : "")).catch(() => "");
+    const m = html && new DOMParser().parseFromString(html, "text/html").querySelector("main");
+    const box = $(".in", o);
+    if (!box) return;
+    if (!m) { box.innerHTML = `<h3>Privacy notice</h3><p class="s">It didn't open. Check your internet and try again.</p>`; return; }
+    m.querySelectorAll("[data-web],script,style").forEach(x => x.remove());
+    box.innerHTML = `<h3>Privacy notice</h3><div class="tv-privacy">${m.innerHTML}</div><button class="btn w" data-pv="close" style="margin-top:var(--s5)">Close</button>`;
+    $("[data-pv=close]", box).onclick = () => shut(o);
+  };
+  document.addEventListener("click", e => {
+    const a = e.target.closest("a[data-pv=open]");
+    if (a) { e.preventDefault(); TVL.privacy(); }
+  });
+
   /* ---------------------------------------------------------------- Connect my WhatsApp: when the bot is live */
   wac = function () { toast("Connecting WhatsApp opens when the TradeVoice bot number is live."); };
 

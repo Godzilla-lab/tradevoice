@@ -436,6 +436,30 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       const p = await page.evaluate(() => fetch("/privacy").then(r => r.text()));
       if (!/90 days/.test(p) || !/Helping make TradeVoice better/.test(p)) throw new Error("privacy page");
     });
+    await check("Me: the privacy notice opens inside the app (a sheet, no new tab), the full words, and closes", async () => {
+      const pages = page.context().pages().length;
+      await page.click('#me [data-a=priv]');
+      await page.waitForSelector(".sheet .tv-privacy", { timeout: 8000 });
+      const t = await page.locator(".sheet").last().textContent();
+      if (!/Privacy notice/.test(t) || !/90 days/.test(t) || !/Termii/.test(t) || !/Helping make TradeVoice better/.test(t)
+          || !/Awarri Technologies/.test(t)) throw new Error(t.slice(0, 300));
+      if (/Your book is yours\./.test(t)) throw new Error("the website's heading came into the sheet");
+      if (page.context().pages().length != pages) throw new Error("a new tab opened");
+      await page.screenshot({ path: path.join(SHOTS, "privacy-in-app.png") });
+      await page.click(".sheet [data-pv=close]");
+      await page.waitForFunction(() => !document.querySelector(".sheet .tv-privacy"), null, { timeout: 5000 });
+    });
+    await check("/privacy: the website's design (nav, Open the app, N-ATLaS footer), fits a phone with no sideways scroll", async () => {
+      const p2 = await page.context().newPage();
+      await p2.setViewportSize({ width: 360, height: 780 });
+      await p2.goto(`${BASE}/privacy`);
+      const ok = await p2.evaluate(() => ({ wide: document.documentElement.scrollWidth <= innerWidth,
+        nav: !!document.querySelector('nav a[href="/app"]'), foot: /Awarri Technologies/.test(document.querySelector("footer").textContent),
+        h1: document.querySelector("h1").textContent, nolong: !/[\u2013\u2014]/.test(document.body.textContent) }));
+      await p2.screenshot({ path: path.join(SHOTS, "privacy-web.png"), fullPage: false });
+      await p2.close();
+      if (!ok.wide || !ok.nav || !ok.foot || !/Your book is yours/.test(ok.h1) || !ok.nolong) throw new Error(JSON.stringify(ok));
+    });
     await check("Me: language change is saved on the server", async () => {
       await page.selectOption("#lg", "yo");
       await page.waitForFunction(async () => (await (await fetch("/api/v2/me")).json()).lang === "Yoruba", null, { timeout: 8000, polling: 500 });
@@ -774,6 +798,13 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (!/A phone number and a 6-digit code/.test(hello) || !/on Telegram too: @TradeVoiceNGbot\. WhatsApp is coming soon\./.test(hello)) throw new Error(hello);
       if (!(await p6.locator('#gate a[href="https://t.me/TradeVoiceNGbot"]').count())) throw new Error("no link to the bot on the welcome screen");
       await p6.click("#gate [data-g=signup]");
+      await p6.click("#gate a[data-pv=open]");   // "Privacy Notice" at sign-up: on top of the sign-up screen, same page
+      await p6.waitForSelector(".sheet .tv-privacy", { timeout: 8000 });
+      const top = await p6.evaluate(() => { const r = document.querySelector(".sheet .tv-privacy").getBoundingClientRect();
+        const el = document.elementFromPoint(r.left + 10, Math.min(r.top + 10, innerHeight - 10)); return !!(el && el.closest(".sheet")); });
+      if (!top || p6.url().includes("/privacy")) throw new Error("privacy notice hidden behind the sign-up screen, or the page left");
+      await p6.click(".sheet [data-pv=close]");
+      await p6.waitForFunction(() => !document.querySelector(".sheet .tv-privacy"), null, { timeout: 5000 });
       await p6.fill("#ph", "8030000781"); await p6.check("#ag"); await p6.click("#go");
       await p6.waitForSelector("#otp", { timeout: 8000 });   // straight to the code box: no extra screen to choose on
       const t = await p6.locator("#gate").textContent();

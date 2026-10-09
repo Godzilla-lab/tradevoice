@@ -207,7 +207,7 @@ def main():
           and "{{" not in page.text and "powered by Awarri Technologies" in page.text, page.text[:300])
     app_page = open(os.path.join(os.path.dirname(__file__), "..", "web", "app.html"), encoding="utf-8").read()
     check("the app's delete screen and privacy links match", "deleted after 90 days" in app_page
-          and "7 days to cancel" not in app_page and 'priv:()=>open("/privacy"' in app_page)
+          and "7 days to cancel" not in app_page and 'priv:()=>TVL.privacy()' in app_page)
 
     p2, _ = add_account.create("08030000599", "mama ngozi testtrader", "Ngozi Test Foods")
     check("personal: titles keep the name after them ('Mama Ngozi', not 'Mama'), and a lowercase name is tidied",
