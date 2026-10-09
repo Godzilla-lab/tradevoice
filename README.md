@@ -25,7 +25,7 @@ About two minutes, on a phone or a computer with a microphone.
 1. Open **https://tradevoice.duckdns.org/app** and pick your language: English, Yorùbá, Hausa or Igbo. Pidgin works
    under English.
 2. Tap **Create account**. Enter a Nigerian number you own and agree to the terms.
-   - If the team's SMS phone is switched on, a 6-digit code comes to you by SMS. If not, there is no code.
+   - No code is needed: your number and a password. If you use Telegram, you can confirm your number there.
    - Choose a password (8 characters or more), then your name and business name. Tap **Create my account**.
 3. Tap the mic (the round button in the middle of the bottom bar) and say:
 
@@ -164,7 +164,7 @@ src/            the Python app (python src/web.py)
   vision.py, photo.py   notebook photo to lines the trader checks and saves
   telegram.py           the Telegram bot (live)
   whatsapp.py           the WhatsApp bot (built and tested, not live)
-  sms.py                sign-up codes by SMS (TextBee)
+  sms.py                optional sign-up codes by SMS (off unless its keys are set)
   extras.py             lender link, pay links, reminders, receipts
   events.py, team.py    the anonymised log and the team dashboard (/team)
   ui_text.py            the words on screen in English, Yorùbá, Hausa and Igbo
@@ -184,7 +184,7 @@ python eval/run_tools_eval.py                          # tool choice on 203 sent
 python eval/run_eval.py --cases eval/cases_1000.jsonl --llm natlas --raw --workers 8   # the benchmark (needs NATLAS_URL)
 ```
 - `eval/run_all.py`: 921 checks in 29 suites, all passing on 9 Oct 2026. They cover records, corrections, the
-  Ask chat, hearing, sign-up, SMS codes, Telegram, WhatsApp (against a faked Meta API), backups and the dashboard.
+  Ask chat, hearing, sign-up, optional SMS codes, Telegram, WhatsApp (against a faked Meta API), backups and the dashboard.
 - `eval/browser_test.cjs`: 75 checks in a real browser, from sign-up to a reminder draft, the Ask tab and log out.
 
 More in [`docs/TESTING.md`](docs/TESTING.md).

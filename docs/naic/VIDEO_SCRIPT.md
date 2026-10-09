@@ -48,10 +48,9 @@ trader's real book.
 
 ### 3. Sign up on the web app (0:35-0:55)
 - **On screen:** screen recording of the phone. tradevoice.duckdns.org/app, pick **Yorùbá**, tap
-  **Create account**. Type the number (**blur it in the edit**), tick the terms. If the SMS code screen appears,
-  show the code arriving (blur the number). Create a password. Enter a name and a business name. Tap
+  **Create account**. Type the number (**blur it in the edit**), tick the terms. Create a password. Enter a name and a business name. Tap
   **Create my account**.
-- **Narrator:** "Sign-up is a phone number and a password. When our SMS phone is on, a 6-digit code comes by SMS.
+- **Narrator:** "Sign-up is a phone number and a password.
   No long forms, no card."
 
 ### 4. Live talk in Yorùbá: a credit sale (0:55-1:35)

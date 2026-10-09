@@ -4,7 +4,7 @@
 
 **Update 9 Oct:** we could not get WhatsApp Business API access in time. The pilot and the submission use the **web
 app** (main) and a **Telegram bot** (same bot, free). The WhatsApp bot is built and tested and switches on later with
-the Meta keys. Sign-up: a 6-digit **SMS** code once the team's TextBee phone is set up, else number + password.
+the Meta keys. Sign-up: number + password (no code); Telegram users can confirm their number in Telegram.
 Every NAIC document says this plainly.
 The N-ATLAS integration check is 15–17 Oct, so the live app must stay up and running on N-ATLAS until then.
 
@@ -107,8 +107,7 @@ Even an **unverified** business can use a real number. Traders message first, an
 - [ ] **Live app:** the always-on web server and the Telegram bot, plus the N-ATLAS models on **Modal**, kept
       warm from 6 to 17 Oct. Set a Modal spending limit. Photos are read by the NVIDIA API, so the NVIDIA key
       needs credit. Owner: ____
-- [ ] **Telegram bot** working for judges (keys.sh TELEGRAM_BOT_TOKEN), its link on the website. **SMS codes**
-      working (keys.sh TEXTBEE_API_KEY, TEXTBEE_DEVICE_ID; a team Android phone kept charged and online).
+- [ ] **Telegram bot** working for judges (keys.sh TELEGRAM_BOT_TOKEN), its link on the website.
       Steps to try it are in the README. Owner: ____
 - [ ] **Repo cleanup** (ROADMAP Part 1) and the README updated with links and how to test. Owner: ____
 - [ ] **Submit:** GitHub link `https://github.com/Godzilla-lab/tradevoice`, the live app link
@@ -181,7 +180,7 @@ integrate the build.
   - setup on Modal, the web server and a Mac;
   - every setting in `.env.example`;
   - the API endpoints;
-  - sign-up codes (SMS through TextBee, or none), Telegram, and the WhatsApp bot (built, not live);
+  - sign-up (number + password; Telegram confirm), Telegram, and the WhatsApp bot (built, not live);
   - how to run the tests.
 
   Then `python scripts/make_pdfs.py` makes `docs/naic/pdf/TradeVoice-technical-documentation.pdf`.
@@ -227,8 +226,8 @@ developer.
 - [ ] All 7 items are uploaded. Every link opens in a private, logged-out browser window.
 - [ ] Problem statement selected: **PS2, Voice-First Access** (one only).
 - [ ] Everything is in English (non-English speech in the video has subtitles).
-- [ ] The live app, the Telegram bot and SMS codes are running and stay up through **17 Oct** for the N-ATLAS
-      integration check (NATLAS_WATCH=1 keeps N-ATLaS awake 7am to 8pm; the TextBee phone stays charged).
+- [ ] The live app and the Telegram bot are running and stay up through **17 Oct** for the N-ATLAS
+      integration check (N-ATLaS kept awake on those days).
 - [ ] Submitted, and the confirmation screenshot is saved.
 
 ## Timeline at a glance
@@ -239,7 +238,7 @@ developer.
 | 6 Oct | N-ATLAS and WhatsApp ↔ web live (Modal kept warm); pilot starts |
 | 6–10 Oct | Pilot running: 50+ real interactions |
 | 8 Oct | Benchmark done |
-| 9 Oct | WhatsApp access not granted: web app + Telegram + SMS codes instead; video filmed on the web app |
+| 9 Oct | WhatsApp access not granted: web app + Telegram instead; video filmed on the web app |
 | 10 Oct | All PDFs written; video edited |
 | 11 Oct | **Submit** |
 | 15–17 Oct | N-ATLAS integration check: keep everything running |

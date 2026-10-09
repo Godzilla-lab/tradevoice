@@ -187,7 +187,7 @@ def whatsapp():
 
 
 def codes():
-    """How a new trader proves their number: WhatsApp, SMS (TextBee phone) or, with neither, no code."""
+    """How a new trader proves their number: WhatsApp, SMS (optional, off unless set) or, with neither, no code."""
     import sms
     import v2
     ch = v2.channels()
@@ -197,9 +197,9 @@ def codes():
         ok, words = sms.check()
         return (PASS if ok else FAIL), ("codes go by SMS (TextBee): " if ok else "SMS codes can't go out: ") + scrub(words)
     if not ch["nocode"]:
-        return FAIL, "SIGNUP_CODE=required but nothing can send a code: nobody can sign up (set TEXTBEE_API_KEY and TEXTBEE_DEVICE_ID)"
-    return WARN, ("sign-up without a code: numbers aren't checked. For SMS codes: keys.sh TEXTBEE_API_KEY and "
-                  "TEXTBEE_DEVICE_ID (a team Android phone with the TextBee app)")
+        return FAIL, "SIGNUP_CODE=required but nothing can send a code: nobody can sign up (remove SIGNUP_CODE)"
+    return WARN, ("sign-up with number + password, no code (numbers aren't checked; Telegram users can confirm "
+                  "theirs in Telegram)")
 
 
 def telegram_bot():
