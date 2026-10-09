@@ -178,12 +178,17 @@ STEPS = [("LIVE TALK: you stop to first sound", lambda r: r["kind"] == "live_tur
          ("  you stop to words ready", lambda r: r["kind"] == "live_turn" and r["engine"] == "heard"),
          ("  words to reply ready", lambda r: r["kind"] == "live_turn" and r["engine"] == "think"),
          ("  reply to first sound", lambda r: r["kind"] == "live_turn" and r["engine"] == "voice"),
-         ("hearing", lambda r: r["kind"] == "hear" and r["ok"]),
+         ("  live talk: words after you stop", lambda r: r["kind"] == "hear" and r["ok"]
+          and r["engine"] == "intron-stream"),
+         ("  live talk: reply on the server", lambda r: r["kind"] == "understand" and r["engine"] == "live talk"),
+         ("hearing (voice notes)", lambda r: r["kind"] == "hear" and r["ok"] and r["engine"] != "intron-stream"),
          ("brain (N-ATLaS)", lambda r: r["kind"] == "llm" and r["ok"] and is_natlas(r)),
          ("brain (backup AI)", lambda r: r["kind"] == "llm" and r["ok"] and not is_natlas(r)),
          ("N-ATLaS didn't answer", lambda r: r["kind"] == "llm" and not r["ok"] and is_natlas(r)),
          ("merge two hearings (N-ATLaS)", lambda r: r["kind"] == "hear_merge" and r["ok"]),
-         ("understand", lambda r: r["kind"] == "understand"),
+         ("reply on the server (voice notes)", lambda r: r["kind"] == "understand" and r["engine"] == "voice"),
+         ("reply on the server (typed, Ask)", lambda r: r["kind"] == "understand"
+          and r["engine"] not in ("live talk", "voice")),
          ("voice (Intron)", lambda r: r["kind"] == "voice" and r["ok"] and (r["engine"] or "").startswith("intron"))]
 
 

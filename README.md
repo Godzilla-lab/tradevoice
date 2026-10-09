@@ -184,7 +184,7 @@ NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the whole app in Chromi
 python eval/run_tools_eval.py                          # tool choice on 203 sentences, offline
 python eval/run_eval.py --cases eval/cases_1000.jsonl --llm natlas --raw --workers 8   # the benchmark (needs NATLAS_URL)
 ```
-- `eval/run_all.py`: 996 checks in 31 suites, all passing on 9 Oct 2026. They cover records, corrections, the
+- `eval/run_all.py`: 998 checks in 31 suites, all passing on 9 Oct 2026. They cover records, corrections, the
   Ask chat, hearing, sign-up, sign-up codes by Termii, Telegram, WhatsApp (against a faked Meta API), backups and the dashboard.
 - `eval/browser_test.cjs`: 75 checks in a real browser, from sign-up to a reminder draft, the Ask tab and log out.
 

@@ -7,11 +7,12 @@ On the live server: sudo bash /opt/tradevoice/app/deploy/server/speed.sh
 
 Live talk, measured on the trader's phone: you stop talking -> the words are ready -> the reply is ready -> the first
 sound plays (event "live_turn"). Then the server's own steps, in the order a voice turn runs them:
-  hearing      N-ATLaS speech model (voice note -> words)            event "hear"
-  merge        Yoruba/Hausa/Igbo: two hearings merged by N-ATLaS    event "hear_merge"
-  brain        N-ATLaS answering (record or question)                event "llm" (engine natlas)
-  understand   the whole reply on the server (brain + book + rules)  event "understand"
-  voice        Intron making the spoken reply (cached replies: 0)    event "voice" (engine intron)
+  live talk    Intron's words after you stop; the reply on the server   events "hear" (intron-stream), "understand"
+  hearing      voice notes (chat, Telegram): N-ATLaS speech model      event "hear"
+  merge        Yoruba/Hausa/Igbo: two hearings merged by N-ATLaS       event "hear_merge"
+  brain        N-ATLaS answering (record or question)                  event "llm" (engine natlas)
+  reply        the whole reply on the server (brain + book + rules)    event "understand", by where it came from
+  voice        Intron making the spoken reply (cached replies: 0)      event "voice" (engine intron)
 """
 import argparse
 import os
@@ -32,9 +33,12 @@ def main(argv=None):
         print(f"No timed voice turns in the last {args.days:g} days yet (the timing started with this update).")
         return 0
     print(f"Voice turn speed, last {args.days:g} days (seconds)\n")
-    print(f"{'step':<20}{'count':>7}{'typical':>10}{'slow (9 in 10)':>16}{'slowest':>10}")
+    print(f"{'step':<38}{'count':>7}{'typical':>10}{'slow (9 in 10)':>16}{'slowest':>10}")
     for name, n, med, p90, mx in t:
-        print(f"{name:<20}{n:>7}{med / 1000:>10.1f}{p90 / 1000:>16.1f}{mx / 1000:>10.1f}")
+        print(f"{name:<38}{n:>7}{med / 1000:>10.1f}{p90 / 1000:>16.1f}{mx / 1000:>10.1f}")
+    if not any(name.startswith("LIVE TALK") for name, *_ in t):
+        print("\nNo live-talk turns timed yet: tap Talk, speak, and wait for the spoken reply (the phone sends the times "
+              "once the reply starts playing).")
     print("\nA very slow 'slowest' (over 60 s) is a sleeping N-ATLaS waking up: NATLAS_WATCH=1 keeps it awake in market hours.")
     print("'N-ATLaS didn't answer': the time spent waiting before the backup AI answered instead (asleep, or an error).")
     return 0

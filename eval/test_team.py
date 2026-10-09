@@ -171,10 +171,26 @@ out = io.StringIO()
 with contextlib.redirect_stdout(out):
     speed.main(["--days", "1"])
 txt = out.getvalue()
-line = next((x for x in txt.splitlines() if x.startswith("hearing")), "")
+line = next((x for x in txt.splitlines() if x.startswith("hearing (voice notes)")), "")
 check("speed report: typical / slow / slowest per step, in seconds",
-      line.split()[1:] == ["3", "2.5", "9.0", "9.0"] and "brain (N-ATLaS)" in txt and "voice (Intron)" in txt)
+      line.split()[-4:] == ["3", "2.5", "9.0", "9.0"] and "brain (N-ATLaS)" in txt and "voice (Intron)" in txt)
 check("speed report: times only (no phone, no words)", PHONE not in txt)
+check("…no live-talk turn yet: it says how to time one", "No live-talk turns timed yet" in txt)
+events.log("live_turn", engine="total", ms=6200)
+events.log("hear", engine="intron-stream", ms=900)
+events.log("understand", engine="live talk", ms=3100)
+events.log("understand", engine="voice", ms=5200)
+out = io.StringIO()
+with contextlib.redirect_stdout(out):
+    speed.main(["--days", "1"])
+txt = out.getvalue()
+rows_ = {x[:38].strip(): x[38:].split() for x in txt.splitlines() if len(x) > 40}
+check("speed report: live talk apart from voice notes (its own hearing and reply rows)",
+      rows_.get("LIVE TALK: you stop to first sound", [""])[0] == "1"
+      and rows_.get("live talk: words after you stop", [""])[1:2] == ["0.9"]
+      and rows_.get("live talk: reply on the server", [""])[1:2] == ["3.1"]
+      and rows_.get("reply on the server (voice notes)", [""])[1:2] == ["5.2"]
+      and rows_.get("hearing (voice notes)", [""])[0] == "3", rows_)
 
 # the team's own phones are left out of the NAIC numbers (TEAM_PHONES, and TEAM_WHATSAPP)
 before = events.summary()["interactions"]
