@@ -14,7 +14,9 @@ up() {
   return 1
 }
 go_live() {   # commit: check it out, install what it needs, restart, wait for it to answer
-  git checkout -q --detach "$1" && "$VENV/bin/pip" install -q -r requirements-server.txt && systemctl restart tradevoice && up
+  # daemon-reload: if setup.sh rewrote the service file, systemd uses the new one (and stops warning about it)
+  git checkout -q --detach "$1" && "$VENV/bin/pip" install -q -r requirements-server.txt && systemctl daemon-reload \
+    && systemctl restart tradevoice && up
 }
 
 old=$(git rev-parse HEAD)
