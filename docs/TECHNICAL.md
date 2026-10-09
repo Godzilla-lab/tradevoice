@@ -218,12 +218,13 @@ WhatsApp message. `AUTH_DEMO` is for tests on your own computer only. The live s
 
 ```bash
 curl -c jar -H 'Content-Type: application/json' \
-  -d '{"phone":"0803 000 0417","purpose":"signup"}' localhost:8000/api/auth/v2/code/start
+  -d '{"phone":"0803 000 0417","purpose":"signup"}' \
+  localhost:8000/api/auth/v2/code/start
 # -> {"login_id": "...", "nocode": true, ...}
 # the app hashes the password before sending it
 PW=$(printf 'tv:pw:%s' 'my-test-password' | shasum -a 256 | cut -d' ' -f1)
 curl -b jar -c jar -H 'Content-Type: application/json' \
-  -d '{"login_id":"LOGIN_ID","pw":"'$PW'","name":"Iya Bisi","biz":"Iya Bisi Provisions"}' \
+  -d '{"login_id":"LOGIN_ID","pw":"'$PW'","name":"Iya Bisi","biz":"Iya Bisi Shop"}' \
   localhost:8000/api/auth/v2/signup
 curl -b jar -H 'Content-Type: application/json' \
   -d '{"session":"s1","text":"Mama Ngozi took 2 bags rice 60k, she will pay Friday"}' \
@@ -233,8 +234,9 @@ curl -b jar -H 'Content-Type: application/json' -d '{"session":"s1","text":"yes"
 curl -b jar localhost:8000/api/v2/book
 ```
 
-Replace `LOGIN_ID` with the value from the first answer. On Linux, `sha256sum` does the same as `shasum -a 256`. Local data goes to `accounts.db`, `tradevoice.db` and
-`books/` in the folder you started from (all ignored by git).
+Replace `LOGIN_ID` with the value from the first answer. On Linux, `sha256sum` does the same as
+`shasum -a 256`. Local data goes to `accounts.db`, `tradevoice.db` and `books/` in the folder you started from (all
+ignored by git).
 
 ## 5. Deploy N-ATLaS on Modal
 
@@ -264,7 +266,8 @@ server sends it to both apps as a Bearer token.
 
 ```bash
 pip install modal && modal setup
-modal secret create natlas NATLAS_KEY=YOUR_LONG_RANDOM_STRING HF_TOKEN=YOUR_HF_READ_TOKEN
+modal secret create natlas NATLAS_KEY=YOUR_LONG_RANDOM_STRING \
+  HF_TOKEN=YOUR_HF_READ_TOKEN
 ```
 
 **Step 3.** Deploy both apps. Each prints its link.
@@ -284,7 +287,7 @@ curl -H "Authorization: Bearer $NATLAS_KEY" "$NATLAS_URL/models"
 curl -H "Authorization: Bearer $NATLAS_KEY" "$NATLAS_ASR_URL/health"
 curl -H "Authorization: Bearer $NATLAS_KEY" -F file=@note.ogg -F lang=yoruba \
   "$NATLAS_ASR_URL/transcribe"
-python scripts/check_models.py --natlas   # wakes N-ATLaS, times one record per language
+python scripts/check_models.py --natlas   # wakes N-ATLaS, times one record a language
 ```
 
 **The speech server's API.** `POST /transcribe` (form fields): `file` (any audio format), `lang` (`yoruba`, `hausa`,
@@ -347,7 +350,7 @@ It is safe to run again. `--duckdns` asks for the name and token again.
 **4. Keys.** `.env` lives at `/opt/tradevoice/app/.env` (root and the app's user only). Keys go in only through:
 
 ```bash
-sudo bash /opt/tradevoice/app/deploy/server/keys.sh              # every key, one by one
+sudo bash /opt/tradevoice/app/deploy/server/keys.sh              # every key
 sudo bash /opt/tradevoice/app/deploy/server/keys.sh NATLAS_KEY   # just one
 ```
 
@@ -791,9 +794,9 @@ Every automated test runs without keys, network or GPU: each suite fakes the ser
 Intron, Meta, Telegram, TextBee, Paystack) and uses its own temporary databases.
 
 ```bash
-python eval/run_all.py                 # every suite: prints N/M per suite and the total
+python eval/run_all.py                 # every suite: N/M per suite and the total
 python eval/test_telegram.py           # one suite: prints its checks and "N/M ..."
-NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the whole app in a real browser
+NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the app in a real browser
 ```
 
 On 9 October 2026: 29 suites with 921 checks, all passing, and 75 of 75 browser checks.
