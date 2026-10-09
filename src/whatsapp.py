@@ -11,6 +11,7 @@ note in the trader's language, with /buttons when something is waiting to be sav
 Demo limits: one shared book for everyone (fine for the team's test phones); Meta's test number only talks to the
 phones added in "API Setup".
 """
+import contextvars
 import datetime as dt
 import hashlib
 import hmac
@@ -45,6 +46,9 @@ router = APIRouter()
 STATS = {"posts": 0, "messages": 0, "bad_signature": 0, "last_post": None, "sent": 0, "last_error": None,
          "delivered": 0, "read": 0, "failed": 0, "not_sent": 0, "flood_dropped": 0}
 STATES = {}                    # phone -> conversation state (same shape as the web chat's)
+# Telegram (src/telegram.py) uses this same bot: while it answers a Telegram message, OUT points at its sender, and
+# every reply below goes there instead of Meta. Unset (WhatsApp), nothing changes.
+OUT = contextvars.ContextVar("tv_out", default=None)
 SEEN = OrderedDict()           # message ids already handled (Meta sometimes sends twice)
 LOCKS = {}                     # phone -> lock, so one trader's messages are answered in order
 VOICE_LANGS = {"English": "English / Pidgin", "Pidgin": "English / Pidgin", "Yoruba": "Yoruba", "Hausa": "Hausa",
@@ -53,7 +57,7 @@ LANG_WORDS = {"english": "English", "pidgin": "English", "yoruba": "Yoruba", "ha
               "yorùbá": "Yoruba"}
 
 SAY = {
-    "pick": "Welcome to *TradeVoice*: your shop book on WhatsApp.\nWhich language do you want?",
+    "pick": "Welcome to *TradeVoice*: your shop book, right here in this chat.\nWhich language do you want?",
     "photo_read": {"English": "I read {n} lines:", "Pidgin": "I read {n} lines:",
                    "Yoruba": "Mo ka ìlà {n}:", "Hausa": "Na karanta layi {n}:", "Igbo": "Agụrụ m ahịrị {n}:"},
     "photo_help": "Tap *Save* to save every line not marked *Skip*. To fix one, reply like *3 = 40k*. To skip one, reply *no 3*.",
@@ -164,6 +168,8 @@ def _words(x):
 
 
 def send_text(to, body):
+    if OUT.get():
+        return OUT.get().send_text(to, body)
     return graph_post(_words({"to": to, "type": "text", "text": {"body": body[:4096], "preview_url": True}}))
 
 
@@ -246,6 +252,11 @@ def _not_sent(to, kind):
 
 def send_first(to, kind, text, params=None):
     """A message the trader didn't just ask for (kind: summary / paid / alert). True if it went out."""
+    import telegram
+    if telegram.tell(to, text):   # a trader linked on Telegram: no window there, no template needed
+        return True
+    if not (os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID") or os.getenv("WHATSAPP_PHONE_NUMBER_ID"))):
+        return False   # no WhatsApp set up: nothing to send it with (the drafts are in the app)
     if window_open(to):
         send_text(to, text)
         return True
@@ -315,6 +326,8 @@ def _flooding(phone):
 
 def send_buttons(to, body, buttons):
     """buttons: [(id, title≤20)] (max 3)."""
+    if OUT.get():
+        return OUT.get().send_buttons(to, body, buttons)
     return graph_post(_words({"to": to, "type": "interactive", "interactive": {
         "type": "button", "body": {"text": body[:1024]},
         "action": {"buttons": [{"type": "reply", "reply": {"id": i, "title": t[:20]}} for i, t in buttons[:3]]}}}))
@@ -322,6 +335,8 @@ def send_buttons(to, body, buttons):
 
 def send_list(to, body, button, rows):
     """rows: [(id, title≤24)] or [(id, title, description≤72)] (max 10)."""
+    if OUT.get():
+        return OUT.get().send_list(to, body, button, rows)
     items = []
     for row in rows[:10]:
         item = {"id": row[0], "title": row[1][:24]}
@@ -355,6 +370,8 @@ def voice_file(text, lang):
 
 def send_voice(to, text, lang):
     """Speak `text` and send it as a WhatsApp voice note (plays inline, like a voice note from a person)."""
+    if OUT.get():
+        return OUT.get().send_voice(to, text, lang)
     path = voice_file(text, lang)
     if not path:
         return None
@@ -378,6 +395,8 @@ def send_voice(to, text, lang):
 
 def mark_read(message_id):
     """Blue ticks + "typing…" while we work (best effort)."""
+    if OUT.get():
+        return OUT.get().mark_read(message_id)
     try:
         graph_post({"status": "read", "message_id": message_id, "typing_indicator": {"type": "text"}})
     except Exception:  # noqa: BLE001
@@ -386,6 +405,8 @@ def mark_read(message_id):
 
 def download(media_id, suffix):
     """Media id -> our own temp file (deleted by the caller right after it is read)."""
+    if OUT.get():
+        return OUT.get().download(media_id, suffix)
     meta = requests.get(f"{GRAPH}/{media_id}", headers=_headers(), timeout=30)
     meta.raise_for_status()
     if int(meta.json().get("file_size") or 0) > MAX_MEDIA:
@@ -506,13 +527,13 @@ def handle(msg):
         if kind == "text" and re.match(r"\s*login\b", msg["text"]["body"], re.I):  # "Verify with WhatsApp" on the web
             import accounts
 
-            if not login_by_message_ok():
+            if not (OUT.get() or login_by_message_ok()):   # Telegram: the number was shared from the account itself
                 return send_text(phone, "Logging in by message is switched off for now. Use the 6-digit code on the "
                                         "website, or ask the TradeVoice team.")
             ok = accounts.confirm_from_whatsapp(phone, msg["text"]["body"])
             return send_text(phone, "Done, your number is confirmed. Go back to TradeVoice: it continues by itself."
                              if ok else "That login code is old or not for this number. On the website, start again "
-                                        "and tap 'Send it on WhatsApp' from this phone.")
+                                        "and tap the confirm button from this phone.")
         if kind in QUIET:
             return None   # a thumbs-up or a sticker needs no answer
         if kind == "document" and str(msg.get("document", {}).get("mime_type", "")).startswith("image/"):
@@ -522,8 +543,9 @@ def handle(msg):
         if when:   # deleted, waiting to be erased: the book is not used; logging in on the app can still keep it
             return send_text(phone, ui_text.t("account_closing", u.get("lang")).format(
                 date=f"{when.day} {when.strftime('%B %Y')}", url=_app_url() or "(ask the team for the link)"))
-        events.CHANNEL.set("whatsapp")
-        events.log("message", phone, "whatsapp", lang=u.get("lang"), engine=kind)   # type only, never the text
+        app = OUT.get().name if OUT.get() else "whatsapp"
+        events.CHANNEL.set(app)
+        events.log("message", phone, app, lang=u.get("lang"), engine=kind)   # type only, never the text
         mark_read(msg.get("id"))
         text = ""
         if kind == "text":

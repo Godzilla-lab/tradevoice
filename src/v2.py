@@ -189,6 +189,7 @@ def code_start(b: CodeStart, request: Request):
         sent = sms.send_code(phone, login["code"])
         via = "sms" if sent else via
     demo = accounts.demo_mode()
+    tg = ch["tg"]   # Telegram users can always confirm their number there, free: "Confirm on Telegram" (LOGIN word)
     if not sent and not demo and not bot:
         if b.purpose == "signup" and ch["nocode"]:
             # no way to send a code (no WhatsApp yet): sign-up goes straight on with number + password. Only a number
@@ -197,9 +198,11 @@ def code_start(b: CodeStart, request: Request):
             NOCODE.add(login["id"])
             return {"login_id": login["id"], "nocode": True, "sent": False, "demo_code": None, "word": None,
                     "bot": None, "channel": ""}
-        return JSONResponse({"error": "nosend"}, 503)
+        if not tg:
+            return JSONResponse({"error": "nosend"}, 503)
     return {"login_id": login["id"], "sent": sent, "demo_code": login["code"] if demo else None,
-            "word": login["word"] if bot else None, "bot": bot or None, "channel": via or ("whatsapp" if bot else "")}
+            "word": login["word"] if bot or tg else None, "bot": bot or None, "tg": tg or None,
+            "channel": via or ("whatsapp" if bot else "")}
 
 
 START = {}      # login_id -> the purpose the code was asked for

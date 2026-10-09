@@ -309,7 +309,7 @@
   if (!CH.codes && !CH.tg) {   // nowhere to send a code: "Forgot password?" says how to get help instead of a dead end
     GO.forgot = () => { ag(`<h1 class="sm">Reset your password</h1><p style="color:var(--label2);margin-bottom:var(--s4)">${noCode("reset")}</p><button class="btn w" data-g="login">Back to log in</button>`, "login"); };
   }
-  if (!CH.codes) {   // a new number needs a code sent to it (Telegram can't reach a number nobody shared yet)
+  if (!CH.codes && !CH.tg) {   // a new number needs a code sent to it, or Telegram confirming it
     phoneSheet = function () { const o = sheet(`<h3>Change your number</h3><p class="hn">${noCode("phone")}</p><div class="btns"><button class="btn w" id="cx">Close</button></div>`); $("#cx", o).onclick = () => shut(o); };
   }
   /* Forgot PIN: log in again with the password (that proves it's you), and the PIN is off. The design's version
@@ -368,14 +368,18 @@
       const ghost = !r.ok && !error;   // reset for a number with no account: the same code screen, nothing sent
       const sent = ghost || (r.ok && (r.data.sent || r.data.demo_code)), word = r.ok && r.data.word;
       const wa = word && r.data.bot ? `https://wa.me/${r.data.bot}?text=${encodeURIComponent("LOGIN " + word)}` : "";
+      // Telegram: the bot asks them to share their number (Telegram's own button), which confirms it, free
+      const tgo = !wa && word && r.data.tg ? `https://t.me/${r.data.tg}?start=login-${encodeURIComponent(word)}` : "";
       const waBtn = wa ? `<a class="btn ${sent ? "" : "p "}w" id="wa" href="${wa}" target="_blank" rel="noopener" style="margin-top:var(--s3);text-decoration:none">${sent ? "No code? Send it on WhatsApp" : "Send it on WhatsApp"}</a>` +
-        `<p class="fine" style="margin-top:var(--s2)">From the phone with ${o.label}, send <b style="color:var(--label);font-weight:500">LOGIN ${word}</b>. This page carries on by itself.</p>` : "";
+        `<p class="fine" style="margin-top:var(--s2)">From the phone with ${o.label}, send <b style="color:var(--label);font-weight:500">LOGIN ${word}</b>. This page carries on by itself.</p>`
+        : tgo ? `<a class="btn ${sent ? "" : "p "}w" id="tgo" href="${tgo}" target="_blank" rel="noopener" style="margin-top:var(--s3);text-decoration:none">${sent ? "No code? Confirm on Telegram" : "Confirm on Telegram"}</a>` +
+        `<p class="fine" style="margin-top:var(--s2)">In Telegram, tap Start, then Share my phone number (Telegram account with ${o.label}). This page carries on by itself.</p>` : "";
       host.innerHTML = (error ? "" : sent ? `<p style="color:var(--label2);margin-bottom:var(--s4)">${ch == "telegram" ? `We sent a 6-digit code to TradeVoice on Telegram, for <b style="color:var(--label);font-weight:500">${o.label}</b>.` : ch == "sms" ? `We sent a 6-digit code by SMS to <b style="color:var(--label);font-weight:500">${o.label}</b>. It can take a minute.` : `We sent a 6-digit code to WhatsApp <b style="color:var(--label);font-weight:500">${o.label}</b>.`}</p>` :
-          `<p style="color:var(--label2);margin-bottom:var(--s4)">Confirm <b style="color:var(--label);font-weight:500">${o.label}</b> on WhatsApp: tap the button and send the message it opens.</p>`) +
+          `<p style="color:var(--label2);margin-bottom:var(--s4)">Confirm <b style="color:var(--label);font-weight:500">${o.label}</b> ${tgo ? "on Telegram: tap the button, then share your number with the TradeVoice bot." : "on WhatsApp: tap the button and send the message it opens."}</p>`) +
         (error ? `<p class="er" role="alert" style="margin:0 0 var(--s3)">${error}</p><button class="btn w" data-vb="again">Try again</button>` :
           (sent ? `<input class="otp" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="6-digit code" placeholder="······"><p class="er" id="o-e" role="alert"></p><p class="fine" id="rs"></p>` : "") + waBtn) +
         (o.back ? `<p class="fine"><button data-vb="back" style="text-decoration:underline">${o.back}</button></p>` : "");
-      if (!error && lid && wa) waitForWhatsApp();
+      if (!error && lid && (wa || tgo)) waitForWhatsApp();
       if (r.ok && r.data.demo_code) setTimeout(() => wab("WhatsApp", `Your TradeVoice code is <b>${r.data.demo_code}</b>. Don't share it with anyone.`), 700);
       if (!error && sent) { const i = $("#otp", host); i.focus({ preventScroll: true });
         i.oninput = async () => { i.value = i.value.replace(/\D/g, ""); $("#o-e", host).textContent = ""; if (i.value.length == 6) { await sleep(150); check(i); } }; clock(); }

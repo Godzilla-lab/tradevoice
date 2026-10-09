@@ -47,6 +47,8 @@ import team  # noqa: E402  (/team: the team's dashboard + anonymised CSV, ADMIN_
 app.include_router(team.router)
 import v2  # noqa: E402  (the TradeVoice 2.0 design's accounts + book: design/tradevoice-2.0/)
 app.include_router(v2.router)
+import telegram  # noqa: E402  (the same bot on Telegram: free, for traders who use it)
+app.include_router(telegram.router)
 import extras  # noqa: E402  (lender link, pay links, automatic reminders, receipts, PIN, CSV)
 
 app.include_router(extras.router)
@@ -1292,6 +1294,7 @@ def _auto_reminders():
     events.ENABLED = True  # the real server records the interaction log (tests and benchmarks don't)
     llm.wake_natlas()     # start the N-ATLaS GPU loading now, not on the first trader's message
     natlas_watch.start()  # market hours: keep it warm + WhatsApp the team if it stops answering
+    threading.Thread(target=telegram.setup, daemon=True).start()   # Telegram webhook (if TELEGRAM_BOT_TOKEN)
 
 
 NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}

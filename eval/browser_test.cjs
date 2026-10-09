@@ -759,6 +759,26 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (!/by SMS to/.test(t) || !/Check your messages/.test(t)) throw new Error(t);
       await c4.close();
     });
+    await check("Telegram users: 'Confirm on Telegram' opens the bot with the login word; the page carries on by itself", async () => {
+      const c6 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
+      await c6.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+      await withCH(c6, { ...NONE, tg: "TradeVoiceTestBot", nocode: false });
+      let polls = 0;
+      await c6.route(/\/api\/auth\/v2\/code\/start$/, r => r.fulfill({ json: { login_id: "lid-tg", sent: false, demo_code: null, word: "MANGO-123", bot: null, tg: "TradeVoiceTestBot", channel: "" } }));
+      await c6.route(/\/api\/auth\/v2\/code\/poll$/, r => { polls++; r.fulfill({ json: { ok: polls >= 2 } }); });
+      const p6 = await c6.newPage();
+      p6.on("pageerror", e => errors.push(e.message));
+      await p6.goto(`${BASE}/app`);
+      await p6.click("#gate [data-g=signup]");
+      await p6.fill("#ph", "8030000780"); await p6.check("#ag"); await p6.click("#go");
+      const a = p6.locator("#tgo");
+      await a.waitFor({ timeout: 8000 });
+      const href = await a.getAttribute("href");
+      if (href !== "https://t.me/TradeVoiceTestBot?start=login-MANGO-123") throw new Error(href);
+      if (await p6.locator("#otp").count()) throw new Error("a code box although no code was sent");
+      await p6.waitForSelector("#pgo", { timeout: 10000 });   // confirmed in Telegram: on to choosing a password
+      await c6.close();
+    });
     await check("website without WhatsApp: 'Open the app' first, 'Use on Telegram' second, no blank wa.me links, FAQ honest", async () => {
       const c5 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
       await c5.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());

@@ -308,8 +308,9 @@ def _settle(link, amount, how):
 
 
 def notify_trader_paid(phone, name, amount, left):
-    """WhatsApp the trader (never the customer) that money came in. Quietly skipped for guests or without WhatsApp."""
-    if not phone or accounts.is_guest(phone) or not os.getenv("WHATSAPP_TOKEN"):
+    """Tell the trader (never the customer) that money came in: WhatsApp, or Telegram if linked there. Quietly
+    skipped for guests, or with neither set up."""
+    if not phone or accounts.is_guest(phone) or not (os.getenv("WHATSAPP_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")):
         return
     try:
         import ui_text
@@ -528,7 +529,7 @@ def run_due_reminders(base=None, today=None, send=True):
                 due.append(d)
         with _in_book(phone):
             usual = insights.repeat_orders(today)
-        if (due or usual) and send and os.getenv("WHATSAPP_TOKEN"):
+        if (due or usual) and send and (os.getenv("WHATSAPP_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")):
             try:
                 import converse
                 import whatsapp
