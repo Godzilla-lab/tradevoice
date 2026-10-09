@@ -33,6 +33,9 @@ LANDING_PATCHES = [
     ("example sum", 'Mama Tunde just paid ₦12,000 online. Still owes you ₦0.',
      'Mama Tunde paid ₦12,000. She still owes you ₦33,000.', 1),
     # --- the N-ATLaS licence requires this sentence wherever TradeVoice credits N-ATLaS
+    # --- a forgotten PIN: log in again with the password (web/live.js recover), not "through WhatsApp"
+    ("PIN answer", 'and if you forget the PIN you can get back in through WhatsApp.',
+     'and if you forget the PIN, log in again with your password.', 1),
     ("N-ATLaS attribution", 'Nigeria’s own multilingual AI model.</div>',
      'Nigeria’s own multilingual AI model.<br>N-ATLaS is an initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri Technologies.</div>', 1),
 ]
@@ -158,6 +161,39 @@ PATCHES = [
     ("demo tools", '<h2>Make it yours</h2>', '${TVL.demo?`<h2>Make it yours</h2>'),
     ("demo tools 2", '${R("Empty book","See the first-time screens",sw("empty",!C.length,"Empty book"))}',
      '${R("Empty book","See the first-time screens",sw("empty",!C.length,"Empty book"))}</ul>`:""}<ul hidden>'),
+    # --- which ways in work today (the server puts window.TV_CH in the page, src/v2.py channels()): no WhatsApp yet
+    #     -> sign up with number + password (no code), "log in with a code" only where a code can arrive (Telegram for
+    #     numbers shared with the bot), nothing promises WhatsApp. Without TV_CH (a file opened by hand): as designed.
+    ("channels", 'const $=(s,r=document)=>r.querySelector(s)',
+     'const CH=window.TV_CH||{codes:"whatsapp",wa:true,sms:false,tg:"",nocode:false,team:""};const $=(s,r=document)=>r.querySelector(s)'),
+    ("pin lockout", 'Too many tries. Wait ${s}s, or use WhatsApp.', 'Too many tries. Wait ${s}s.'),
+    ("pin forgot", 'Forgot PIN? Get back in with WhatsApp', 'Forgot PIN?'),
+    ("welcome line", 'A phone number and a 6-digit code. No long forms.',
+     '${CH.nocode?"A phone number and a password. No long forms.":CH.codes=="sms"?"A phone number and a 6-digit code by '
+     'SMS. No long forms.":"A phone number and a 6-digit code. No long forms."}'),
+    ("sign-up why", 'We use it to keep your book safe and to send your code on WhatsApp.',
+     '${CH.nocode?"We use it to keep your book safe. It is how you log in.":CH.codes=="sms"?"We use it to keep your '
+     'book safe and to send your code by SMS.":"We use it to keep your book safe and to send your code on WhatsApp."}'),
+    ("sign-up label", 'fld("ph","WhatsApp number",', 'fld("ph",CH.codes=="whatsapp"?"WhatsApp number":"Phone number",'),
+    ("sign-up step 2", '<h1 class="sm">Check WhatsApp</h1>',
+     '<h1 class="sm">${CH.nocode?"One moment":CH.codes=="sms"?"Check your messages":"Check WhatsApp"}</h1>'),
+    ("code log in link", ' · <button data-g="otpin" style="text-decoration:underline">Log in with a WhatsApp code</button>',
+     '${CH.codes||CH.tg?` · <button data-g="otpin" style="text-decoration:underline">Log in with a code</button>`:""}'),
+    ("code log in where", "We'll send a code to your WhatsApp.",
+     '${CH.codes=="whatsapp"?"We\'ll send a code to your WhatsApp.":CH.codes=="sms"?"We\'ll send a code by SMS.":'
+     '"We\'ll send it to TradeVoice on Telegram, if you shared your number with the bot."}'),
+    ("reset where", "Enter your phone number or email. We'll send a code.",
+     '${CH.codes=="whatsapp"?"Enter your phone number or email. We\'ll send a code.":CH.codes=="sms"?"Enter your '
+     'phone number. We\'ll send a code by SMS.":"Enter your phone number. If you shared it with TradeVoice on '
+     'Telegram, the code comes there."}'),
+    ("notifications where", 'We send these on WhatsApp. You can stop them any time.',
+     '${CH.wa?"We send these on WhatsApp. You can stop them any time.":CH.tg?"We send these on Telegram once you '
+     'share your number with the TradeVoice bot. You can stop them any time.":"These come on WhatsApp once the '
+     'TradeVoice bot is live."}'),
+    ("connect rows", 'B("Connect my WhatsApp","Keep one book on both","wac")',
+     '(CH.wa?B("Connect my WhatsApp","Keep one book on both","wac"):"")}'
+     '${CH.tg?B("Connect my Telegram","Use your book from Telegram too","tgc"):""'),
+    ("log out text", "You'll need your password or a WhatsApp code to come back.", "You'll need your password to come back."),
 ]
 
 

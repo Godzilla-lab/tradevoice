@@ -298,10 +298,37 @@
     },
   };
 
-  /* ---------------------------------------------------------------- codes by WhatsApp (the design's verify) */
+  /* ---------------------------------------------------------------- which ways in work (window.TV_CH, src/v2.py channels())
+     No WhatsApp yet: sign-up needs no code; a code (log in, reset) can only reach a number shared with the Telegram
+     bot; otherwise the team resets the password (scripts/add_account.py --reset). Never a personal phone number. */
+  const team = () => CH.team ? ` <a href="mailto:${esc(CH.team)}" style="color:var(--accent)">${esc(CH.team)}</a>` : "";
+  const noCode = purpose => CH.codes ? "We can't send codes right now. Try again soon."
+    : purpose === "phone" ? `Changing your number needs a code, and we can't send one yet. Ask the TradeVoice team.${team()}`
+    : CH.tg ? `We can only send codes to numbers shared with TradeVoice on Telegram. Ask the TradeVoice team to reset your password.${team()}`
+    : `We can't send codes yet. Ask the TradeVoice team to reset your password.${team()}`;
+  if (!CH.codes && !CH.tg) {   // nowhere to send a code: "Forgot password?" says how to get help instead of a dead end
+    GO.forgot = () => { ag(`<h1 class="sm">Reset your password</h1><p style="color:var(--label2);margin-bottom:var(--s4)">${noCode("reset")}</p><button class="btn w" data-g="login">Back to log in</button>`, "login"); };
+  }
+  if (!CH.codes) {   // a new number needs a code sent to it (Telegram can't reach a number nobody shared yet)
+    phoneSheet = function () { const o = sheet(`<h3>Change your number</h3><p class="hn">${noCode("phone")}</p><div class="btns"><button class="btn w" id="cx">Close</button></div>`); $("#cx", o).onclick = () => shut(o); };
+  }
+  /* Forgot PIN: log in again with the password (that proves it's you), and the PIN is off. The design's version
+     opened WhatsApp and turned the PIN off after 2 seconds without checking anything. */
+  recover = function () {
+    gate(`<div style="text-align:center">${LOGO.replace('class="lg"', 'class="lg" style="margin:auto"')}</div><h1 style="font-size:1.75rem">Forgot your PIN?</h1><p style="color:var(--label2);margin-bottom:var(--s5)">Log in again with your phone number and password. Your book stays safe, and the PIN turns off.</p><button class="btn p w" data-x="relog">Log in again</button><p class="fine"><button style="text-decoration:underline" data-x="back">Back</button></p>`);
+    $("#gate").onclick = e => {
+      const c = e.target.closest("[data-x]"); if (!c) return;
+      if (c.dataset.x == "back") return pinGate("unlock");
+      if (c.dataset.x == "relog") { pin = null; try { localStorage.removeItem("tv-pin"); } catch (x) {} drop(); logout(); }
+    };
+  };
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-a=tgc]") && CH.tg) open(`https://t.me/${CH.tg}?start=link`, "_blank", "noopener");
+  });
+
+  /* ---------------------------------------------------------------- codes (the design's verify) */
   verify = function (host, o) {
-    let n = 0, iv, lid = null, pv = null;
-    const ch = "whatsapp";
+    let n = 0, iv, lid = null, pv = null, ch = CH.codes || "telegram";
     const clock = () => {
       let left = 30; clearInterval(iv);
       const tick = () => { const r = $("#rs", host); if (!r || !r.isConnected) { clearInterval(iv); return; }
@@ -331,9 +358,10 @@
       if (offline()) { host.innerHTML = `<p class="er" role="alert" style="margin:0 0 var(--s3)">You're offline. We need internet to send your code.</p><button class="btn w" data-vb="again">Try again</button>`; return; }
       const r = await api("/api/auth/v2/code/start", { body: { phone: o.phone, purpose: o.purpose, lang: lang() } });
       let error = "";
-      if (r.ok) lid = r.data.login_id;
-      else if (r.status === 404 && o.purpose === "reset") lid = null;          // ghost: same screen, nothing sent
-      else if (r.status === 503) error = "We can't send codes on WhatsApp right now. Try again soon.";
+      if (r.ok && r.data.nocode) { lid = r.data.login_id; return o.onOk(lid); }   // no code channel yet: straight on
+      if (r.ok) { lid = r.data.login_id; ch = r.data.channel || ch; }
+      else if (r.status === 404 && o.purpose === "reset" && CH.codes) lid = null;   // ghost: same screen, nothing sent
+      else if (r.status === 503 || (r.status === 404 && o.purpose === "reset")) error = noCode(o.purpose);
       else if (r.status === 429) error = "Too many codes asked for. Try again in an hour.";
       else if (r.status === 409) error = "This number already has an account.";
       else error = "Couldn't send the code. Try again.";
@@ -342,7 +370,7 @@
       const wa = word && r.data.bot ? `https://wa.me/${r.data.bot}?text=${encodeURIComponent("LOGIN " + word)}` : "";
       const waBtn = wa ? `<a class="btn ${sent ? "" : "p "}w" id="wa" href="${wa}" target="_blank" rel="noopener" style="margin-top:var(--s3);text-decoration:none">${sent ? "No code? Send it on WhatsApp" : "Send it on WhatsApp"}</a>` +
         `<p class="fine" style="margin-top:var(--s2)">From the phone with ${o.label}, send <b style="color:var(--label);font-weight:500">LOGIN ${word}</b>. This page carries on by itself.</p>` : "";
-      host.innerHTML = (error ? "" : sent ? `<p style="color:var(--label2);margin-bottom:var(--s4)">We sent a 6-digit code ${ch == "sms" ? "by SMS to" : "to WhatsApp"} <b style="color:var(--label);font-weight:500">${o.label}</b>.</p>` :
+      host.innerHTML = (error ? "" : sent ? `<p style="color:var(--label2);margin-bottom:var(--s4)">${ch == "telegram" ? `We sent a 6-digit code to TradeVoice on Telegram, for <b style="color:var(--label);font-weight:500">${o.label}</b>.` : ch == "sms" ? `We sent a 6-digit code by SMS to <b style="color:var(--label);font-weight:500">${o.label}</b>. It can take a minute.` : `We sent a 6-digit code to WhatsApp <b style="color:var(--label);font-weight:500">${o.label}</b>.`}</p>` :
           `<p style="color:var(--label2);margin-bottom:var(--s4)">Confirm <b style="color:var(--label);font-weight:500">${o.label}</b> on WhatsApp: tap the button and send the message it opens.</p>`) +
         (error ? `<p class="er" role="alert" style="margin:0 0 var(--s3)">${error}</p><button class="btn w" data-vb="again">Try again</button>` :
           (sent ? `<input class="otp" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="6-digit code" placeholder="······"><p class="er" id="o-e" role="alert"></p><p class="fine" id="rs"></p>` : "") + waBtn) +

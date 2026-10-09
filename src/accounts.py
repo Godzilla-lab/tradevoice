@@ -220,7 +220,7 @@ def delete_account(phone):
 
     with _lock, db() as c:
         have = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        for t in ("sessions", "logins", "users", "shares", "paylinks", "auto_runs", "store_wait"):
+        for t in ("sessions", "logins", "users", "shares", "paylinks", "auto_runs", "store_wait", "tg_link"):
             if t in have:
                 c.execute(f"DELETE FROM {t} WHERE phone=?", (phone,))
     try:

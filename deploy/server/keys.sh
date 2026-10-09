@@ -16,6 +16,11 @@ NATLAS_ASR_URL|no|N-ATLaS speech link from Modal (starts https://)
 NATLAS_KEY|yes|N-ATLaS key (the same one you set on Modal)
 NVIDIA_API_KEY|yes|Backup AI key from build.nvidia.com (starts nvapi-)
 NATLAS_WATCH|no|Keep N-ATLaS awake 7am to 8pm Nigeria time? 1 = yes (pilot days; about 10 dollars a day on Modal), 0 = no (it sleeps after an hour)
+TEXTBEE_API_KEY|yes|TextBee API key (textbee.dev > Dashboard): sign-up codes by SMS from the team's Android phone
+TEXTBEE_DEVICE_ID|no|TextBee device ID of that phone (Dashboard > Devices)
+SMS_DAILY_MAX|no|Most code texts a day (TextBee free plan: 50)
+TELEGRAM_BOT_TOKEN|yes|Telegram bot token from @BotFather (digits:letters); the app sets up the webhook itself
+TEAM_TELEGRAM|no|Team Telegram chat IDs for alerts (the bot tells you yours when you send /id), comma between
 WHATSAPP_TOKEN|yes|WhatsApp token from Meta (long, starts EA)
 WHATSAPP_PHONE_ID|no|WhatsApp Phone number ID from Meta (digits only)
 WHATSAPP_APP_SECRET|yes|Meta App secret (App settings > Basic)
@@ -72,6 +77,8 @@ check() {   # NAME VALUE -> a warning when it looks wrong (the value itself is n
     PAYSTACK_SECRET_KEY) case "$2" in sk_test_*|sk_live_*) ;; *) echo "   ⚠️  Paystack secret keys start with sk_test_ or sk_live_";; esac ;;
     NATLAS_WATCH) case "$2" in 0|1|-) ;; *) echo "   ⚠️  type 1 (keep awake) or 0 (let it sleep)";; esac ;;
     TEAM_PHONES|TEAM_WHATSAPP) case "$2" in *[!0-9,]*) echo "   ⚠️  digits and commas only, e.g. 2348012345678,2348098765432";; esac ;;
+    TELEGRAM_BOT_TOKEN) case "$2" in [0-9]*:*) ;; *) echo "   ⚠️  a bot token looks like 123456789:ABC... (from @BotFather)";; esac ;;
+    SMS_DAILY_MAX) case "$2" in *[!0-9]*) echo "   ⚠️  a number, e.g. 50";; esac ;;
   esac
 }
 

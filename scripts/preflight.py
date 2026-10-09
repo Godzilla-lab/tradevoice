@@ -155,7 +155,7 @@ def intron_hearing():
 def whatsapp():
     tok, pid = os.getenv("WHATSAPP_TOKEN"), os.getenv("WHATSAPP_PHONE_ID") or os.getenv("WHATSAPP_PHONE_NUMBER_ID")
     if not (tok and pid):
-        return FAIL, "WHATSAPP_TOKEN or WHATSAPP_PHONE_ID is not set: the bot can't send"
+        return WARN, "not set up: the web app (and Telegram, if set) carry the pilot; WhatsApp comes later"
     import requests
 
     import whatsapp as wa
@@ -184,6 +184,40 @@ def whatsapp():
         return WARN, detail + ("; no login-code template yet: codes reach only traders who wrote in 24 h, the rest tap "
                                "'Send it on WhatsApp' (whatsapp_templates.sh --print)")
     return PASS, detail + f"; templates: {', '.join(tpl)}"
+
+
+def codes():
+    """How a new trader proves their number: WhatsApp, SMS (TextBee phone) or, with neither, no code."""
+    import sms
+    import v2
+    ch = v2.channels()
+    if ch["codes"] == "whatsapp":
+        return PASS, "codes go by WhatsApp"
+    if ch["codes"] == "sms":
+        ok, words = sms.check()
+        return (PASS if ok else FAIL), ("codes go by SMS (TextBee): " if ok else "SMS codes can't go out: ") + scrub(words)
+    if not ch["nocode"]:
+        return FAIL, "SIGNUP_CODE=required but nothing can send a code: nobody can sign up (set TEXTBEE_API_KEY and TEXTBEE_DEVICE_ID)"
+    return WARN, ("sign-up without a code: numbers aren't checked. For SMS codes: keys.sh TEXTBEE_API_KEY and "
+                  "TEXTBEE_DEVICE_ID (a team Android phone with the TextBee app)")
+
+
+def telegram_bot():
+    import telegram
+    if not telegram.ready():
+        return WARN, "not set up (optional): keys.sh TELEGRAM_BOT_TOKEN, a token from @BotFather"
+    try:
+        me = telegram.call("getMe", timeout=15)
+        hook = telegram.call("getWebhookInfo", timeout=15)
+    except Exception as e:  # noqa: BLE001
+        return FAIL, scrub(e)
+    want = os.getenv("PUBLIC_URL", "").rstrip("/") + "/telegram/webhook"
+    detail = f"@{me.get('username')}"
+    if hook.get("url") != want:
+        return FAIL, detail + f": the webhook is '{hook.get('url') or 'not set'}', not {want} (restart the app to set it)"
+    if hook.get("last_error_message"):
+        return WARN, detail + f": Telegram's last error: {scrub(hook['last_error_message'])}"
+    return PASS, detail + f", webhook set, {hook.get('pending_update_count', 0)} message(s) waiting"
 
 
 def settings_needed():
@@ -254,7 +288,8 @@ def tools():
 
 CHECKS = [("App answering", app_local), ("Public link", app_public), ("N-ATLaS brain", natlas_brain),
           ("N-ATLaS hearing", natlas_hearing), ("NVIDIA models", nvidia), ("Intron voice replies", intron_voice),
-          ("Intron live hearing", intron_hearing), ("WhatsApp bot", whatsapp), ("Settings", settings_needed),
+          ("Intron live hearing", intron_hearing), ("WhatsApp bot", whatsapp), ("Sign-up codes", codes),
+          ("Telegram bot", telegram_bot), ("Settings", settings_needed),
           ("Keep N-ATLaS awake", keep_awake), ("Backups", backups), ("Disk space", disk), ("Tools and folders", tools)]
 
 

@@ -1,11 +1,12 @@
 """Backend for the TradeVoice 2.0 design (design/tradevoice-2.0/app.html): accounts and the book, shaped the way
 the design's screens use them. The design is the master: every endpoint here backs one of its screens.
 
-Accounts (the design's sign-up): WhatsApp number -> 6-digit code on WhatsApp -> password -> business details.
+Accounts (the design's sign-up): phone number -> 6-digit code (WhatsApp, else SMS; with neither set up, no code) ->
+password -> business details. A code for log in or reset also reaches a number shared with the Telegram bot.
 - The browser sends sha256("tv:pw:"+password) (the design hashes before anything leaves the phone); we store only
   PBKDF2(salt, that), 200,000 rounds. Never the password.
-- Codes go by WhatsApp (accounts.start + whatsapp.send_text). They are never shown on screen, unless AUTH_DEMO=1 is
-  set on purpose for an internal test with made-up numbers.
+- Codes go by WhatsApp, SMS (src/sms.py) or Telegram (src/telegram.py). They are never shown on screen, unless
+  AUTH_DEMO=1 is set on purpose for an internal test with made-up numbers.
 - Delete = scheduled: everything is erased 7 days later unless the trader logs in and keeps the account.
 Open endpoints live under /api/auth/v2/ (no login needed); the rest under /api/v2/ (logged in, own book only).
 """
@@ -165,22 +166,63 @@ def code_start(b: CodeStart, request: Request):
             return JSONResponse({"error": "taken"}, 409)
     if _too_many(phone, request):
         return JSONResponse({"error": "too_many"}, 429)
+    ch = channels()
     login = accounts.start(phone)
-    sent, bot = False, ""
-    if os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID") or os.getenv("WHATSAPP_PHONE_NUMBER_ID")):
+    START[login["id"]] = b.purpose   # the ticket is for what was asked here, whatever the page says later
+    sent, bot, via = False, "", ""
+    if ch["wa"]:
         import whatsapp
         try:   # inside Meta's 24-hour window, or with the approved code template: the code goes by WhatsApp
             sent = whatsapp.send_code(phone, login["code"])
         except Exception as e:  # noqa: BLE001
             print(f"code not sent by WhatsApp: {type(e).__name__}")
+        via = "whatsapp" if sent else ""
         # the other way, always open: the trader sends "LOGIN MANGO-123" to the bot from that phone (they write first,
         # so no template is needed); the page continues by itself (/api/auth/v2/code/poll)
         bot = whatsapp.bot_number() if whatsapp.login_by_message_ok() else ""
+    if not sent and b.purpose in ("login", "reset"):
+        import telegram   # a trader who shared their number with the Telegram bot gets the code there, for free
+        sent = telegram.send_code(phone, login["code"])
+        via = "telegram" if sent else via
+    if not sent and not bot and ch["sms"]:
+        import sms        # everyone else: an ordinary text to the phone (the team's TextBee phone sends it)
+        sent = sms.send_code(phone, login["code"])
+        via = "sms" if sent else via
     demo = accounts.demo_mode()
     if not sent and not demo and not bot:
+        if b.purpose == "signup" and ch["nocode"]:
+            # no way to send a code (no WhatsApp yet): sign-up goes straight on with number + password. Only a number
+            # with no account gets here (409 above), so nobody can take over a book; resets still need a code.
+            CODE_TICKETS[login["id"]] = (phone, "signup", time.time())
+            NOCODE.add(login["id"])
+            return {"login_id": login["id"], "nocode": True, "sent": False, "demo_code": None, "word": None,
+                    "bot": None, "channel": ""}
         return JSONResponse({"error": "nosend"}, 503)
     return {"login_id": login["id"], "sent": sent, "demo_code": login["code"] if demo else None,
-            "word": login["word"] if bot else None, "bot": bot or None}
+            "word": login["word"] if bot else None, "bot": bot or None, "channel": via or ("whatsapp" if bot else "")}
+
+
+START = {}      # login_id -> the purpose the code was asked for
+NOCODE = set()  # login_ids that signed up without a code (shown on /team as "no code")
+
+
+def whatsapp_on():
+    return bool(os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID") or os.getenv("WHATSAPP_PHONE_NUMBER_ID")))
+
+
+def channels():
+    """How codes reach traders, for the server and the page alike: 'whatsapp' when the bot is set up, else 'sms' when
+    the SMS gateway is (src/sms.py); Telegram for numbers shared with the Telegram bot (log in and reset only). With
+    neither WhatsApp nor SMS, sign-up needs no code, unless SIGNUP_CODE=required. `team` is the address shown for
+    "ask the team" (the privacy contact, never a phone number)."""
+    import sms
+    import telegram
+    wa, by_sms = whatsapp_on(), sms.ready()
+    # AUTH_DEMO (internal tests, never the live server): the code shows on screen as a pretend WhatsApp message
+    codes = "whatsapp" if wa or (not by_sms and accounts.demo_mode()) else "sms" if by_sms else ""
+    return {"codes": codes, "wa": wa, "sms": by_sms, "tg": telegram.username(),
+            "nocode": not codes and os.getenv("SIGNUP_CODE", "").lower() != "required",
+            "team": os.getenv("PRIVACY_CONTACT", "")}
 
 
 SENDS = {}   # phone or IP -> times codes were asked for (the last hour)
@@ -211,7 +253,7 @@ def code_poll(b: CodePoll):
     phone = accounts.poll(b.login_id)
     if not phone:
         return {"ok": False}
-    CODE_TICKETS[b.login_id] = (phone, b.purpose, time.time())
+    CODE_TICKETS[b.login_id] = (phone, START.get(b.login_id, b.purpose), time.time())
     return {"ok": True}
 
 
@@ -226,7 +268,7 @@ def code_check(b: CodeCheck):
     phone, why = accounts.check_code(b.login_id, b.code)
     if not phone:
         return JSONResponse({"error": why or "That code isn't right."}, 400)
-    CODE_TICKETS[b.login_id] = (phone, b.purpose, time.time())
+    CODE_TICKETS[b.login_id] = (phone, START.get(b.login_id, b.purpose), time.time())
     return {"ok": True}
 
 
@@ -265,7 +307,8 @@ def signup(b: Signup, request: Request):
                                     b.type if b.type in TYPES else "", b.mk.strip()[:80],
                                     ui_text.choose(b.lang) if b.lang else "English", phone))
     CODE_TICKETS.pop(b.login_id, None)
-    _event("signup", phone)
+    _event("signup", phone, "no code" if b.login_id in NOCODE else "code")
+    NOCODE.discard(b.login_id)
     return _login_response(request, phone, keep=True)
 
 
@@ -619,10 +662,10 @@ def _h_row(e, today):
             max((today - dt.date.fromisoformat(str(e["created_at"])[:10])).days, 0)]
 
 
-def _event(kind, phone):
+def _event(kind, phone, engine=None):
     try:
         import events
-        events.log(kind, phone, "web")
+        events.log(kind, phone, "web", engine=engine)
     except Exception:  # noqa: BLE001
         pass
 

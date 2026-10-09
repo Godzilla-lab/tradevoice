@@ -11,7 +11,7 @@ import tempfile
 
 os.environ["TV_NO_DOTENV"] = "1"  # never let the real .env keys into a test
 for k in list(os.environ):
-    if k.endswith("API_KEY") or k.startswith("LOCAL_") or k.startswith("WHATSAPP_") or k in ("AUTH_DEMO", "TV_PUBLIC"):
+    if k.endswith("API_KEY") or k.startswith(("LOCAL_", "WHATSAPP_", "TEXTBEE_", "TELEGRAM_", "SMS_")) or k in ("AUTH_DEMO", "TV_PUBLIC", "SIGNUP_CODE"):
         os.environ.pop(k)
 os.environ.update(DB_PATH=os.path.join(tempfile.mkdtemp(), "shared.db"), BOOKS_DIR=tempfile.mkdtemp(),
                   ACCOUNTS_DB=os.path.join(tempfile.mkdtemp(), "a.db"), TRADEVOICE_ADMIN="0", AUTH_REQUIRED="1")
@@ -50,9 +50,33 @@ def code_for(c, purpose):
 def main():
     c = TestClient(web.app)
 
-    # no WhatsApp and no demo mode: no code is made up on screen
+    # nothing can send a code and SIGNUP_CODE=required: sign-up waits, no code is made up on screen
+    os.environ["SIGNUP_CODE"] = "required"
     r = c.post("/api/auth/v2/code/start", json={"phone": PHONE, "purpose": "signup"})
-    check("no WhatsApp: sign-up code can't be sent (503), nothing on screen", r.status_code == 503, r.text)
+    check("SIGNUP_CODE=required and no WhatsApp or SMS: sign-up waits (503), nothing on screen", r.status_code == 503, r.text)
+    os.environ.pop("SIGNUP_CODE")
+
+    # no WhatsApp, no SMS (the pilot this week): sign-up goes straight on with number + password, no code
+    other = "08030000522"
+    r = c.post("/api/auth/v2/code/start", json={"phone": other, "purpose": "signup"})
+    d = r.json()
+    check("no code channel: sign-up needs no code (nocode), and no code on screen", r.status_code == 200 and d["nocode"]
+          and not d["demo_code"] and not d["sent"], r.text)
+    s = c.post("/api/auth/v2/signup", json={"login_id": d["login_id"], "pw": pw("Kola-pass-2026"), "name": "Kola Testtrader",
+                                           "biz": "Kola Test Stores"})
+    check("…and the account is made with that number and password", s.status_code == 200, s.text)
+    check("…a reset with that ticket is refused (it was for sign-up only)",
+          c.post("/api/auth/v2/reset", json={"login_id": d["login_id"], "pw": pw("Other-pass-2026")}).status_code == 400)
+    check("…the same number can't sign up again (409): nobody takes over a book",
+          c.post("/api/auth/v2/code/start", json={"phone": other, "purpose": "signup"}).status_code == 409)
+    for purpose in ("reset", "login"):
+        check(f"…'{purpose}' by code needs a code, and none can be sent: 503, no code-free way in",
+              c.post("/api/auth/v2/code/start", json={"phone": other, "purpose": purpose}).status_code == 503)
+    check("…the page is told: no codes, sign-up without one", v2.channels()["codes"] == "" and v2.channels()["nocode"])
+    page = c.get("/app").text
+    check("…and the page carries that flag (window.TV_CH)", 'window.TV_CH={"codes": ""' in page and '"nocode": true' in page,
+          page[:300])
+    c.post("/api/auth/v2/logout")
 
     os.environ.update(WHATSAPP_TOKEN="test", WHATSAPP_PHONE_ID="123")
     r, code = code_for(c, "signup")

@@ -624,8 +624,8 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
     });
     await check("online: the design's 'Offline. Saved, will send later' banner is hidden", async () =>
       page.evaluate(() => { const o = document.querySelector("#off"); return !o || getComputedStyle(o).display === "none"; }));
-    await check("Me: Connect my WhatsApp says it's coming", async () => {
-      await page.click('#me [data-a=wac]'); return /bot/.test(await toastText());
+    await check("Me: no 'Connect my WhatsApp' while the bot is off (and no Telegram row without a Telegram bot)", async () => {
+      return !(await page.locator('#me [data-a=wac]').count()) && !(await page.locator('#me [data-a=tgc]').count());
     });
 
     /* ------------------------------------------------------------ password change */
@@ -711,6 +711,68 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (!/LOGIN MANGO-123/.test(await p2.locator("#gate").textContent())) throw new Error("the words to send are not shown");
       await p2.waitForSelector("#pgo", { timeout: 10000 });   // confirmed by WhatsApp: on to choosing a password
       await c2.close();
+    });
+
+    /* ------------------------------------------------------------ which ways in work (window.TV_CH, src/v2.py channels()) */
+    const withCH = async (ctx, ch) => {   // the same server, but the page is told another set of channels
+      for (const pathRe of [/\/app$/, /:\d+\/$/]) await ctx.route(pathRe, async r => {
+        const res = await r.fetch(); const b = (await res.text()).replace(/window\.TV_CH=\{[^<]*\}/, "window.TV_CH=" + JSON.stringify(ch));
+        await r.fulfill({ response: res, body: b });
+      });
+    };
+    const NONE = { codes: "", wa: false, sms: false, tg: "", nocode: true, team: "privacy@example.com" };
+    await check("no WhatsApp, no SMS: sign-up is number + password, no code screen; no 'log in with a code'; forgot password says ask the team", async () => {
+      const c3 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
+      await c3.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+      await withCH(c3, NONE);
+      await c3.route(/\/api\/auth\/v2\/code\/start$/, r => r.fulfill({ json: { login_id: "lid-nocode", nocode: true, sent: false, demo_code: null, word: null, bot: null, channel: "" } }));
+      const p3 = await c3.newPage();
+      p3.on("pageerror", e => errors.push(e.message));
+      await p3.goto(`${BASE}/app`);
+      await p3.waitForSelector("#gate [data-g=signup]");
+      if (!/A phone number and a password/.test(await p3.locator("#gate").textContent())) throw new Error("welcome still promises a code");
+      await p3.click("#gate [data-g=login]");
+      if (await p3.locator("[data-g=otpin]").count()) throw new Error("'log in with a code' shown with nothing to send it");
+      await p3.click("[data-g=forgot]");
+      const f = await p3.locator("#gate").textContent();
+      if (!/Ask the TradeVoice team/.test(f) || !(await p3.locator('#gate a[href="mailto:privacy@example.com"]').count())) throw new Error(f);
+      await p3.click("#gate [data-g=login]"); await p3.click("[data-g=signup]");
+      const t = await p3.locator("#gate").textContent();
+      if (/WhatsApp/.test(t) || !/It is how you log in/.test(t)) throw new Error(t);
+      await p3.fill("#ph", "8030000778"); await p3.check("#ag"); await p3.click("#go");
+      await p3.waitForSelector("#pgo", { timeout: 8000 });   // straight on to choosing a password
+      if (await p3.locator("#otp").count()) throw new Error("a code box although sign-up needs no code");
+      await c3.close();
+    });
+    await check("SMS codes: the code screen says 'by SMS', with the code box", async () => {
+      const c4 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
+      await c4.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+      await withCH(c4, { ...NONE, codes: "sms", sms: true, nocode: false });
+      await c4.route(/\/api\/auth\/v2\/code\/start$/, r => r.fulfill({ json: { login_id: "lid-sms", sent: true, demo_code: null, word: null, bot: null, channel: "sms" } }));
+      const p4 = await c4.newPage();
+      p4.on("pageerror", e => errors.push(e.message));
+      await p4.goto(`${BASE}/app`);
+      await p4.click("#gate [data-g=signup]");
+      await p4.fill("#ph", "8030000779"); await p4.check("#ag"); await p4.click("#go");
+      await p4.waitForSelector("#otp", { timeout: 8000 });
+      const t = await p4.locator("#gate").textContent();
+      if (!/by SMS to/.test(t) || !/Check your messages/.test(t)) throw new Error(t);
+      await c4.close();
+    });
+    await check("website without WhatsApp: 'Open the app' first, 'Use on Telegram' second, no blank wa.me links, FAQ honest", async () => {
+      const c5 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
+      await c5.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+      await withCH(c5, { ...NONE, tg: "TradeVoiceTestBot" });
+      const p5 = await c5.newPage();
+      p5.on("pageerror", e => errors.push(e.message));
+      await p5.goto(`${BASE}/`);
+      await p5.waitForFunction(() => !document.querySelector('a[href^="https://wa.me/"]'));
+      const hero = await p5.$$eval(".cta", cs => cs.map(c => [...c.querySelectorAll("a")].map(a => [a.textContent, a.getAttribute("href"), a.classList.contains("p")])));
+      const first = hero[0];
+      if (first[0][0] !== "Open the app" || !first[0][2] || first[1][0] !== "Use on Telegram" || first[1][1] !== "https://t.me/TradeVoiceTestBot") throw new Error(JSON.stringify(hero));
+      const faq = await p5.locator("#faq").textContent();
+      if (/WhatsApp number, a 6-digit code/.test(faq) || /through WhatsApp/.test(faq)) throw new Error(faq.slice(0, 400));
+      await c5.close();
     });
 
     /* ------------------------------------------------------------ the team's live dashboard (this run's own actions) */

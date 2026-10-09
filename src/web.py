@@ -1100,8 +1100,8 @@ def status():
     return {"hearing": hearing, "voice": tts.backend(), "brain": brain,
             "keep_awake": bool(os.getenv("NATLAS_URL")) and os.getenv("NATLAS_WATCH", "1") == "1",
             "photos": "brev" if os.getenv("LOCAL_VISION_URL") else ("nvidia" if llm.available("vision") else "off"),
-            "shop": SHOP_NAME, "whatsapp": bool(os.getenv("WHATSAPP_TOKEN") and (os.getenv("WHATSAPP_PHONE_ID")
-                                                               or os.getenv("WHATSAPP_PHONE_NUMBER_ID")))}
+            "shop": SHOP_NAME, "whatsapp": v2.whatsapp_on(), "telegram": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
+            "signup_code": not v2.channels()["nocode"]}
 
 
 # ---------------------------------------------------------------- log in with your phone number
@@ -1309,7 +1309,12 @@ def _page(name):
     html = open(os.path.join(HERE, "web", name), encoding="utf-8").read()
     v = _version()
     html = re.sub(r'(/static/[\w.-]+\.(?:css|js|svg|png))(?=["\'])', rf"\1?v={v}", html)
-    bot = os.getenv("WHATSAPP_BOT_NUMBER") or whatsapp.bot_number()
+    # which ways in work today (WhatsApp, Telegram, codes): the app and the website hide or reword what can't work
+    ch = v2.channels()
+    html = html.replace("</head>", "<script>window.TV_CH=" + json.dumps(ch).replace("</", "<\\/") + "</script>\n"
+                        + ('<script src="/static/channels.js" defer></script>\n' if name == "landing.html" else "")
+                        + "</head>", 1)
+    bot = (os.getenv("WHATSAPP_BOT_NUMBER") or whatsapp.bot_number()) if ch["wa"] else ""
     if bot:  # the website's "Use on WhatsApp" buttons open a chat with the bot
         html = html.replace('href="https://wa.me/"', f'href="https://wa.me/{bot}?text=Hi"')
         html = html.replace('window.open("https://wa.me/","_blank"', f'window.open("https://wa.me/{bot}?text=Hi","_blank"')

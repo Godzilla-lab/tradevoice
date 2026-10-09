@@ -48,7 +48,8 @@ def describe(r):
     """(category, words) for one event row. Category "errors" for anything that failed."""
     k, e = r["kind"], r["engine"] or ""
     if k == "message":
-        cat, words = "conversations", f"WhatsApp message ({_MSG.get(e, e or 'other')})"
+        app = "Telegram" if dict(r).get("channel") == "telegram" else "WhatsApp"
+        cat, words = "conversations", f"{app} message ({_MSG.get(e, e or 'other')})"
     elif k == "understand":
         cat, words = "conversations", {"live talk": "Live talk: answered", "voice": "Voice question: answered"}.get(
             e, "Ask chat: answered")
@@ -57,7 +58,13 @@ def describe(r):
     elif k == "web_visit":
         cat, words = "people", "Opened the app"
     elif k == "signup":
-        cat, words = "people", "New trader signed up"
+        cat, words = "people", "New trader signed up" + (" (no code: number not checked)" if e == "no code" else "")
+    elif k == "tg_linked":
+        cat, words = "people", "Connected Telegram (shared their own number)"
+    elif k == "sms_sent":
+        cat, words = "people", "Sent a code by SMS"
+    elif k == "sms_failed":
+        return "errors", f"Code not sent by SMS: {e or 'no reason given'}"
     elif k == "login":
         cat, words = "people", "Logged in"
     elif k == "lang_set":
