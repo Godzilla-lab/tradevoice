@@ -85,20 +85,26 @@ def wake_natlas():
     threading.Thread(target=ping, daemon=True).start()
 
 
+_CLIENTS = {}   # one client per server, kept: its connection stays open, so a call skips a new TLS handshake
+
+
 def _client(kind, timeout, retries=0, model=None):
     from openai import OpenAI
 
     if model == "natlas":  # N-ATLaS on Modal (vLLM, OpenAI-compatible), e.g. https://<you>--tradevoice-natlas-serve.modal.run/v1
-        return OpenAI(base_url=os.environ["NATLAS_URL"], api_key=os.getenv("NATLAS_KEY", "none"),
-                      timeout=timeout, max_retries=retries)
-    if model == "local":  # our own Brev GPU, e.g. http://localhost:8001/v1 (LLM) / :8002/v1 (vision)
-        return OpenAI(base_url=os.environ[LOCAL_ENV[kind]], api_key=os.getenv("LOCAL_LLM_KEY", "local"),
-                      timeout=timeout, max_retries=retries)
-    if kind == "vision":
-        return OpenAI(base_url=VISION_BASE_URL, api_key=os.getenv("VISION_API_KEY") or os.environ["NVIDIA_API_KEY"],
-                      timeout=timeout, max_retries=retries)
-    # no silent retries by default: if a model is slow or flaky we move to the next model instead of making the trader wait
-    return OpenAI(base_url=NVIDIA_BASE_URL, api_key=os.environ["NVIDIA_API_KEY"], timeout=timeout, max_retries=retries)
+        base, key = os.environ["NATLAS_URL"], os.getenv("NATLAS_KEY", "none")
+    elif model == "local":  # our own GPU server, e.g. http://localhost:8001/v1 (LLM) / :8002/v1 (vision)
+        base, key = os.environ[LOCAL_ENV[kind]], os.getenv("LOCAL_LLM_KEY", "local")
+    elif kind == "vision":
+        base, key = VISION_BASE_URL, os.getenv("VISION_API_KEY") or os.environ["NVIDIA_API_KEY"]
+    else:
+        # no silent retries by default: if a model is slow or flaky we move to the next model instead of making the
+        # trader wait
+        base, key = NVIDIA_BASE_URL, os.environ["NVIDIA_API_KEY"]
+    c = _CLIENTS.get((base, key))
+    if c is None:
+        c = _CLIENTS[(base, key)] = OpenAI(base_url=base, api_key=key)
+    return c.with_options(timeout=timeout, max_retries=retries)   # same open connection, this call's own wait
 
 
 def _model_gone(err):

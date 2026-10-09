@@ -112,6 +112,7 @@ async def relay_hearing(browser, lang, collect=False):
                         state["buf"].clear()
                         state["committed_at"] = time.perf_counter()
                         await intron.send(json.dumps({"message_type": "COMMIT"}))
+                        prewarm(lang)   # the reply's voice session opens now, not after the reply is written
                         return
 
         async def from_intron():
@@ -122,9 +123,9 @@ async def relay_hearing(browser, lang, collect=False):
                     await _send(browser, {"type": "partial", "text": m.get("transcript") or ""})
                 elif kind == "COMMITTED_TRANSCRIPT":
                     ms = (time.perf_counter() - state["committed_at"]) * 1000 if state["committed_at"] else None
-                    _log("hear", True, lang, ms=ms)   # /team speed: from "you stopped" to the final words
                     got["text"] = (m.get("transcript_text") or "").strip()
-                    await _send(browser, {"type": "final", "text": got["text"]})
+                    await _send(browser, {"type": "final", "text": got["text"]})   # the page first, the log after
+                    _log("hear", True, lang, ms=ms)   # /team speed: from "you stopped" to the final words
                     return
                 elif kind in _ERRORS:
                     why = str(m.get("message") or kind)
@@ -161,10 +162,10 @@ async def _send(browser, data):
 
 
 # ---------------------------------------------------------------- speaking (reply -> pieces -> Intron -> files)
-def pieces(text):
+def pieces(text, lang="English"):
     """The reply in pieces Intron's stream takes (10 to 100 characters), cut at sentence ends, then at commas, then
     at spaces. A piece under 10 characters joins its neighbour ("Done." + the next sentence)."""
-    text = tts.speakable(text)
+    text = tts.speakable(text, lang)
     out = []
     for sent in re.split(r"(?<=[.!?])\s+", text):
         while len(sent) > TEXT_MAX:
@@ -184,22 +185,93 @@ def pieces(text):
     return merged
 
 
+# The voice streams run on one event loop of their own, so a session can be opened before the reply exists (when the
+# trader stops talking) and used by the reply a moment later: the connection and Intron's session are already up.
+_LOOP = {"loop": None}
+_LOOP_LOCK = threading.Lock()
+READY = {}            # reply language -> (future of an open session, when it was asked for)
+READY_FOR = float(os.getenv("INTRON_TTS_READY_SECONDS", "25"))   # an unused session is closed after this
+
+
+def _loop():
+    with _LOOP_LOCK:
+        if _LOOP["loop"] is None:
+            loop = asyncio.new_event_loop()
+            threading.Thread(target=loop.run_forever, daemon=True, name="intron-voice").start()
+            _LOOP["loop"] = loop
+    return _LOOP["loop"]
+
+
+def _voice_lang(lang):
+    return lang if lang in tts.INTRON_VOICES else "English"
+
+
+def stream_ok():
+    return tts.backend() == "intron" and _websockets() is not None and time.time() >= _DOWN["until"]
+
+
+async def _open_voice(lang):
+    """A new Intron text-to-speech session for this language (connected, SESSION_CREATED)."""
+    name = _voice_lang(lang)
+    code, accent = tts.INTRON_VOICES[name]
+    accent = os.getenv(f"INTRON_ACCENT_{name.upper()}") or tts._GOOD_ACCENT.get(name) or accent
+    url = (f"{TTS_WS}?voice_accent={accent}&voice_gender={os.getenv('INTRON_GENDER', 'female')}"
+           f"&voice_language={code}&output_audio_format=wav")
+    ws = await _websockets().connect(url, additional_headers=_head(), open_timeout=8, max_size=2 ** 24)
+    first = json.loads(await asyncio.wait_for(ws.recv(), 8))
+    if first.get("message_type") != "SESSION_CREATED":
+        why = str(first.get("message") or first.get("message_type"))
+        _rest(why)
+        await ws.close()
+        raise RuntimeError(why)
+    return ws
+
+
+def prewarm(lang):
+    """Open the reply's voice session ahead of time (live talk: when the trader stops talking). Never raises."""
+    try:
+        if not stream_ok():
+            return
+        lang, now = _voice_lang(lang), time.time()
+        for k, (fut, at) in list(READY.items()):   # sessions nobody used: closed
+            if now - at > READY_FOR:
+                READY.pop(k, None)
+                fut.add_done_callback(lambda f: f.exception() is None and asyncio.run_coroutine_threadsafe(
+                    f.result().close(), _loop()))
+        if lang not in READY:
+            READY[lang] = (asyncio.run_coroutine_threadsafe(_open_voice(lang), _loop()), now)
+    except Exception as e:  # noqa: BLE001
+        print(f"voice session not opened early: {type(e).__name__}: {e}")
+
+
+async def _session(lang):
+    """The session opened early for this language if there is a fresh one, else a new one."""
+    got = READY.pop(_voice_lang(lang), None)
+    if got and time.time() - got[1] <= READY_FOR:
+        try:
+            return await asyncio.wrap_future(got[0]), True
+        except Exception:  # noqa: BLE001  (it failed to open: open a new one below)
+            pass
+    return await _open_voice(lang), False
+
+
 class Voice:
     """One spoken reply, made piece by piece. files[i] is set (a path, or None for no voice) and ready[i] fires as
     soon as piece i is made, so the page can play piece 1 while piece 2 is still being made."""
 
     def __init__(self, text, lang):
-        self.lang = lang if lang in tts.INTRON_VOICES else "English"
-        self.parts = pieces(text)
+        self.lang = _voice_lang(lang)
+        self.parts = pieces(text, self.lang)
         self.files = [None] * len(self.parts)
         self.ready = [threading.Event() for _ in self.parts]
+        self.used_ready = False   # the session opened when the trader stopped talking was used
 
     def start(self):
         threading.Thread(target=self._make, daemon=True).start()
         return self
 
     def _done(self, i, path):
-        self.files[i] = path
+        self.files[i] = tts.small(path) if path else None   # MP3 for the phone: a fraction of the WAV's size
         self.ready[i].set()
 
     def _make(self):
@@ -212,11 +284,9 @@ class Voice:
                 todo.append(i)
         if not todo:
             return
-        stream_ok = (tts.backend() == "intron" and _websockets() is not None and time.time() >= _DOWN["until"]
-                     and all(len(self.parts[i]) >= TEXT_MIN for i in todo))
-        if stream_ok:
+        if stream_ok() and all(len(self.parts[i]) >= TEXT_MIN for i in todo):
             try:
-                asyncio.run(self._stream(todo))
+                asyncio.run_coroutine_threadsafe(self._stream(todo), _loop()).result(timeout=120)
                 todo = [i for i in todo if not self.ready[i].is_set()]
             except Exception as e:  # noqa: BLE001  (the old way below makes what is left)
                 print(f"Intron voice stream failed: {type(e).__name__}: {e}")
@@ -226,23 +296,18 @@ class Voice:
             self._done(i, out["path"] if out else None)
 
     async def _stream(self, todo):
-        ws_lib = _websockets()
-        lang, accent = tts.INTRON_VOICES[self.lang]
-        accent = os.getenv(f"INTRON_ACCENT_{self.lang.upper()}") or tts._GOOD_ACCENT.get(self.lang) or accent
-        url = (f"{TTS_WS}?voice_accent={accent}&voice_gender={os.getenv('INTRON_GENDER', 'female')}"
-               f"&voice_language={lang}&output_audio_format=wav")
         t0 = time.perf_counter()
-        async with ws_lib.connect(url, additional_headers=_head(), open_timeout=8, max_size=2 ** 24) as ws:
-            first = json.loads(await asyncio.wait_for(ws.recv(), 8))
-            if first.get("message_type") != "SESSION_CREATED":
-                why = str(first.get("message") or first.get("message_type"))
-                _rest(why)
-                raise RuntimeError(why)
-            for n, i in enumerate(todo, 1):
-                await ws.send(json.dumps({"message_type": "INPUT_TEXT_CHUNK", "text": self.parts[i], "ack_id": n}))
-                ack = json.loads(await asyncio.wait_for(ws.recv(), 8))
-                if ack.get("message_type") in _ERRORS:
-                    raise RuntimeError(str(ack.get("message") or ack.get("message_type")))
+        ws, early = await _session(self.lang)
+        self.used_ready = early
+        try:
+            try:
+                await self._send_text(ws, todo)
+            except Exception:  # noqa: BLE001
+                if not early:
+                    raise
+                await ws.close()                    # the early session had gone stale: one fresh try
+                ws = await _open_voice(self.lang)
+                await self._send_text(ws, todo)
             for n, i in enumerate(todo, 1):
                 end = time.time() + 40
                 while True:
@@ -255,14 +320,30 @@ class Voice:
                         break
                     if time.time() > end:
                         raise TimeoutError(f"piece {n} not ready")
-                    await asyncio.sleep(0.12)
+                    await asyncio.sleep(0.08)
                 audio = base64.b64decode(m["audio_base_64"])
                 path = tts.keep(self.parts[i], self.lang, audio, m.get("extension") or ".wav")
-                if n == 1:
-                    _log("voice", True, self.lang, ms=(time.perf_counter() - t0) * 1000)   # /team: first sound
                 self._done(i, path)
+                if n == 1:
+                    _log("voice", True, self.lang, ms=(time.perf_counter() - t0) * 1000,
+                         engine="intron-stream" + (" (ready session)" if early else ""))   # /team: first sound
             await ws.send(json.dumps({"message_type": "COMMIT"}))
             try:   # Intron saves the session on COMMIT: wait for its summary (every piece is already playing)
                 await asyncio.wait_for(ws.recv(), 3)
             except Exception:  # noqa: BLE001
                 pass
+        finally:
+            try:
+                await ws.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    async def _send_text(self, ws, todo):
+        """Every piece at once, then the acknowledgements (one round trip, not one per piece): Intron starts making
+        piece 1 the moment it arrives."""
+        for n, i in enumerate(todo, 1):
+            await ws.send(json.dumps({"message_type": "INPUT_TEXT_CHUNK", "text": self.parts[i], "ack_id": n}))
+        for _ in todo:
+            ack = json.loads(await asyncio.wait_for(ws.recv(), 8))
+            if ack.get("message_type") in _ERRORS:
+                raise RuntimeError(str(ack.get("message") or ack.get("message_type")))

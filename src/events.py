@@ -174,7 +174,11 @@ def is_natlas(r):
     return (r["engine"] or "").split(":")[0] == "natlas"
 
 
-STEPS = [("hearing", lambda r: r["kind"] == "hear" and r["ok"]),
+STEPS = [("LIVE TALK: you stop to first sound", lambda r: r["kind"] == "live_turn" and r["engine"] == "total"),
+         ("  you stop to words ready", lambda r: r["kind"] == "live_turn" and r["engine"] == "heard"),
+         ("  words to reply ready", lambda r: r["kind"] == "live_turn" and r["engine"] == "think"),
+         ("  reply to first sound", lambda r: r["kind"] == "live_turn" and r["engine"] == "voice"),
+         ("hearing", lambda r: r["kind"] == "hear" and r["ok"]),
          ("brain (N-ATLaS)", lambda r: r["kind"] == "llm" and r["ok"] and is_natlas(r)),
          ("brain (backup AI)", lambda r: r["kind"] == "llm" and r["ok"] and not is_natlas(r)),
          ("N-ATLaS didn't answer", lambda r: r["kind"] == "llm" and not r["ok"] and is_natlas(r)),

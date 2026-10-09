@@ -29,6 +29,13 @@ def check(name, ok, got=""):
     print(f"{'✓' if ok else '✗'} {name}" + ("" if ok else f"\n    got: {str(got)[:400]}"))
 
 
+def settle(r):
+    """A live reply's voice is made piece by piece in a thread (then made small for the phone): wait for all of it."""
+    v = web.VOICES.get(r.get("speak") or "")
+    for ev in (v.ready if v else []):
+        ev.wait(10)
+
+
 def main():
     c = TestClient(web.app)
     st = c.post("/api/auth/start", json={"phone": "0803 555 0101"}).json()
@@ -100,6 +107,7 @@ def main():
         f = os.path.join(tempfile.mkdtemp(), "v.wav")
         open(f, "wb").write(b"RIFF....WAVE")
         return {"path": f, "engine": "intron:test"}
+    tts._CACHE_DIR = tempfile.mkdtemp()   # a fresh voice cache: nothing said before on this machine counts
     real_hear, real_speak = asr.transcribe_auto, tts.speak
     asr.transcribe_auto = lambda path, language=None, vocab=None: {"text": "Mama Tunde took rice 20000", "engine": "test"}
     tts.speak = fake_speak
@@ -116,6 +124,7 @@ def main():
         r = c.post("/api/voice", files={"file": ("note.webm", b"0" * 200)},
                    data={"session": "voice-live", "lang": "English", "consent": "yes", "live": "1"}).json()
         c.get(f"/api/speak/{r.get('speak')}")
+        settle(r)
         check("live conversation (no buttons): it asks 'Should I save it?' out loud instead",
               calls[-1].endswith("Should I save it?") and "Press save" not in calls[-1], calls[-1])
         check("…and short, so it's said sooner (no 'Okay, I heard', no 'Is that correct?')",
@@ -127,6 +136,7 @@ def main():
               h.get("heard") == "Mama Tunde took rice 20000" and not st.get("pending") and len(calls) == n, h)
         r = c.post("/api/say", json={"session": "live-split", "text": h["heard"], "lang": "English"}).json()
         c.get(f"/api/speak/{r.get('speak')}")
+        settle(r)
         check("live talk step 2 (/api/say): the draft, read back with 'Should I save it?'",
               r["pending"] and r["draft"]["amount"] == 20000 and calls[-1].endswith("Should I save it?"), r)
         r = c.post("/api/warm", json={})

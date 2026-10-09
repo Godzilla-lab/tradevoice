@@ -82,6 +82,9 @@ def describe(r):
         cat, words = "records", "Saved a record"
     elif k == "customer_added":
         cat, words = "records", "Added a customer" + (" by hand" if e == "by hand" else "")
+    elif k == "live_turn":
+        cat, words = "voice", {"total": "Live talk: you stop to first sound", "heard": "Live talk: words ready",
+                               "think": "Live talk: reply ready", "voice": "Live talk: reply to first sound"}.get(e, "Live talk")
     elif k == "hear":
         cat, words = "voice", "Heard speech"
     elif k == "hear_merge":

@@ -2,9 +2,11 @@
 
     python scripts/speed.py            last 7 days
     python scripts/speed.py --days 1   today-ish
+    python scripts/speed.py --days 1 --with-team   your own test calls from a team phone too
 On the live server: sudo bash /opt/tradevoice/app/deploy/server/speed.sh
 
-Steps, in the order a voice turn runs them:
+Live talk, measured on the trader's phone: you stop talking -> the words are ready -> the reply is ready -> the first
+sound plays (event "live_turn"). Then the server's own steps, in the order a voice turn runs them:
   hearing      N-ATLaS speech model (voice note -> words)            event "hear"
   merge        Yoruba/Hausa/Igbo: two hearings merged by N-ATLaS    event "hear_merge"
   brain        N-ATLaS answering (record or question)                event "llm" (engine natlas)
@@ -23,8 +25,9 @@ import events  # noqa: E402
 def main(argv=None):
     a = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     a.add_argument("--days", type=float, default=7)
+    a.add_argument("--with-team", action="store_true", help="include the team's own phones (your own test calls)")
     args = a.parse_args(argv)
-    t = events.speed(args.days)
+    t = events._speed_table(events.rows(since_days=args.days, team=True)) if args.with_team else events.speed(args.days)
     if not t:
         print(f"No timed voice turns in the last {args.days:g} days yet (the timing started with this update).")
         return 0

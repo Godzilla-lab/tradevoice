@@ -294,15 +294,84 @@ def _tmp(suffix):
     return path
 
 
-def speakable(text):
-    """What a voice can say: no emoji, no *bold*/_italic_ marks, no link, ₦ -> naira."""
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+         "seventeen eighteen nineteen").split()
+_TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+_BIG = ((10 ** 9, "billion"), (10 ** 6, "million"), (1000, "thousand"))
+_DAY_SHORT = {"mon": "Monday", "tue": "Tuesday", "tues": "Tuesday", "wed": "Wednesday", "thu": "Thursday",
+         "thur": "Thursday", "thurs": "Thursday", "fri": "Friday", "sat": "Saturday", "sun": "Sunday"}
+_MONTH_SHORT = {"jan": "January", "feb": "February", "mar": "March", "apr": "April", "jun": "June", "jul": "July",
+           "aug": "August", "sep": "September", "sept": "September", "oct": "October", "nov": "November",
+           "dec": "December"}
+
+
+def say_number(n):
+    """45000 -> "forty-five thousand", the way it is said in Nigeria (British "and": "one hundred and twenty")."""
+    n = int(n)
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        return _TENS[n // 10] + ("-" + _ONES[n % 10] if n % 10 else "")
+    if n < 1000:
+        return _ONES[n // 100] + " hundred" + (" and " + say_number(n % 100) if n % 100 else "")
+    for size, word in _BIG:
+        if n >= size:
+            head, rest = divmod(n, size)
+            tail = "" if not rest else (" and " if rest < 100 else " ") + say_number(rest)
+            return f"{say_number(head)} {word}{tail}"
+    return str(n)
+
+
+def speakable(text, lang="English"):
+    """What a voice can say, the way a person reads it aloud: every line a sentence (a list pauses between its lines),
+    no list numbers, bullets, emoji, *bold* marks or links; money and big numbers said as words in English and Pidgin
+    ("forty-five thousand naira"), and without the thousands comma in Yoruba, Hausa and Igbo, so no voice ever says
+    "comma" or "dot"; "e.g.", "Fri", "Oct" said in full; full stops and question marks kept (pauses, a question's tune)."""
     import re
 
+    english = lang in (None, "", "English", "Pidgin")
     text = re.sub(r"https?://\S+", "", text or "")
+    lines = []
+    for line in text.splitlines():   # a line is a sentence: a list read out loud pauses between items
+        line = re.sub(r"^\s*(?:[-*•]+|\d{1,2}[.)])\s+", "", line).strip()
+        if line:
+            lines.append(line if re.search(r"[.?!:;,]$", line) else line + ".")
+    text = " ".join(lines)
+    text = re.sub(r"\.{2,}|…", ".", text)                               # "..." is a pause, never "dot dot dot"
+    for short, full in ((r"e\.g\.", "for example"), (r"i\.e\.", "that is"), (r"etc\.", "and so on"),
+                        (r"\bvs\.?", "against"), (r"\bapprox\.", "about")):
+        text = re.sub(short, full, text, flags=re.I)
+    if english:   # "Fri 16 Oct" -> "Friday 16 October"
+        # only next to a date's number, so "the sun" or a customer called Jan stays as it is
+        text = re.sub(r"\b(" + "|".join(_DAY_SHORT) + r")\b(?=,?\s+\d)", lambda m: _DAY_SHORT[m.group(1).lower()], text,
+                      flags=re.I)
+        text = re.sub(r"(?<=\d\s)(" + "|".join(_MONTH_SHORT) + r")\b|\b(" + "|".join(_MONTH_SHORT) + r")\b(?=\s+\d)",
+                      lambda m: _MONTH_SHORT[(m.group(1) or m.group(2)).lower()], text, flags=re.I)
+
+    def amount(digits, unit=""):
+        v = float(digits.replace(",", "")) * {"k": 1000, "m": 1_000_000}.get(unit.lower(), 1)
+        whole = int(round(v))
+        if english and abs(v - whole) < 1e-9 and whole < 10 ** 12:
+            return say_number(whole)
+        return f"{v:.2f}".rstrip("0").rstrip(".") if abs(v - whole) > 1e-9 else str(whole)
+
+    # money: "₦45,000" -> "forty-five thousand naira" (English) / "naira 45000"
+    text = re.sub(r"₦\s?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)(?:\s?([kKmM])\b)?",   # a comma after it stays a pause
+                  lambda m: (f"{amount(m.group(1), m.group(2) or '')} naira" if english
+                             else f"naira {amount(m.group(1), m.group(2) or '')}"), text)
     text = re.sub(r"₦\s?", "naira ", text)
+    # other numbers with a thousands comma, and big plain numbers: never "comma"
+    text = re.sub(r"(?<![\d.])\d{1,3}(?:,\d{3})+(?![\d,]*\.\d)", lambda m: amount(m.group(0)), text)
+    if english:
+        text = re.sub(r"(?<![\d.:])(?<!\b0)\b([1-9]\d{3,8})\b(?![.:]\d)", lambda m: say_number(m.group(1)), text)
+        text = re.sub(r"\b(\d+)\.(\d+)\b", lambda m: f"{m.group(1)} point {' '.join(m.group(2))}", text)   # 2.5
+    text = re.sub(r"(\d)\s?%", r"\1 percent", text)
+    text = re.sub(r"(\d)\s?/\s?(\d)", r"\1 out of \2", text)                # 3/4 -> "3 out of 4", not "slash"
+    text = re.sub(r"\s[-\u2013\u2014]\s", ", ", text)                              # "₦12,500 - expenses" is a pause
+    text = re.sub(r"\s=\s", " is " if english else ", ", text)
     text = re.sub(r"[*_~`#>|•]", " ", text)
     # written punctuation is a pause, never a word: "owes you the most: ₦45,000" was read out as "colon/semicolon"
-    text = re.sub(r"(?<!\d)[:;](?!\d)|[:;](?=\s)|[()\[\]{}·=]", ", ", text)   # (10:30 stays a time)
+    text = re.sub(r"(?<!\d)[:;](?!\d)|[:;](?=\s)|[()\[\]{}·=/]", ", ", text)   # (10:30 stays a time)
     text = re.sub(r"\s*,(\s*,)+", ",", re.sub(r"\s+,", ",", text))
     text = re.sub(r"(^|[.?!]\s*),\s*", r"\1", text)
     text = re.sub(r",\s*([.?!])", r"\1", re.sub(r"\s\+\s", " and ", text))
@@ -434,7 +503,7 @@ def _pieces(text, size):
 def _intron_speak(text, language):
     if language not in INTRON_VOICES:
         raise RuntimeError(f"Intron has no {language} voice")
-    text = speakable(text)
+    text = speakable(text, language)
     if not text:
         raise RuntimeError("nothing to say")
     from concurrent.futures import ThreadPoolExecutor
@@ -484,7 +553,7 @@ _CACHE_DIR = os.path.join(tempfile.gettempdir(), "tradevoice-voice-cache")
 def _cache_file(text, language):
     import hashlib
 
-    key = hashlib.sha256(f"{INTRON_VOICES[language]}|{language}|{speakable(text)}".encode()).hexdigest()[:32]
+    key = hashlib.sha256(f"{INTRON_VOICES[language]}|{language}|{speakable(text, language)}".encode()).hexdigest()[:32]
     return os.path.join(_CACHE_DIR, key + ".wav")
 
 
@@ -498,6 +567,25 @@ def cached(text, language):
     shutil.copyfile(_cache_file(text, language), out)
     _event("cache", True, language)
     return out
+
+
+def small(path):
+    """The voice file the phone downloads: MP3, about a tenth of the WAV's size (a WAV piece took up to 2 s to
+    download on mobile data before it could play). The WAV itself if ffmpeg can't (VOICE_MP3=0 turns this off)."""
+    import shutil
+    import subprocess
+
+    if not path or not path.endswith(".wav") or os.getenv("VOICE_MP3", "1") != "1" or not shutil.which("ffmpeg"):
+        return path
+    out = path[:-4] + ".mp3"
+    try:
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", path, "-codec:a", "libmp3lame", "-b:a", "48k",
+                        "-ac", "1", out], check=True, timeout=15)
+        os.remove(path)
+        return out
+    except Exception as e:  # noqa: BLE001
+        print(f"voice kept as WAV: {type(e).__name__}")
+        return path
 
 
 def keep(text, language, audio, ext=".wav"):

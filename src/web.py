@@ -371,6 +371,25 @@ def say(b: Said):
     return _say(b.text.strip(), b.session, b.lang, b.shop, live=True)
 
 
+class TurnTimes(BaseModel):
+    heard: float
+    think: float
+    voice: float
+    total: float
+
+
+@app.post("/api/live/timing")
+def live_timing(b: TurnTimes):
+    """Live talk: what the trader waited, measured on their phone (you stopped -> the words -> the reply -> the first
+    sound). Times only, no words. /team and speed.sh show them."""
+    vals = {"heard": b.heard, "think": b.think, "voice": b.voice, "total": b.total}
+    if not all(0 <= v < 120000 for v in vals.values()):
+        raise HTTPException(400, "out of range")
+    for part, ms in vals.items():
+        events.log("live_turn", channel="web", engine=part, ms=ms)
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------- Ask: the chat with your book (design 3, Ask tab)
 # The questions and answers are kept on the trader's phone (the design's history); the server keeps only what a
 # conversation needs to follow on ("how much does SHE owe?"), per open page, and forgets it on "Clear history".
@@ -674,7 +693,7 @@ def speak_piece(sid: str, i: int):
     v.ready[i].wait(45)
     if not v.files[i]:
         raise HTTPException(404, "no voice for this piece")
-    return FileResponse(v.files[i], media_type="audio/wav")
+    return FileResponse(v.files[i], media_type="audio/mpeg" if v.files[i].endswith(".mp3") else "audio/wav")
 
 
 @app.websocket("/api/live/hear")
@@ -687,9 +706,12 @@ async def live_hear(ws: WebSocket, lang: str = "English", consent: str = ""):
     if consent != "yes" or not intron_live.hearing_on():
         await ws.send_text(json.dumps({"type": "error", "message": "consent needed" if consent != "yes" else "off"}))
         return await ws.close()
-    got = await intron_live.relay_hearing(ws, lang, collect=bool(training.answer()))
+    # whose talk this is (the middleware put the logged-in number here): "help improve" is asked of that trader. The
+    # WebSocket has no book open, so without this training.answer() always found nobody and live audio was never kept
+    phone = (ws.scope.get("state") or {}).get("phone")
+    got = await intron_live.relay_hearing(ws, lang, collect=bool(phone and training.answer(phone)))
     if got and got.get("pcm"):   # only kept for a trader who said yes to helping train TradeVoice
-        await asyncio.to_thread(training.keep_pcm, got["pcm"], lang, {"text": got.get("text", "")})
+        await asyncio.to_thread(training.keep_pcm, got["pcm"], lang, {"text": got.get("text", "")}, phone=phone)
     try:
         await ws.close()
     except Exception:  # noqa: BLE001

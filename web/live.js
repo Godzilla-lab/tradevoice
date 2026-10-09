@@ -722,11 +722,12 @@ button.tvc-say{text-decoration:none}
           cutIn = null;
           if (!spoke && !tapped) { S.stop(); return done(null); }
           set("think");
+          const tEnd = Date.now();   // you stopped: the clock for "how long until TradeVoice speaks" starts here
           S.commit();
           const r = await Promise.race([S.done, sleep(8000).then(() => null)]);
+          if (r && r.data.heard) { S.stop(); r.t = { end: tEnd, final: Date.now() }; return done(r); }   // no wait for the backup recording
           await S.rec.stop();
           S.stop();
-          if (r && r.data.heard) return done(r);
           if (r) return done({ ok: false, status: 422, data: {} });   // the stream heard nothing
           const e = hearNow(S.rec.blob());   // the stream failed: the recording, heard the old way
           done(await e.promise);
@@ -784,7 +785,7 @@ button.tvc-say{text-decoration:none}
     // The clip is fetched first: no voice (off, or Intron failed) moves on at once (a player left to find a missing
     // clip by itself waits 5 to 10 s before giving up, while you wait in silence)
     const fetchClip = url => fetch(url).then(r => (r.ok ? r.blob() : null)).catch(() => null);
-    async function speak(sid, clipP) {
+    async function speak(sid, clipP, onSound) {
       if (!sid || !o.isConnected) return;
       set("speak"); wire();
       let stop = false;
@@ -795,19 +796,25 @@ button.tvc-say{text-decoration:none}
       return new Promise(done => {   // true: said to the end; false: you talked over it
         const fin = whole => { voice.onended = voice.onerror = null; cutIn = null; URL.revokeObjectURL(url); done(whole); };
         voice.onended = () => fin(true); voice.onerror = () => fin(true);
+        voice.onplaying = () => { voice.onplaying = null; if (onSound) onSound(); };
         cutIn = () => { voice.pause(); fin(false); };
         voice.src = url;
         const p = voice.play(); if (p) p.catch(() => fin(true));
       });
     }
     // the reply in pieces: piece 1 plays as soon as it is made; the next is fetched while one plays
-    const sayAll = async d => {
-      if (!d.parts) return speak(d.speak);
+    // a turn's times (you stopped -> words ready -> reply ready -> first sound), for the team's speed table
+    const timed = t => () => {
+      const now = Date.now(), ms = { heard: t.final - t.end, think: t.say - t.final, voice: now - t.say, total: now - t.end };
+      if (Object.values(ms).every(x => x >= 0 && x < 120000)) api("/api/live/timing", { body: ms });
+    };
+    const sayAll = async (d, t) => {
+      if (!d.parts) return speak(d.speak, null, t && timed(t));
       let next = fetchClip(`/api/speak/${d.speak}/0`);
       for (let i = 0; i < d.parts; i++) {
         const clip = next;
         next = i + 1 < d.parts ? fetchClip(`/api/speak/${d.speak}/${i + 1}`) : null;
-        if (!await speak(d.speak, clip)) return false;   // you talked over it: the rest is not said
+        if (!await speak(d.speak, clip, i == 0 && t ? timed(t) : null)) return false;   // you talked over it: the rest is not said
       }
       return true;
     };
@@ -849,9 +856,18 @@ button.tvc-say{text-decoration:none}
         set("think"); caption(`“${esc(said.length > 120 ? said.slice(0, 117) + "…" : said)}”`);
         // live hearing: a new stream opens only if you start talking again (the last 0.5 s is kept, so no word is lost)
         let next = micAn && !live ? record() : null;
-        const minding = setInterval(() => { if (V.talking && micAn) { if (!next) next = streamHear(); next.spoke = true; } }, 50);
+        // you go on talking while it thinks: listen on (the reply waits on screen). A bang or a shout nearby isn't
+        // talking: only 0.6 s of it is, so market noise no longer cancels the spoken reply
+        let loud = 0;
+        const minding = setInterval(() => {
+          if (!micAn) return;
+          loud = V.talking ? loud + 1 : 0;
+          if (V.talking && !next) next = streamHear();   // opened at once: no word is lost if it is talk
+          if (loud >= 12) next.spoke = true;
+        }, 50);
         const slow = setTimeout(() => $("#hint", o).textContent = w("slow"), 12000);
         const r = await api("/api/say", { body: { session: SID, text: said, lang: lang(), shop: A ? A.biz : "" } });
+        const tm = h.t ? { ...h.t, say: Date.now() } : null;
         clearTimeout(slow); clearInterval(minding); $("#hint", o).textContent = "";
         if (!o.isConnected || stopAll) { if (next) next.stop(); break; }
         if (!r.ok) { if (next) next.stop(); caption(esc(r.data.error || w("off"))); continue; }
@@ -861,11 +877,11 @@ button.tvc-say{text-decoration:none}
         if (d.saved) toast(esc((d.text || "").replace(/\*/g, "").split("\n")[0]), async () => { await api("/api/v2/undo_last", { body: {} }); loadBook(); });
         if (d.rows && d.rows.length) {   // a list said in one go: say how many, then the lines to check (nothing saved yet)
           if (next) next.stop();
-          await sayAll(d); set("rest"); shut(o); checkRows(d.rows); break;
+          await sayAll(d, tm); set("rest"); shut(o); checkRows(d.rows); break;
         }
         if (next && next.spoke) { carry = next; continue; }   // you were talking: listen on, the reply stays on screen
         if (next) next.stop();
-        await sayAll(d);
+        await sayAll(d, tm);
       }
       running = false;
     }

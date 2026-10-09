@@ -152,13 +152,38 @@ for text in ["Done. Dino will pay you twenty thousand naira. All together, Dino 
 check("'Done.' joins the next sentence (Intron needs 10+)", intron_live.pieces("Done. Dino will pay you.")[0]
       == "Done. Dino will pay you.")
 
-check("the voice never reads punctuation: 'owes you the most: ₦45,000' -> a pause, not 'colon'",
-      tts.speakable("Iya Bisi owes you the most: ₦45,000.") == "Iya Bisi owes you the most, naira 45,000.",
+check("the voice never reads punctuation: 'owes you the most: ₦45,000' -> a pause and the amount in words",
+      tts.speakable("Iya Bisi owes you the most: ₦45,000.") == "Iya Bisi owes you the most, forty-five thousand naira.",
       tts.speakable("Iya Bisi owes you the most: ₦45,000."))
 check("…brackets, semicolons and + too; a time like 10:30 stays",
       tts.speakable("Came in: ₦10,000 (₦0 cash + ₦10,000 debts); come at 10:30.") ==
-      "Came in, naira 10,000, naira 0 cash and naira 10,000 debts, come at 10:30.",
+      "Came in, ten thousand naira, zero naira cash and ten thousand naira debts, come at 10:30.",
       tts.speakable("Came in: ₦10,000 (₦0 cash + ₦10,000 debts); come at 10:30."))
+# the owner heard "comma" and "dot" read out, and lists said without a pause: read the way a person reads aloud
+SAID = {
+    "Here is who owes you:\n1. Iya Bisi ₦45,000\n2. Mama Ngozi ₦10,000\nTotal ₦55,000":
+        "Here is who owes you, Iya Bisi forty-five thousand naira. Mama Ngozi ten thousand naira. "
+        "Total fifty-five thousand naira.",
+    "Saved. Iya Bisi owes you ₦60,000, pay by Fri 16 Oct.":
+        "Saved. Iya Bisi owes you sixty thousand naira, pay by Friday 16 October.",
+    "You sold 2.5 bags... that's 3/4 of your stock (e.g. rice).":
+        "You sold 2 point 5 bags. that's 3 out of 4 of your stock, for example rice.",
+    "You made ₦1,250,000 this month, up 12% on last month.":
+        "You made one million two hundred and fifty thousand naira this month, up 12 percent on last month.",
+    "Hello Ada! How are you? Hope you had a great day": "Hello Ada! How are you? Hope you had a great day.",
+    "Sun is hot. Jan owes you ₦25k.": "Sun is hot. Jan owes you twenty-five thousand naira.",
+}
+for text, want in SAID.items():
+    got = tts.speakable(text)
+    check(f"said like a person: {text[:40]!r}", got == want, got)
+check("no voice is ever given a thousands comma, a list number or a run of dots",
+      not any(__import__("re").search(r"\d,\d|^\d+\.\s|\.\.", tts.speakable(t)) for t in SAID))
+check("Yoruba, Hausa, Igbo: the amount stays digits (their voices read numbers), without the comma",
+      tts.speakable("Mama Ngozi ₦10,000.\n2. Iya Bisi ₦45,000", "Yoruba") == "Mama Ngozi naira 10000. Iya Bisi naira 45000.",
+      tts.speakable("Mama Ngozi ₦10,000.\n2. Iya Bisi ₦45,000", "Yoruba"))
+check("live talk pieces get the same reading (in the reply's language)",
+      " ".join(intron_live.pieces("Iya Bisi owes you ₦45,000. Should I save it?")) ==
+      "Iya Bisi owes you forty-five thousand naira. Should I save it?")
 
 # 2. hearing while you talk: our server passes the mic to Intron and the words back
 check("/api/warm says live hearing is on (key set)", c.post("/api/warm", json={}).json().get("live") is True)
@@ -185,32 +210,43 @@ with c.websocket_connect("/api/live/hear?lang=English") as ws:
     m = ws.receive_json()
 check("no consent: refused", m.get("type") == "error", m)
 
-# a trader who said yes to helping improve TradeVoice: the live-talk audio and the words heard are kept (as a WAV)
+# a trader who said yes to helping improve TradeVoice: the live-talk audio and the words heard are kept (as a WAV).
+# The real consent lookup, for the logged-in trader: the WebSocket has no book open, so it must use their number
+import accounts  # noqa: E402
 import training  # noqa: E402
-kept, real_answer, real_keep = [], training.answer, training.keep_pcm
-training.answer = lambda phone=None: True
-training.keep_pcm = lambda pcm, lang="", heard=None, **k: kept.append((len(pcm), lang, heard))
-with c.websocket_connect("/api/live/hear?lang=English&consent=yes") as ws:
-    for _ in range(3):
-        ws.send_bytes(b"\1\0" * 1600)
-    ws.send_text(json.dumps({"type": "commit"}))
-    ws.receive_json()
-for _ in range(50):   # saved in a thread after the turn: wait for it (up to 5 s on a busy machine)
-    if kept:
-        break
-    time.sleep(0.1)
-check("yes to improving: the live audio (every byte) and the words heard are kept",
-      kept and kept[0][0] == 3 * 3200 and kept[0][2] == {"text": "Mama Ngozi took rice 5000 on credit"}, kept)
-training.answer = lambda phone=None: None
+YES_PHONE = "2348030000611"
+real_phone_for, real_keep = accounts.phone_for, training.keep_pcm
+accounts.phone_for = lambda token: YES_PHONE if token == "yes-session" else real_phone_for(token)
+training.set_answer(YES_PHONE, True)
+kept = []
+training.keep_pcm = lambda pcm, lang="", heard=None, **k: kept.append((len(pcm), lang, heard, k.get("phone")))
+LOGGED_IN = {"cookie": f"{web.COOKIE}=yes-session"}
+
+
+def live_turn(headers=None, wait=0.3):
+    """One turn; the connection stays open while the audio is saved (the test client, unlike a real server, can stop
+    the handler as soon as the page closes)."""
+    with c.websocket_connect("/api/live/hear?lang=English&consent=yes", headers=headers or {}) as ws:
+        for _ in range(3):
+            ws.send_bytes(b"\1\0" * 1600)
+        ws.send_text(json.dumps({"type": "commit"}))
+        ws.receive_json()
+        end = time.time() + wait
+        while time.time() < end and not kept:
+            time.sleep(0.05)
+
+
+live_turn(LOGGED_IN, wait=5)
+check("yes to improving (the real consent, for the logged-in trader): the live audio and the words heard are kept",
+      kept and kept[0][0] == 3 * 3200 and kept[0][2] == {"text": "Mama Ngozi took rice 5000 on credit"}
+      and kept[0][3] == YES_PHONE, kept)
+training.set_answer(YES_PHONE, False)
 kept.clear()
-with c.websocket_connect("/api/live/hear?lang=English&consent=yes") as ws:
-    for _ in range(3):
-        ws.send_bytes(b"\1\0" * 1600)
-    ws.send_text(json.dumps({"type": "commit"}))
-    ws.receive_json()
-time.sleep(0.3)
-check("…not answered (or no): nothing kept", not kept, kept)
-training.answer, training.keep_pcm = real_answer, real_keep
+live_turn(LOGGED_IN)
+check("…said no: nothing kept", not kept, kept)
+live_turn()
+check("…nobody logged in: nothing kept", not kept, kept)
+accounts.phone_for, training.keep_pcm = real_phone_for, real_keep
 
 # 3. the live reply: N-ATLaS/our code answer, the voice streamed by Intron in pieces, played as each is ready
 started_old = []
@@ -219,8 +255,9 @@ SEEN["texts"].clear()
 d = c.post("/api/say", json={"session": "live1", "text": "Mama Ngozi took rice 5000 on credit", "lang": "English"}).json()
 check("the reply says how many voice pieces", d["parts"] >= 2 and d["speak"] and not started_old, d)
 got = [c.get(f"/api/speak/{d['speak']}/{i}") for i in range(d["parts"])]
-check("each piece is a WAV the page can play, in order", all(r.status_code == 200 and r.content[:4] == b"RIFF"
-                                                              for r in got), [r.status_code for r in got])
+check("each piece is an MP3 the page can play, in order (a tenth of the WAV's size on mobile data)",
+      all(r.status_code == 200 and r.headers["content-type"] == "audio/mpeg" and r.content[:3] in (b"ID3", b"\xff\xfb",
+          b"\xff\xf3") for r in got), [(r.status_code, r.headers.get("content-type"), r.content[:4]) for r in got])
 check("…Intron was sent the reply's words, 10-100 characters a piece",
       SEEN["texts"] and " ".join(SEEN["texts"]) == " ".join(web.VOICES[d["speak"]].parts)
       and all(10 <= len(t) <= 100 for t in SEEN["texts"]), SEEN["texts"])
@@ -231,6 +268,29 @@ for i in range(d2["parts"]):
 check("the same words again: from the voice cache (no Intron call, no cost)", len(SEEN["tts"]) == n_tts,
       len(SEEN["tts"]) - n_tts)
 check("a piece that doesn't exist: 404", c.get(f"/api/speak/{d['speak']}/99").status_code == 404)
+
+# the trader stopped talking: the reply's voice session is opened then, so the reply's first piece starts at once
+n_tts = len(SEEN["tts"])
+intron_live.prewarm("English")
+intron_live.READY["English"][0].result(timeout=10)   # open before the reply exists
+d3 = c.post("/api/say", json={"session": "live4", "text": "Oga Emeka took beans 7000 on credit", "lang": "English"}).json()
+got3 = [c.get(f"/api/speak/{d3['speak']}/{i}").status_code for i in range(d3["parts"])]
+check("a voice session opened when the trader stopped is used by the reply (no second connection)",
+      got3 == [200] * d3["parts"] and web.VOICES[d3["speak"]].used_ready and len(SEEN["tts"]) == n_tts + 1,
+      (got3, web.VOICES[d3["speak"]].used_ready, len(SEEN["tts"]) - n_tts))
+check("…and a commit of the hearing opens one (prewarm called at the end of a turn)",
+      "prewarm(lang)" in open(intron_live.__file__).read())
+
+# what the trader waited, measured on their phone: logged as times only, shown first in the speed table
+import events  # noqa: E402
+events.ENABLED = True
+ok_t = c.post("/api/live/timing", json={"heard": 420, "think": 180, "voice": 900, "total": 1500})
+bad_t = c.post("/api/live/timing", json={"heard": -5, "think": 180, "voice": 900, "total": 1500})
+table = {row[0]: row for row in events.speed(1)}
+check("live talk timing from the phone: kept (times only), the whole wait first in the speed table",
+      ok_t.status_code == 200 and bad_t.status_code == 400 and table.get("LIVE TALK: you stop to first sound", [0, 0, 0])[2] == 1500
+      and table.get("  reply to first sound", [0, 0, 0])[2] == 900, (ok_t.status_code, bad_t.status_code, list(table)))
+events.ENABLED = False
 
 # 4. refusals: Intron's voice down -> the old voice makes the pieces; hearing quota -> the old hearing, rests 10 min
 MODE["tts"] = "down"
