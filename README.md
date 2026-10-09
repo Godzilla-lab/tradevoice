@@ -178,12 +178,12 @@ design/         the app design the web app is built from
 
 ## Tests
 ```bash
-python eval/run_all.py                                 # 30 suites, no keys, no network
+python eval/run_all.py                                 # 29 suites, no keys, no network
 NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the whole app in Chromium (needs Playwright)
 python eval/run_tools_eval.py                          # tool choice on 203 sentences, offline
 python eval/run_eval.py --cases eval/cases_1000.jsonl --llm natlas --raw --workers 8   # the benchmark (needs NATLAS_URL)
 ```
-- `eval/run_all.py`: 932 of 932 checks passed in 30 suites on 9 Oct 2026. They cover records, corrections, the
+- `eval/run_all.py`: 921 checks in 29 suites, all passing on 9 Oct 2026. They cover records, corrections, the
   Ask chat, hearing, sign-up, SMS codes, Telegram, WhatsApp (against a faked Meta API), backups and the dashboard.
 - `eval/browser_test.cjs`: 75 checks in a real browser, from sign-up to a reminder draft, the Ask tab and log out.
 
