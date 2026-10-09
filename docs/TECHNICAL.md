@@ -483,27 +483,28 @@ existing book: opening a book always needs its password.
 |---|---|---|
 | 1 | WhatsApp message, or "Send it on WhatsApp" (`LOGIN WORD` sent to the bot) | Only when the WhatsApp keys are set (not live) |
 | 2 | A code in Telegram | Log in and reset, for a number already shared with the Telegram bot |
-| 3 | Termii: a text message | When `TERMII_API_KEY` and `TERMII_SENDER_ID` are set. Sign-up then needs a code again; if the text can't go (sender ID not approved yet, empty wallet), sign-up goes on with number + password unless `SIGNUP_CODE=required` |
+| 3 | Termii: a phone call that reads the code out (a text once a sender ID is approved) | When `TERMII_API_KEY` is set. Sign-up then needs a code again; if the code can't go (empty wallet, Termii down), sign-up goes on with number + password unless `SIGNUP_CODE=required` |
 | 4 | No code | Sign-up, when nothing above can send and `SIGNUP_CODE` is not `required` |
 | 5 | Confirm on Telegram | Whenever the Telegram bot is set up and no code was sent (log in, reset, new phone number; also sign-up when `SIGNUP_CODE=required`) |
 
 Limits: 5 code requests an hour per number and 20 per connection; a code lasts 10 minutes and allows 5 tries. Codes
 are never shown on screen on the live server.
 
-### Codes by text or phone call (Termii, `src/sms.py`)
+### Codes by phone call or text (Termii, `src/sms.py`)
 
 TradeVoice makes the 6-digit code and checks it itself; Termii (termii.com, Lagos) only delivers it, paid from the
 Termii wallet.
 
-- **Text (`TERMII_CHANNEL=dnd`, the default and the team's choice):** `POST {TERMII_BASE_URL}/api/sms/send` with our sender ID on the DND
+- **Phone call (the live setup: no `TERMII_SENDER_ID`):** `POST {TERMII_BASE_URL}/api/sms/otp/call` with our code;
+  a voice reads it out. It needs no sender ID and has no DND problem, so it works as soon as the wallet has money.
+  Codes never start with 0, so the call reads all six digits. The page says "We are calling 0803... now".
+- **Text (when `TERMII_SENDER_ID` is set):** `POST {TERMII_BASE_URL}/api/sms/send` with that sender ID on the DND
   (transactional) route. It reaches numbers on DND and arrives at any hour. It needs a sender ID that Termii has
   approved and the DND route switched on for the account (Termii support does that).
-- **When a text can't go** (sender ID waiting for approval, empty wallet, wrong key, no network), sign-up goes on
+- **When a code can't go** (empty wallet, wrong key, no network, sender ID not approved), sign-up goes on
   with number + password, as without Termii, and `/team` shows why. A password reset gets "can't send codes right
   now". `SIGNUP_CODE=required` makes sign-up wait instead. Nothing is ever shown on screen.
-- **Phone call (not used; `TERMII_CHANNEL=voice`, or `TERMII_CALL_BACKUP=1` after a failed text):**
-  `POST /api/sms/otp/call` with our code; a voice reads it out. It needs no sender ID. Codes never start with 0 so a
-  call could read them.
+- **`TERMII_CHANNEL`** overrides the choice (`voice`, `dnd`); `TERMII_CALL_BACKUP=1` turns a failed text into a call.
 - **Never the generic route for codes:** Termii's own rule. It skips DND numbers, MTN blocks it from 8pm to 8am, and
   sender IDs used for codes on it get blocked.
 - **Money cap:** `SMS_DAILY_MAX` (50) codes a day, on top of the hourly limits. `/team` lists each code sent (by text
@@ -613,9 +614,9 @@ repository. On the server, use `keys.sh`. Defaults are what the code uses when a
 | `SIGNUP_CODE` | (none) | `required`: never sign up without a code (if nothing can send one, only Confirm on Telegram works). Not set on the live server |
 | `TERMII_API_KEY` | (none) | Secret. Termii API key (dashboard, Settings, API token). When set, sign-up and resets use codes again |
 | `TERMII_BASE_URL` | `https://v4.api.termii.com` | The account's own base URL, shown on the Termii dashboard |
-| `TERMII_SENDER_ID` | (none) | The sender ID Termii approved (3 to 11 letters) |
-| `TERMII_CHANNEL` | `dnd` | `dnd`: a text on the transactional route (used). `voice`: a phone call reads the code (not used). `generic`: tests only |
-| `TERMII_CALL_BACKUP` | 0 | 1: a text that can't go becomes a phone call (not used) |
+| `TERMII_SENDER_ID` | (none) | Empty: codes by phone call. A sender ID Termii approved (3 to 11 letters): codes by text |
+| `TERMII_CHANNEL` | `voice`, or `dnd` with a sender ID | `voice`: a phone call reads the code. `dnd`: a text on the transactional route. `generic`: tests only |
+| `TERMII_CALL_BACKUP` | 0 | 1: a text that can't go becomes a phone call |
 | `SMS_DAILY_MAX` | 50 | Most codes a day (texts and calls): a cap on what the wallet can spend |
 | `TELEGRAM_BOT_TOKEN` | (none) | Secret. The Telegram bot; the webhook is set up at start |
 | `TELEGRAM_BOT_USERNAME` | asked from Telegram | The bot's name for `t.me` links |
@@ -863,7 +864,7 @@ python eval/test_telegram.py           # one suite: prints its checks and "N/M .
 NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the app in a real browser
 ```
 
-On 9 October 2026: 31 suites with 992 checks, all passing, and 76 of 76 browser checks.
+On 9 October 2026: 31 suites with 996 checks, all passing, and 76 of 76 browser checks.
 The browser test needs Node and Playwright with Chromium; it starts its own server with a fresh temporary database and
 uses made-up names and numbers.
 
@@ -910,7 +911,7 @@ The results and the commands for each run are in `docs/RESULTS.md`; the method i
   native-speaker review is still to do.
 - **Numbers are checked only once Termii is set up.** Without the Termii keys (and with no WhatsApp), a new account
   is phone number and password only. Telegram users can confirm their number; anyone else who forgets their password
-  needs the team to reset it. With Termii, every code costs a little from its wallet, and texts need a sender ID that
-  Termii has approved.
+  needs the team to reset it. With Termii, every code is a phone call paid from its wallet (texts would need a sender
+  ID that Termii has approved).
 - **One server, one process.** The books are SQLite files with a single writer. This suits a pilot; many thousands of
   traders would need a different database.

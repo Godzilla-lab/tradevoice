@@ -228,6 +228,7 @@ def channels():
     codes = "whatsapp" if wa or (not by_sms and accounts.demo_mode()) else "sms" if by_sms else ""
     return {"codes": codes, "wa": wa, "sms": by_sms, "tg": telegram.username(),
             "nocode": not codes and os.getenv("SIGNUP_CODE", "").lower() != "required",
+            "call": by_sms and sms.by_call(),   # Termii codes come by a phone call that reads them out
             "team": os.getenv("PRIVACY_CONTACT", "")}
 
 

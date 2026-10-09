@@ -19,9 +19,9 @@ NATLAS_WATCH|no|Keep N-ATLaS awake 7am to 8pm Nigeria time? 1 = yes (pilot days;
 NATLAS_WATCH_DATES|no|Only keep it awake on these days, to save Modal credits, e.g. 2026-10-11,2026-10-15..2026-10-17 (- = every day)
 NATLAS_MODE|no|Use N-ATLaS? auto = yes, N-ATLaS first (normal). off = run without Modal: NVIDIA answers, Intron hears voice notes
 TELEGRAM_BOT_TOKEN|yes|Telegram bot token from @BotFather (digits:letters); the app sets up the webhook itself
-TERMII_API_KEY|yes|Termii API key (dashboard: Settings, API token): sign-up codes by text message
+TERMII_API_KEY|yes|Termii API key (dashboard: Settings, API token): sign-up codes by phone call
 TERMII_BASE_URL|no|Termii base URL shown on your dashboard (starts https://), e.g. https://v4.api.termii.com
-TERMII_SENDER_ID|no|Your Termii sender ID exactly as approved, 3 to 11 letters, e.g. TradeVoice (until approved, sign-up stays number + password)
+TERMII_SENDER_ID|no|Leave empty: codes go by phone call. Only if Termii approves a sender ID: type it exactly, and codes go by text
 SMS_DAILY_MAX|no|Most codes a day (caps what the Termii wallet can spend), e.g. 50
 TEAM_TELEGRAM|no|Team Telegram chat IDs for alerts (the bot tells you yours when you send /id), comma between
 WHATSAPP_TOKEN|yes|WhatsApp token from Meta (long, starts EA)

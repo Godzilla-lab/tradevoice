@@ -762,12 +762,14 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
     await check("Phone-call codes (Termii voice): the code screen says we are calling, with the code box", async () => {
       const c5 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
       await c5.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
-      await withCH(c5, { ...NONE, codes: "sms", sms: true, nocode: false });
+      await withCH(c5, { ...NONE, codes: "sms", sms: true, call: true, nocode: false });
       await c5.route(/\/api\/auth\/v2\/code\/start$/, r => r.fulfill({ json: { login_id: "lid-call", sent: true, demo_code: null, word: null, bot: null, channel: "call" } }));
       const p5 = await c5.newPage();
       p5.on("pageerror", e => errors.push(e.message));
       await p5.goto(`${BASE}/app`);
       await p5.click("#gate [data-g=signup]");
+      const why = await p5.locator("#gate").textContent();
+      if (!/call you with your code/.test(why) || /SMS|WhatsApp/.test(why)) throw new Error(why);
       await p5.fill("#ph", "8030000780"); await p5.check("#ag"); await p5.click("#go");
       await p5.waitForSelector("#otp", { timeout: 8000 });
       const t = await p5.locator("#gate").textContent();

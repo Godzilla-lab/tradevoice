@@ -1,20 +1,22 @@
-"""Sign-up and log-in codes by SMS or a phone call, for traders without WhatsApp or Telegram.
+"""Sign-up and log-in codes by a phone call or SMS, for traders without WhatsApp or Telegram.
 
 Termii (termii.com, Lagos). The account is free; each code is paid from the Termii wallet (fund it on the dashboard;
-the rate is on your dashboard, in 2026 roughly 6 to 9 naira a text). The app makes its own 6-digit code and checks it
-itself (src/v2.py): Termii only delivers it.
-- TERMII_CHANNEL=dnd (default, what the team chose): a text message from our sender ID on Termii's transactional
-  route. It reaches numbers on DND and arrives at any hour. Needs a sender ID approved by Termii (TERMII_SENDER_ID, 3
-  to 11 letters, asked for on the dashboard; Termii's team reviews it and may ask for business papers) and the DND
-  route switched on for the account by Termii support.
-- TERMII_CHANNEL=voice (not used): a phone call reads the code out (Termii's voice call API). No sender ID needed.
+the rates are on the dashboard). The app makes its own 6-digit code and checks it itself (src/v2.py): Termii only
+delivers it.
+- voice (what the live server uses: no TERMII_SENDER_ID set): a phone call, and a voice reads the code out (Termii's
+  voice call API). No sender ID to get approved, no DND problem: it works as soon as the wallet has money.
+- dnd (when TERMII_SENDER_ID is set): a text message from that sender ID on Termii's transactional route. It reaches
+  numbers on DND and arrives at any hour. Needs a sender ID approved by Termii (Termii's team reviews it and may ask
+  for business papers) and the DND route switched on for the account by Termii support.
+TERMII_CHANNEL (voice | dnd | generic) overrides that choice.
 - generic: Termii's promotional route. Not for codes (Termii's own rule): it skips numbers on DND, MTN blocks it from
   8pm to 8am, and sender IDs that send codes on it get blocked. Only for a quick test.
-When a text can't go (sender ID not approved yet, wallet empty), sign-up carries on with number + password and the
-reason shows on /team (src/v2.py; SIGNUP_CODE=required stops that). TERMII_CALL_BACKUP=1 would send a call instead.
+When a code can't go (wallet empty, sender ID not approved yet), sign-up carries on with number + password and the
+reason shows on /team (src/v2.py; SIGNUP_CODE=required stops that). TERMII_CALL_BACKUP=1: a text that can't go
+becomes a call.
 
 Settings (keys.sh): TERMII_API_KEY (secret), TERMII_BASE_URL (the account's own link, on the dashboard; default
-https://v4.api.termii.com), TERMII_SENDER_ID, TERMII_CHANNEL, SMS_DAILY_MAX (default 50 a day: a cap on what the
+https://v4.api.termii.com), TERMII_SENDER_ID (only for texts), SMS_DAILY_MAX (default 50 a day: a cap on what the
 wallet can spend; past it, no more codes that day). On top of that, src/v2.py allows 5 codes an hour per number and 20
 per connection. The phone number and the code are never logged.
 """
@@ -35,8 +37,9 @@ def base():
 
 
 def channel():
-    c = (os.getenv("TERMII_CHANNEL") or "dnd").strip().lower()
-    return c if c in CHANNELS else "dnd"
+    """voice (a phone call) unless a sender ID is set for texts; TERMII_CHANNEL overrides."""
+    c = (os.getenv("TERMII_CHANNEL") or ("dnd" if sender() else "voice")).strip().lower()
+    return c if c in CHANNELS else "voice"
 
 
 def sender():
@@ -45,6 +48,10 @@ def sender():
 
 def provider():
     return "termii" if os.getenv("TERMII_API_KEY") and (sender() or channel() == "voice") else ""
+
+
+def by_call():
+    return ready() and channel() == "voice"
 
 
 def ready():

@@ -138,12 +138,21 @@ def main():
     check("…and the code they hear works", ok.status_code == 200, ok.text)
     os.environ.pop("TERMII_CALL_BACKUP")
     MODE["text"] = "ok"
-    os.environ["TERMII_CHANNEL"] = "voice"
     os.environ.pop("TERMII_SENDER_ID")
     n = len(TEXTS)
     r = start("08030000806", ip="10.0.0.6").json()
-    check("TERMII_CHANNEL=voice: a call only, and no sender ID is needed at all",
-          r["channel"] == "call" and len(TEXTS) == n + 1 and TEXTS[-1]["url"].endswith("/otp/call"), r)
+    t = TEXTS[-1]
+    check("no sender ID (the live setup): the code goes by a phone call that reads it out, no sender ID needed",
+          r["sent"] and r["channel"] == "call" and len(TEXTS) == n + 1 and t["url"].endswith("/api/sms/otp/call")
+          and t["json"]["phone_number"] == "2348030000806" and "from" not in t["json"], (r, t))
+    ok = c.post("/api/auth/v2/code/check", json={"login_id": r["login_id"], "code": last_code(), "purpose": "signup"})
+    check("…the code read out works", ok.status_code == 200, ok.text)
+    ch = v2.channels()
+    page = c.get("/app").text
+    check("…the page is told codes come by a call (it says 'call you with your code', not SMS)",
+          ch["codes"] == "sms" and ch["call"] and '"call": true' in page, ch)
+    os.environ["TERMII_CHANNEL"] = "dnd"
+    check("TERMII_CHANNEL=dnd without a sender ID: not set up (a text needs one)", not sms.ready())
     os.environ.pop("TERMII_CHANNEL")
     os.environ["TERMII_SENDER_ID"] = "TradeVoice"
     import accounts
@@ -214,6 +223,11 @@ def main():
     check("pilot check: codes go by Termii, texts from the approved sender ID, the wallet shown, no key",
           st == "PASS" and "Termii" in detail and "texts from TradeVoice" in detail and "900.50" in detail
           and "tm-secret-key" not in detail, (st, detail))
+    os.environ.pop("TERMII_SENDER_ID")
+    st, detail = preflight.codes()
+    check("…no sender ID: PASS, codes go by phone call, the wallet shown", st == "PASS" and "phone call" in detail
+          and "900.50" in detail, (st, detail))
+    os.environ["TERMII_SENDER_ID"] = "TradeVoice"
     SENDERS["content"][0]["status"] = "pending"
     st, detail = preflight.codes()
     check("…sender ID still pending: a WARN that says sign-up goes on without a code until Termii approves it",
