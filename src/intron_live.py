@@ -63,10 +63,12 @@ def _log(kind, ok, lang, ms=None, engine="intron-stream"):
 
 
 # ---------------------------------------------------------------- hearing (browser -> us -> Intron -> us -> browser)
-async def relay_hearing(browser, lang, collect=False):
+async def relay_hearing(browser, lang, collect=False, on_commit=None):
     """browser: a Starlette WebSocket. It sends audio as binary frames and {"type": "commit"} when the trader has
     finished; it gets {"type": "partial"|"final"|"error", "text"|"message"}. One turn per connection.
-    Returns {"text": final words, "pcm": the audio} (pcm only with collect=True: a trader who said yes to training)."""
+    on_commit(words): called when the trader stops, with the words heard so far (live talk starts reading them while
+    Intron finishes the final words). Returns {"text": final words, "pcm": the audio} (pcm only with collect=True: a
+    trader who said yes to training)."""
     got = {"text": "", "pcm": bytearray() if collect else None}
     ws_lib = _websockets()
     code = STT_LANG.get(lang, STT_LANG["English"])
@@ -85,7 +87,7 @@ async def relay_hearing(browser, lang, collect=False):
             await _send(browser, {"type": "error", "message": why})
             _log("hear", False, lang)
             return got
-        state = {"buf": bytearray(), "committed_at": None, "done": False}
+        state = {"buf": bytearray(), "committed_at": None, "done": False, "partial": ""}
 
         async def from_browser():
             while not state["done"]:
@@ -113,6 +115,11 @@ async def relay_hearing(browser, lang, collect=False):
                         state["committed_at"] = time.perf_counter()
                         await intron.send(json.dumps({"message_type": "COMMIT"}))
                         prewarm(lang)   # the reply's voice session opens now, not after the reply is written
+                        if on_commit and state["partial"]:
+                            try:
+                                on_commit(state["partial"])
+                            except Exception as e:  # noqa: BLE001  (only a head start; never in the way)
+                                print(f"live talk early reading not started: {type(e).__name__}")
                         return
 
         async def from_intron():
@@ -120,6 +127,7 @@ async def relay_hearing(browser, lang, collect=False):
                 m = json.loads(raw)
                 kind = m.get("message_type")
                 if kind == "PARTIAL_TRANSCRIPT":
+                    state["partial"] = (m.get("transcript") or "").strip() or state["partial"]
                     await _send(browser, {"type": "partial", "text": m.get("transcript") or ""})
                 elif kind == "COMMITTED_TRANSCRIPT":
                     ms = (time.perf_counter() - state["committed_at"]) * 1000 if state["committed_at"] else None

@@ -586,14 +586,36 @@ REC_SCHEMA = {"type": "object", "required": ["type", "amount", "customer"],
 REC_MAX_TOKENS = 250
 
 
-def llm_extract(text, today=None, vocab=None):
-    """Return (record dict, model used)."""
-    today = today or dt.date.today()
+def _rec_call(text, today, vocab):
+    """The messages and settings of the record-reading call (the same for the early start and the real one)."""
     prompt = (SYSTEM_PROMPT.replace("__TODAY__", today.isoformat()).replace("__WEEKDAY__", today.strftime("%A"))
               + _vocab_line(vocab))
-    content, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
-                              max_tokens=REC_MAX_TOKENS, timeout=int(os.getenv("LLM_TIMEOUT", "20")),  # then next model
-                              shots=SHOTS, schema=REC_SCHEMA)
+    return ([{"role": "system", "content": prompt}, {"role": "user", "content": text}],
+            {"max_tokens": REC_MAX_TOKENS, "timeout": int(os.getenv("LLM_TIMEOUT", "20")), "shots": SHOTS,
+             "schema": REC_SCHEMA})
+
+
+def prefetch(text, today=None, vocab=None):
+    """Live talk: start N-ATLaS reading these words as a record now (llm.early), while Intron finishes the final
+    words. Skipped where the reply would not ask N-ATLaS to read a record: no amount, a question, yes / no, a short
+    answer, or a record the rules read fully (live talk answers those at once). True when a reading started."""
+    text, today = (text or "").strip(), today or dt.date.today()
+    t = fold(text)
+    if len(t.split()) < 3 or parse_amount(text) is None or not llm.available():
+        return False
+    import converse
+    if converse.QUESTION.search(t) or converse.YES.match(t) or converse.NO.match(t):
+        return False
+    if sure(rule_extract(text, today), text):
+        return False
+    messages, kw = _rec_call(text, today, vocab)
+    return llm.early(messages, **kw)
+
+
+def llm_extract(text, today=None, vocab=None):
+    """Return (record dict, model used)."""
+    messages, kw = _rec_call(text, today or dt.date.today(), vocab)
+    content, model = llm.chat(messages, **kw)   # then next model; waits for an early start of this same call
     return _parse_json(content), model
 
 

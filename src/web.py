@@ -720,7 +720,19 @@ async def live_hear(ws: WebSocket, lang: str = "English", consent: str = ""):
     # whose talk this is (the middleware put the logged-in number here): "help improve" is asked of that trader. The
     # WebSocket has no book open, so without this training.answer() always found nobody and live audio was never kept
     phone = (ws.scope.get("state") or {}).get("phone")
-    got = await intron_live.relay_hearing(ws, lang, collect=bool(phone and training.answer(phone)))
+
+    def read_early(words):   # the trader stopped; Intron needs a few seconds more for the final words: N-ATLaS starts
+        if not phone or os.getenv("LIVE_PREFETCH", "1") != "1":   # reading what was heard so far (extract.prefetch)
+            return
+
+        def run():
+            ledger.use_book(phone)
+            try:
+                converse.prefetch(words, ledger.known_words())
+            except Exception as e:  # noqa: BLE001
+                print(f"live talk early reading failed: {type(e).__name__}: {e}")
+        threading.Thread(target=run, daemon=True).start()
+    got = await intron_live.relay_hearing(ws, lang, collect=bool(phone and training.answer(phone)), on_commit=read_early)
     if got and got.get("pcm"):   # only kept for a trader who said yes to helping train TradeVoice
         await asyncio.to_thread(training.keep_pcm, got["pcm"], lang, {"text": got.get("text", "")}, phone=phone)
     try:

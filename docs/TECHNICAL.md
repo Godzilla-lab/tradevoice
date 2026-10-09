@@ -524,6 +524,15 @@ notes on the phone until the network is back (`web/sw.js`).
 - The first time, the bot asks the trader to tap **Share my phone number** (Telegram's `request_contact` button).
   Only the sender's own contact is accepted, so Telegram has checked the number. The link is kept in `tg_link`, and
   from then on their messages use that number's book, the same book as the web app.
+- **The phone number is the ID.** Every book is kept by phone number; Telegram only tells us which number a person
+  is, when they share it. The chat, the app opened from Telegram and the website all open the same book.
+- **Open my book logs them in at once.** Telegram opens `/app` with a note it signed (`#tgWebAppData`). The page sends
+  it to `POST /api/auth/telegram`; `telegram.web_app_user` checks the signature with the bot token (HMAC-SHA256, key
+  `HMAC("WebAppData", token)`) and that it is under an hour old (`TG_LOGIN_MAX_AGE`), then logs in the number linked
+  to that Telegram user. No sign-up and no password. Someone who hasn't shared their number yet is sent back to the
+  chat to do it. Their Telegram name is used until they set one in Me.
+- **On the website** they log in with a password like everyone. A Telegram trader without one signs up with the
+  same number: the code goes to them in Telegram, free, and the password they choose opens the same book.
 - Everything else is the WhatsApp bot's code: each update is turned into the message shape `whatsapp.handle` reads,
   and its replies are sent back through Telegram (`whatsapp.OUT`).
 - `/id` tells a team member their chat ID for `TEAM_TELEGRAM` alerts.
@@ -592,6 +601,7 @@ repository. On the server, use `keys.sh`. Defaults are what the code uses when a
 | `LIVE_HEARING` | `intron` | Live talk hearing: `intron` (streaming) or `natlas` (one turn at a time) |
 | `INTRON_STT_ENGLISH` | `pcm` | Intron's model for English and Pidgin live talk: `pcm` or `en` |
 | `LIVE_FAST_RECORDS` | 1 | Live talk: a record the rules read completely is answered without waiting for N-ATLaS |
+| `LIVE_PREFETCH` | 1 | Live talk: when the trader stops, the AI starts on the words heard so far while Intron finishes the final words (`llm.early`); the same final words use that answer, different ones ask afresh. Reading only |
 
 ### Voice (Intron)
 
@@ -864,7 +874,7 @@ python eval/test_telegram.py           # one suite: prints its checks and "N/M .
 NODE_PATH=$(npm root -g) node eval/browser_test.cjs    # the app in a real browser
 ```
 
-On 9 October 2026: 31 suites with 998 checks, all passing, and 76 of 76 browser checks.
+On 9 October 2026: 31 suites with 1,015 checks, all passing, and 78 of 78 browser checks.
 The browser test needs Node and Playwright with Chromium; it starts its own server with a fresh temporary database and
 uses made-up names and numbers.
 

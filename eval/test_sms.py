@@ -215,6 +215,23 @@ def main():
     r = start("08030000840", ip="10.0.4.2").json()
     check("…but sign-up still goes by SMS (Telegram can't reach a number nobody shared)", r["channel"] == "sms", r)
 
+    # one simple path: the call goes out, and "No code? Confirm on Telegram" is on the same screen, free
+    n = len(TEXTS)
+    r = start("08030000850", ip="10.0.5.1").json()
+    check("sign-up with the Telegram bot on: the code call goes out, and the free Telegram way is offered with it",
+          r["sent"] and r["channel"] in ("sms", "call") and len(TEXTS) == n + 1 and r["word"] and r["tg"] == "TradeVoiceTestBot", r)
+    import accounts
+    check("…the call didn't come, they confirm on Telegram instead (their own number): the account can be made",
+          accounts.confirm_from_whatsapp("2348030000850", f"LOGIN {r['word']}")
+          and c.post("/api/auth/v2/code/poll", json={"login_id": r["login_id"]}).json() == {"ok": True}
+          and c.post("/api/auth/v2/signup", json={"login_id": r["login_id"], "pw": pw("Tolu-pass-2026"),
+                                                 "name": "Tolu Testtrader", "biz": "Tolu Test Stores"}).status_code == 200)
+    c.post("/api/auth/v2/logout")
+    r = start("08030000851", ip="10.0.5.2").json()
+    check("…someone else's number shared in Telegram: not confirmed", accounts.confirm_from_whatsapp(
+        "2348030000999", f"LOGIN {r['word']}") is False and c.post("/api/auth/v2/code/poll", json={
+            "login_id": r["login_id"]}).json() == {"ok": False})
+
     # the pilot check reads the Termii wallet and the sender ID's approval, without printing the key
     import importlib
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))

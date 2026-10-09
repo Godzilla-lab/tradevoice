@@ -1127,6 +1127,16 @@ def _question(text, lang, state, vocab, today):
 
 # ---------------------------------------------------------------- entry point
 
+def prefetch(text, vocab=None):
+    """Live talk: the trader stopped; while Intron finishes the final words, start the AI on the words heard so far:
+    a question's reading (askbook) or a record's (extract). Reading only; the final words decide (llm.early)."""
+    t = fold(text or "")
+    if QUESTION.search(t):
+        return askbook.prefetch(text, vocab)
+    import extract as reading
+    return reading.prefetch(text, vocab=vocab)
+
+
 def reply(text, state=None, today=None, shop="your shop"):
     """One message in -> one reply out: {text, spoken, lang, english, [message, link]}. `state` is updated."""
     state = state if state is not None else new_state()

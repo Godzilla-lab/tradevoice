@@ -13,14 +13,19 @@ verification, no 24-hour window. The web app stays the main way in; most traders
 import hashlib
 import hmac
 import html
+import json
 import os
 import re
 import threading
 import time
 from collections import OrderedDict
 
+import urllib.parse
+
 import requests
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -200,8 +205,8 @@ SAY = {
                "the number on your account, the same number you use in the TradeVoice app, so it is one book.",
     "not_yours": "Please share your own number with the button below (not someone else's contact).",
     "bad_number": "That number doesn't look right. Please try the button again.",
-    "linked": "Thank you. Your number is connected. To use the same book in the TradeVoice app on the web too, "
-              "sign up there with this number: Telegram and the app share one book.",
+    "linked": "Thank you. Your number is connected. Tap Open my book (below) to see your whole book in the app, no "
+              "sign-up needed. On the website, use this same number: Telegram and the app share one book.",
     "confirmed": "Done, your number is confirmed. Go back to TradeVoice: it continues by itself.",
     "old_word": "That confirmation is old or not for this number. On the website, start again and tap Confirm on "
                 "Telegram.",
@@ -340,6 +345,58 @@ def _safe_update(upd):
         handle_update(upd)
     except Exception as e:  # noqa: BLE001 - never crash the server on one bad update
         print(f"telegram update failed: {type(e).__name__}: {e}")
+
+
+def web_app_user(init_data, max_age=None):
+    """The Telegram user who opened our app from the bot's "Open my book" button, or None. Telegram signs what it
+    gives the app (initData) with our bot token (HMAC-SHA256, key HMAC("WebAppData", token)), so nobody can pretend
+    to be someone else; it must also be fresh (TG_LOGIN_MAX_AGE, 1 hour)."""
+    if not ready() or not init_data:
+        return None
+    fields = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
+    got = fields.pop("hash", "")
+    check = "\n".join(f"{k}={v}" for k, v in sorted(fields.items()))
+    key = hmac.new(b"WebAppData", token().encode(), hashlib.sha256).digest()
+    if not got or not hmac.compare_digest(hmac.new(key, check.encode(), hashlib.sha256).hexdigest(), got):
+        return None
+    try:
+        age = time.time() - int(fields.get("auth_date") or 0)
+        user = json.loads(fields.get("user") or "{}")
+    except ValueError:
+        return None
+    if not (0 <= age <= float(max_age or os.getenv("TG_LOGIN_MAX_AGE", "3600"))) or not user.get("id"):
+        return None
+    return user
+
+
+class WebAppLogin(BaseModel):
+    init_data: str
+
+
+@router.post("/api/auth/telegram")
+def web_app_login(b: WebAppLogin, request: Request):
+    """"Open my book" in Telegram: the trader is logged in to their own book at once, no sign-up. Their book is the
+    phone number they shared with the bot (tg_link); someone who hasn't shared it yet is asked to, in the chat."""
+    import v2
+    user = web_app_user(b.init_data)
+    if not user:
+        return JSONResponse({"error": "Open TradeVoice from the Telegram chat again."}, 401)
+    phone = phone_of(user["id"])
+    if not phone:
+        return JSONResponse({"link": True, "bot": username()}, 409)
+    name = " ".join(filter(None, (user.get("first_name"), user.get("last_name"))))[:60]
+    if name:   # a Telegram-first trader: their Telegram name until they change it in Me
+        with v2._lock, v2._db() as c:
+            c.execute("INSERT INTO users (phone, name, created_at) VALUES (?,?,?) ON CONFLICT(phone) DO UPDATE "
+                      "SET name=excluded.name WHERE users.name IS NULL OR users.name=''",
+                      (phone, name, v2._now().isoformat()))
+    resp = v2._login_response(request, phone, keep=True)
+    try:
+        import events
+        events.log("login", phone=phone, channel="telegram", engine="telegram app")
+    except Exception:  # noqa: BLE001
+        pass
+    return resp
 
 
 @router.post("/telegram/webhook")

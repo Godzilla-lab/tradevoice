@@ -1109,5 +1109,24 @@ button.tvc-say{text-decoration:none}
   TVL.loadBook = loadBook;
   TVL.trainSheet = trainSheet;
   TVL.trainRow = () => A ? [tw(0), A.train ? tw(6) : tw(7)] : [tw(0), ""];
+
+  /* Opened from the Telegram bot's "Open my book": Telegram puts a note it signed in the address (#tgWebAppData).
+     The server checks it and logs the trader in to their own book (the number they shared with the bot): no
+     sign-up, no password. Someone who hasn't shared their number yet is sent back to the chat to do it. */
+  TVL.start = async function () {
+    let tg = "";
+    try { tg = new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") || ""; } catch (e) {}
+    if (tg) {
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}   // not kept in the address
+      const r = await api("/api/auth/telegram", { body: { init_data: tg } });
+      if (!r.ok && r.data && r.data.link) {
+        const bot = r.data.bot || CH.tg;
+        gate(`<div style="text-align:center">${LOGO.replace('class="lg"', 'class="lg" style="margin:auto"')}</div><h1 style="font-size:1.75rem">One step in Telegram</h1><p style="color:var(--label2);margin-bottom:var(--s5)">Your book is kept by your phone number. Go back to the TradeVoice chat and tap <b>Share my phone number</b>, then tap Open my book again.</p>` +
+          (bot ? `<a class="btn p w" href="https://t.me/${bot}?start=link" style="text-decoration:none">Back to the chat</a>` : ""));
+        return;
+      }
+    }
+    return TVL.boot();
+  };
 })();
-TVL.boot();
+TVL.start();

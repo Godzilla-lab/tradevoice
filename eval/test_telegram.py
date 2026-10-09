@@ -5,6 +5,7 @@ reset codes and summaries to Telegram, erasing an account unlinks it, groups ign
 set up at start. Made-up names and numbers only. python eval/test_telegram.py
 """
 import hashlib
+import hmac
 import json
 import os
 import sys
@@ -224,8 +225,45 @@ def main():
     msg(frm=TG_FIRST, text="/start")
     n = len(CALLS)
     msg(frm=TG_FIRST, contact={"phone_number": "2348030000906", "user_id": TG_FIRST})
-    check("someone new on Telegram: told how to use the same book in the app (sign up with this number)",
-          "sign up there with this number" in said(n), said(n))
+    check("someone new on Telegram: told Open my book shows the same book in the app, no sign-up",
+          "Tap Open my book" in said(n) and "no sign-up needed" in said(n), said(n))
+
+    # "Open my book" in Telegram: Telegram signs who opened it (initData); they are in their own book at once
+    import time as _t
+    import urllib.parse as _up
+
+    def init_data(uid, first="Tolu", age=0, token="123456:TEST-token"):
+        f = {"auth_date": str(int(_t.time()) - age), "query_id": "AAH-test",
+             "user": json.dumps({"id": uid, "first_name": first, "last_name": "Testtrader"}, separators=(",", ":"))}
+        check_str = "\n".join(f"{k}={v}" for k, v in sorted(f.items()))
+        key = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+        f["hash"] = hmac.new(key, check_str.encode(), hashlib.sha256).hexdigest()
+        return _up.urlencode(f)
+    tap("lang:English", frm=TG_FIRST)
+    tap("consent:yes", frm=TG_FIRST)
+    msg(frm=TG_FIRST, text="Iya Bisi took 3 bags of garri 15000 on credit")
+    msg(frm=TG_FIRST, text="yes")
+    app = TestClient(web.app)
+    r = app.post("/api/auth/telegram", json={"init_data": init_data(TG_FIRST)})
+    me = app.get("/api/v2/me")
+    check("Open my book (Telegram-first trader, no password): logged in to their own book at once, no sign-up",
+          r.status_code == 200 and me.status_code == 200 and me.json()["phone"].endswith("8030000906")
+          and me.json()["name"] == "Tolu Testtrader", (r.text, me.text))
+    owed = app.get("/api/debts").json().get("owed_to_me", [])
+    check("…what they saved in the Telegram chat is there in the app (one book)",
+          any(x["customer"] == "Iya Bisi" and x["balance"] == 15000 for x in owed), owed)
+    check("…and the website still asks a password from anyone who comes without Telegram",
+          TestClient(web.app).get("/api/v2/me").status_code == 401)
+    r = TestClient(web.app).post("/api/auth/telegram", json={"init_data": init_data(TG_FIRST).replace("Tolu", "Bola")})
+    check("…a changed note (not signed by Telegram with our bot's token): refused", r.status_code == 401, r.text)
+    r = TestClient(web.app).post("/api/auth/telegram", json={"init_data": init_data(TG_FIRST, token="999:other-bot")})
+    check("…signed for another bot: refused", r.status_code == 401, r.text)
+    r = TestClient(web.app).post("/api/auth/telegram", json={"init_data": init_data(TG_FIRST, age=7200)})
+    check("…an old note (over an hour): refused", r.status_code == 401, r.text)
+    r = TestClient(web.app).post("/api/auth/telegram", json={"init_data": init_data(7999)})
+    check("…someone who hasn't shared their number with the bot: told to do that first (no book opened)",
+          r.status_code == 409 and r.json() == {"link": True, "bot": "TradeVoiceTestBot"}, r.text)
+    n = len(CALLS)
     n = len(CALLS)
     r = c.post("/api/auth/v2/code/start", json={"phone": "08030000906", "purpose": "signup"}).json()
     sent_code = "".join(ch for ch in said(n) if ch.isdigit())[-6:]

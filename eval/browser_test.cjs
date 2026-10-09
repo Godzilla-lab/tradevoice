@@ -759,6 +759,58 @@ async function tab(k) { await page.click(`#tabs [data-k=${k}]`); await page.wait
       if (!/by SMS to/.test(t) || !/Check your phone/.test(t)) throw new Error(t);
       await c4.close();
     });
+    await check("The live setup (call codes + Telegram bot): welcome says Telegram now, WhatsApp soon; one simple code screen: the call, the code box, and a free Telegram link", async () => {
+      const c6 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
+      await c6.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+      await withCH(c6, { ...NONE, codes: "sms", sms: true, call: true, nocode: false, tg: "TradeVoiceNGbot" });
+      const asked = [];
+      await c6.route(/\/api\/auth\/v2\/code\/start$/, r => { asked.push(r.request().postDataJSON());
+        return r.fulfill({ json: { login_id: "lid-live", sent: true, demo_code: null, word: "MANGO-123", bot: null, tg: "TradeVoiceNGbot", channel: "call" } }); });
+      const p6 = await c6.newPage();
+      p6.on("pageerror", e => errors.push(e.message));
+      await p6.goto(`${BASE}/app`);
+      await p6.waitForSelector("#gate [data-g=signup]");
+      const hello = await p6.locator("#gate").textContent();
+      if (!/A phone number and a 6-digit code/.test(hello) || !/on Telegram too: @TradeVoiceNGbot\. WhatsApp is coming soon\./.test(hello)) throw new Error(hello);
+      if (!(await p6.locator('#gate a[href="https://t.me/TradeVoiceNGbot"]').count())) throw new Error("no link to the bot on the welcome screen");
+      await p6.click("#gate [data-g=signup]");
+      await p6.fill("#ph", "8030000781"); await p6.check("#ag"); await p6.click("#go");
+      await p6.waitForSelector("#otp", { timeout: 8000 });   // straight to the code box: no extra screen to choose on
+      const t = await p6.locator("#gate").textContent();
+      if (!/We are calling/.test(t) || asked.length != 1) throw new Error(t + JSON.stringify(asked));
+      const tg = await p6.locator("#tgo").getAttribute("href");
+      if (tg != "https://t.me/TradeVoiceNGbot?start=login-MANGO-123" || !/No code\? Confirm on Telegram/.test(t)) throw new Error(tg + " " + t);
+      await c6.close();
+    });
+    await check("Open my book from Telegram: straight into the book (no welcome, no sign-up), the note sent to the server and not left in the address; not linked yet: back to the chat", async () => {
+      const c7 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
+      await c7.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+      await withCH(c7, { ...NONE, codes: "sms", sms: true, call: true, nocode: false, tg: "TradeVoiceNGbot" });
+      const sentNote = [];
+      let linked = true;
+      await c7.route(/\/api\/auth\/telegram$/, r => { sentNote.push(r.request().postDataJSON().init_data);
+        return linked ? r.fulfill({ json: { ok: true, me: { phone: "08030000906", name: "Tolu Testtrader", biz: "" } } })
+          : r.fulfill({ status: 409, json: { link: true, bot: "TradeVoiceNGbot" } }); });
+      await c7.route(/\/api\/v2\/me$/, r => linked ? r.fulfill({ json: { phone: "08030000906", name: "Tolu Testtrader", biz: "", notif: {}, dev: [] } })
+        : r.fulfill({ status: 401, json: { error: "no account" } }));
+      const note = "auth_date=1791580000&query_id=AAH&user=%7B%22id%22%3A7006%7D&hash=abc123";
+      const p7 = await c7.newPage();
+      p7.on("pageerror", e => errors.push(e.message));
+      await p7.goto(`${BASE}/app#tgWebAppData=${encodeURIComponent(note)}&tgWebAppVersion=8.0&tgWebAppPlatform=android`);
+      await p7.waitForTimeout(1500);
+      const url = p7.url(), gateTxt = (await p7.locator("#gate").count()) ? await p7.locator("#gate").textContent() : "";
+      if (sentNote[0] != note) throw new Error("note sent: " + sentNote[0]);
+      if (/tgWebAppData/.test(url)) throw new Error("note left in the address: " + url);
+      if (/Create account/.test(gateTxt)) throw new Error("welcome / sign-up shown: " + gateTxt);
+      linked = false;
+      const p8 = await c7.newPage();   // a fresh open (changing only the # part doesn't reload a page)
+      p8.on("pageerror", e => errors.push(e.message));
+      await p8.goto(`${BASE}/app#tgWebAppData=${encodeURIComponent(note)}&tgWebAppVersion=8.0`);
+      await p8.waitForSelector("#gate");
+      await p8.waitForFunction(() => /One step in Telegram/.test(document.querySelector("#gate").textContent), null, { timeout: 5000 });
+      if ((await p8.locator('#gate a[href="https://t.me/TradeVoiceNGbot?start=link"]').count()) != 1) throw new Error("no way back to the chat");
+      await c7.close();
+    });
     await check("Phone-call codes (Termii voice): the code screen says we are calling, with the code box", async () => {
       const c5 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-NG" });
       await c5.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());

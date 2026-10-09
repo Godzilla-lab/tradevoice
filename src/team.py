@@ -100,6 +100,8 @@ def describe(r):
                           "alert": "Team alert not sent (no WhatsApp in 24 h, no template)"}.get(e, f"Not sent: {e}")
     elif k == "wa_flood":
         return "errors", "Too many messages from one number in a minute: the rest were ignored"
+    elif k == "live_guess":
+        cat, words = "voice", "Live talk: N-ATLaS read the words before the final ones came (time saved)"
     elif k in ("natlas_down", "natlas_up"):
         part, _, why = e.partition(" ")
         name = "N-ATLaS hearing" if part == "natlas_asr" else "N-ATLaS"

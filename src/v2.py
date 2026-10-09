@@ -187,7 +187,7 @@ def code_start(b: CodeStart, request: Request):
         sent = telegram.send_code(phone, login["code"])
         via = "telegram" if sent else via
     if not sent and not bot and ch["sms"]:
-        import sms        # everyone else: a text through Termii, or a call that reads the code out (src/sms.py)
+        import sms        # everyone else: a call that reads the code out (Termii, src/sms.py), or a text
         way = sms.send_code(phone, login["code"])
         sent, via = bool(way), way or via
     demo = accounts.demo_mode()
@@ -391,8 +391,10 @@ def logout(request: Request):
 @router.get("/api/v2/me")
 def me(request: Request):
     phone = _phone(request)
-    if not _has_account(phone):
-        return JSONResponse({"error": "no account"}, 401)   # old guest books: sign up first
+    import telegram
+    if not _has_account(phone) and not telegram.chat_of(phone):
+        return JSONResponse({"error": "no account"}, 401)   # old guest books: sign up first (a Telegram trader opened
+        # their book from the bot: logged in by Telegram, no password yet; the website asks for one, once, by a code)
     with _lock, _db() as c:
         c.execute("UPDATE sessions SET last_used=? WHERE token_hash=?",
                   (_now().isoformat(), accounts._h(request.cookies.get(COOKIE, ""))))

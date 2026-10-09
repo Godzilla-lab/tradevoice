@@ -211,6 +211,27 @@ def _person(name):
     return None if not name or str(name).strip().lower() in NOT_A_PERSON else name
 
 
+def _ask_call(question, vocab):
+    prompt = (QUERY_PROMPT.replace("__ITEMS__", ", ".join((vocab or {}).get("items") or []) or "none")
+              .replace("__NAMES__", ", ".join((vocab or {}).get("names") or []) or "none"))
+    return ([{"role": "system", "content": prompt}, {"role": "user", "content": question}],
+            {"max_tokens": 300, "timeout": int(os.getenv("LLM_TIMEOUT", "20"))})
+
+
+def _rules_enough(offline):
+    return offline["kind"] == "query" and bool(offline.get("_said_what") or offline.get("customer") or offline.get("item"))
+
+
+def prefetch(question, vocab=None):
+    """Live talk: start the AI reading this question now (llm.early), while Intron finishes the final words. Only
+    when parse() would ask it (the word lists can't tell what is asked). True when it started."""
+    import llm
+    if not llm.available() or len(fold(question or "").split()) < 2 or _rules_enough(parse_offline(question, vocab)):
+        return False
+    messages, kw = _ask_call(question, vocab)
+    return llm.early(messages, **kw)
+
+
 def parse(question, vocab=None):
     """Question -> search dict. AI when available (better with mixed/other phrasing), else word lists."""
     offline = parse_offline(question, vocab)
@@ -218,15 +239,11 @@ def parse(question, vocab=None):
 
     if not llm.available():
         return offline, "rules"
-    if offline["kind"] == "query" and (offline.get("_said_what") or offline.get("customer") or offline.get("item")):
+    if _rules_enough(offline):
         return offline, "rules"   # the words already say what is asked: no 5-second model call (the answer is the same)
     try:
-        import llm
-
-        prompt = (QUERY_PROMPT.replace("__ITEMS__", ", ".join((vocab or {}).get("items") or []) or "none")
-                  .replace("__NAMES__", ", ".join((vocab or {}).get("names") or []) or "none"))
-        out, model = llm.chat([{"role": "system", "content": prompt}, {"role": "user", "content": question}],
-                              max_tokens=300, timeout=int(os.getenv("LLM_TIMEOUT", "20")))
+        messages, kw = _ask_call(question, vocab)
+        out, model = llm.chat(messages, **kw)   # waits for an early start of this same call (live talk)
         q = _parse_json(out)
         # the word lists know a book question when they see one ("Who owes me?"): N-ATLaS sometimes labels it
         # "other" (live test 2 Oct), which sent it down the record path ("How much was it?")

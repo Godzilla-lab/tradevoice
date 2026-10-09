@@ -169,7 +169,9 @@ PATCHES = [
     ("pin lockout", 'Too many tries. Wait ${s}s, or use WhatsApp.', 'Too many tries. Wait ${s}s.'),
     ("pin forgot", 'Forgot PIN? Get back in with WhatsApp', 'Forgot PIN?'),
     ("welcome line", 'A phone number and a 6-digit code. No long forms.',
-     '${CH.nocode?"A phone number and a password. No long forms.":"A phone number and a 6-digit code. No long forms."}'),
+     '${CH.nocode?"A phone number and a password. No long forms.":"A phone number and a 6-digit code. No long forms."}'
+     '${CH.tg&&!CH.wa?`</p><p class="fine">TradeVoice is on Telegram too: <a href="https://t.me/${CH.tg}" target="_blank" '
+     'rel="noopener" style="text-decoration:underline">@${CH.tg}</a>. WhatsApp is coming soon.`:""}'),
     ("sign-up why", 'We use it to keep your book safe and to send your code on WhatsApp.',
      '${CH.nocode?"We use it to keep your book safe. It is how you log in.":CH.codes=="sms"?"We use it to keep your '
      'book safe and to "+(CH.call?"call you with your code.":"send your code by text message.")'

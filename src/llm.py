@@ -10,10 +10,13 @@ and remember the first one that works. Override with LLM_MODELS / VISION_MODELS 
 Vision order favours multilingual models (Gemma 4, Qwen 3.5) for Yoruba/Igbo/Hausa pages; Llama 3.2 Vision is last
 because Meta supports English only for image+text. See docs/RESEARCH.md → "Nigerian languages".
 """
+import concurrent.futures
 import contextlib
 import contextvars
+import json
 import os
 import re
+import threading
 import time
 
 NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
@@ -182,8 +185,62 @@ def budget(seconds):
         _budget_end.reset(token)
 
 
+_EARLY, _EARLY_LOCK = {}, threading.Lock()   # the same call -> (when, Future): started early (live talk)
+CHAT_DEFAULTS = {"kind": "llm", "max_tokens": 400, "temperature": 0.0, "models": None, "shots": None, "schema": None,
+                 "long": False}
+
+
+def _early_key(messages, kw):
+    return json.dumps([messages, {k: kw.get(k, v) for k, v in CHAT_DEFAULTS.items()}], sort_keys=True, default=str)
+
+
+def early(messages, **kw):
+    """Start this exact chat() now, in the background. Live talk: the trader stopped talking and Intron needs a few
+    seconds more for the final words, so the AI starts on the words heard so far. A chat() with the same messages and
+    settings in the next 60 s waits for this one instead of asking again; different final words ask afresh. Only
+    for calls that read (records, questions): nothing is saved from it. True when it started."""
+    key, fut = _early_key(messages, kw), concurrent.futures.Future()
+    with _EARLY_LOCK:
+        for k in [k for k, (at, _) in _EARLY.items() if time.time() - at > 60]:
+            _EARLY.pop(k, None)
+        if key in _EARLY:
+            return False
+        _EARLY[key] = (time.time(), fut)
+    import ledger
+    book = ledger._BOOK.get()   # the same trader's book in the background thread (who the call is logged for)
+
+    def run():
+        if book:
+            ledger._BOOK.set(book)
+        try:
+            with budget(float(os.getenv("ASK_AI_SECONDS", "20"))):
+                fut.set_result(chat(messages, early_ok=False, **kw))
+        except Exception as e:  # noqa: BLE001  (the real call gets the same error and falls back as it would)
+            fut.set_exception(e)
+    threading.Thread(target=run, daemon=True).start()
+    return True
+
+
+def _from_early(messages, kw):
+    with _EARLY_LOCK:
+        hit = _EARLY.pop(_early_key(messages, kw), None)
+    if not hit or time.time() - hit[0] > 60:
+        return None
+    end = _budget_end.get()
+    try:
+        out = hit[1].result(timeout=max(1.0, end - time.time()) if end else 30)
+    except concurrent.futures.TimeoutError:
+        raise TimeoutError("the early start of this AI call did not finish in time") from None
+    try:
+        import events
+        events.log("live_guess", engine="used")   # /team: live talk started the AI before the final words came
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, models=None, deadline=None, retries=0,
-         shots=None, schema=None, long=False):
+         shots=None, schema=None, long=False, early_ok=True):
     """Return (text, model_used). Tries each configured model (or `models`) until one answers.
     `deadline` (seconds, default LLM_DEADLINE=30) caps the TOTAL wait across all models, so a live demo never
     hangs: when it runs out the caller falls back to the offline rules.
@@ -191,7 +248,13 @@ def chat(messages, kind="llm", max_tokens=400, temperature=0.0, timeout=60, mode
     examples, independent AfroBench evaluation; the big cloud models don't need the extra tokens).
     `schema`: a JSON schema N-ATLaS must follow (vLLM guided decoding: always valid JSON and valid tool names);
     other models just get the prompt, and the caller checks what comes back.
-    `long`: a long answer (a whole list): N-ATLaS gets `timeout`, not the shorter NATLAS_TIMEOUT."""
+    `long`: a long answer (a whole list): N-ATLaS gets `timeout`, not the shorter NATLAS_TIMEOUT.
+    `early_ok`: the same call started early (early()) is waited for instead of asked again."""
+    if early_ok and _EARLY:
+        got = _from_early(messages, {"kind": kind, "max_tokens": max_tokens, "temperature": temperature,
+                                     "models": models, "shots": shots, "schema": schema, "long": long})
+        if got is not None:
+            return got
     pinned = models is not None
     models = list(models or (VISION_MODELS if kind == "vision" else LLM_MODELS))
     if kind == "llm" and natlas_on() and not pinned and "natlas" not in models:

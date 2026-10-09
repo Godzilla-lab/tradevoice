@@ -57,6 +57,7 @@ def reset(env=None, down=(), models=("cloud/a", "cloud/b")):
     REPLY.clear()
     llm._working.clear()
     llm._resting.clear()
+    llm._EARLY.clear()
     llm.LLM_MODELS[:] = list(models)
     for k in ("NVIDIA_API_KEY", "NATLAS_URL", "LOCAL_LLM_URL"):
         os.environ.pop(k, None)
@@ -207,6 +208,64 @@ REPLY["natlas"] = json.dumps({"kind": "other", "what": "owed_to_me", "customer":
 q, _ = askbook.parse("Who owes me?")
 check("'Who owes me?' stays a book question even when N-ATLaS says 'other'", q["kind"] == "query"
       and q["what"] == "owed_to_me")
+
+# 10c. live talk: the AI starts on the words heard so far while Intron finishes the final words (llm.early)
+import threading as _th  # noqa: E402
+
+import askbook  # noqa: E402
+import converse  # noqa: E402
+
+reset({"NATLAS_URL": "http://natlas/v1"})
+said = "Chinedu collected goods worth 30k"   # the rules can't tell the kind for sure: N-ATLaS reads it
+REPLY["natlas"] = json.dumps({"type": "credit_sale", "customer": "Chinedu", "amount": 30000, "item": "goods",
+                              "confidence": 0.9})
+gate = _th.Event()
+_real_client = llm._client
+
+
+def _slow_client(kind, timeout, retries=0, model=None):   # N-ATLaS takes a moment
+    c = _real_client(kind, timeout, retries, model)
+    create = c.chat.completions.create
+    return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+        create=lambda **kw: (gate.wait(3), create(**kw))[1])))
+
+
+llm._client = _slow_client
+started = converse.prefetch(said)
+gate.set()
+rec, meta = extract.extract(said, fast=True)
+llm._client = _real_client
+check("live talk: when you stop, N-ATLaS starts reading the words already heard (no wait for Intron's final words)",
+      started and rec["amount"] == 30000 and rec["customer"] == "Chinedu" and rec["type"] == "credit_sale")
+check("…the final words are the same: the reply uses that reading, N-ATLaS is not asked twice",
+      len([c for c in CALLS if c[0] == "natlas"]) == 1 and llm.is_natlas(meta["engine"]))
+reset({"NATLAS_URL": "http://natlas/v1"})
+REPLY["natlas"] = json.dumps({"type": "credit_sale", "customer": "Chinedu", "amount": 40000, "confidence": 0.9})
+converse.prefetch(said)
+_time.sleep(0.3)
+rec, meta = extract.extract(said.replace("30k", "40k"), fast=True)
+check("…final words differ (40k, not 30k): read again from the final words, the early reading is not used",
+      len([c for c in CALLS if c[0] == "natlas"]) == 2 and CALLS[-1][1]["messages"][-1]["content"].endswith("40k")
+      and rec["amount"] == 40000)
+reset({"NATLAS_URL": "http://natlas/v1"})
+skipped = [extract.prefetch(x) for x in ("Who owes me the most?", "yes", "Ada", "I sold rice 5000 cash today")]
+check("…no early record reading for a question, yes, a short answer, or a record the rules read fully",
+      skipped == [False, False, False, False] and not CALLS)
+reset({"NATLAS_URL": "http://natlas/v1"})
+REPLY["natlas"] = json.dumps({"kind": "query", "what": "sold", "period": "this_month"})
+q_said = "How market dey go this month?"
+started = converse.prefetch(q_said)
+_time.sleep(0.3)
+q, engine = askbook.parse(q_said)
+check("…a question the word lists can't place: its reading starts early too, and is used (one call)",
+      started and len(CALLS) == 1 and engine.startswith("llm:natlas"))
+reset({"NATLAS_URL": "http://natlas/v1"}, down={"natlas"})
+converse.prefetch(said)
+_time.sleep(0.3)
+rec, meta = extract.extract(said, fast=True)
+check("…N-ATLaS down during the early reading: the rules answer, as they would have (never a crash)",
+      meta["engine"].startswith("rules") and rec["amount"] == 30000)
+reset()
 
 # 11. N-ATLaS speech: right model per language, loops and silence rejected, Intron/Spitch not used as backups
 import asr  # noqa: E402

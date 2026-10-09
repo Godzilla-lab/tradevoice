@@ -62,15 +62,15 @@ async def fake(ws):
                                       "message": "insufficient credits balance"}))
             return
         await ws.send(json.dumps({"message_type": "SESSION_CREATED", "session_id": "s1", "credit_balance": 9}))
-        got = 0
+        got, pieces = 0, 0
         async for raw in ws:
             m = json.loads(raw)
             if m["message_type"] == "INPUT_AUDIO_CHUNK":
                 n = len(base64.b64decode(m["audio_base_64"]))
                 SEEN["chunks"].append(n)
-                got += n
+                got, pieces = got + n, pieces + 1
                 await ws.send(json.dumps({"message_type": "AUDIO_CHUNK_ACK", "chunk_id": len(SEEN["chunks"])}))
-                if len(SEEN["chunks"]) == 2:
+                if pieces == 2:   # the words so far, after this connection's 2nd piece
                     await ws.send(json.dumps({"message_type": "PARTIAL_TRANSCRIPT", "transcript": "Mama Ngozi took"}))
             elif m["message_type"] == "COMMIT":
                 if not got:
@@ -236,6 +236,22 @@ def live_turn(headers=None, wait=0.3):
             time.sleep(0.05)
 
 
+# when you stop, the AI starts on the words heard so far (Intron is still finishing the final words)
+early, real_prefetch = [], web.converse.prefetch
+web.converse.prefetch = lambda words, vocab=None: early.append((words, web.ledger.book_path()))
+with c.websocket_connect("/api/live/hear?lang=English&consent=yes", headers=LOGGED_IN) as ws:
+    for _ in range(5):
+        ws.send_bytes(b"\1\0" * 1600)
+    ws.receive_json()                          # the partial words
+    ws.send_text(json.dumps({"type": "commit"}))
+    ws.receive_json()                          # the final words
+    end = time.time() + 3
+    while time.time() < end and not early:
+        time.sleep(0.05)
+web.converse.prefetch = real_prefetch
+check("you stop: the AI starts on the words heard so far, in your own book, before Intron's final words come",
+      early and early[0][0] == "Mama Ngozi took" and YES_PHONE in early[0][1], early)
+kept.clear()
 live_turn(LOGGED_IN, wait=5)
 check("yes to improving (the real consent, for the logged-in trader): the live audio and the words heard are kept",
       kept and kept[0][0] == 3 * 3200 and kept[0][2] == {"text": "Mama Ngozi took rice 5000 on credit"}
