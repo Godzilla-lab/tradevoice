@@ -66,20 +66,14 @@ def sheet_layers(shot, base, name, clear=()):
     top = sheet_top(up)
     save(dim_map(under, up, top - 2), name + "_dim", y=0, h=under.height)
     sheet = up.crop((0, top - 3 * S, up.width, up.height)).convert("RGBA")
-    # the corners above the rounded top: transparent (they were the dimmed screen)
-    px = sheet.load()
+    # the rounded top (radius 24 px, the app's --r3), drawn 4x larger and scaled down for clean edges; above it: clear
     w, h = sheet.size
-    for y in range(0, 40 * S):
-        for x in list(range(0, 40 * S)) + list(range(w - 40 * S, w)):
-            r, g, b, _ = px[x, y]
-            # how close to the sheet colour this pixel is: 1 = sheet, 0 = backdrop
-            d = (r + g + b) / 3
-            t = max(0.0, min(1.0, (d - 160) / (246 - 160)))
-            px[x, y] = (247, 246, 243, int(255 * t))
-        for x in range(40 * S, w - 40 * S):
-            r, g, b, _ = px[x, y]
-            if (r + g + b) / 3 < 200:   # the strip above the edge
-                px[x, y] = (247, 246, 243, 0)
+    big = Image.new("L", (w * 4, 120 * S * 4), 0)
+    ImageDraw.Draw(big).rounded_rectangle([0, 3 * S * 4, w * 4 - 1, 120 * S * 4 + 400], radius=24 * S * 4, fill=255)
+    top_mask = big.resize((w, 120 * S), Image.LANCZOS)
+    alpha = Image.new("L", (w, h), 255)
+    alpha.paste(top_mask, (0, 0))
+    sheet.putalpha(alpha)
     draw = ImageDraw.Draw(sheet)
     for (x0, y0, x1, y1) in clear:   # parts the film draws itself, live (the status pill, the words)
         draw.rectangle([x0 * S, (y0 * S) - (top - 3 * S), x1 * S, (y1 * S) - (top - 3 * S)], fill=CANVAS + (255,))
