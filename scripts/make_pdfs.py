@@ -2,6 +2,7 @@
 
     pip install markdown            (once; a laptop tool, not needed on the server)
     python scripts/make_pdfs.py     -> docs/naic/pdf/*.pdf
+    python scripts/make_pdfs.py evidence answers      only the PDFs whose names contain one of these words
 
 Makes: N-ATLaS integration evidence, technical documentation, team profile, validation write-up (the numbers page
 comes from deploy/server/validation_report.sh: open it and Save as PDF), and the video script for the team.
@@ -17,6 +18,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "docs", "naic", "pdf")
 DOCS = [   # (markdown, pdf name, title on the page)
     ("docs/naic/NATLAS_INTEGRATION.md", "TradeVoice-NATLAS-integration.pdf", "N-ATLaS integration evidence"),
+    ("docs/naic/NATLAS_EVIDENCE.md", "TradeVoice-NATLAS-evidence.pdf", "N-ATLaS integration: evidence artefacts"),
+    ("docs/naic/FORM_ANSWERS.md", "TradeVoice-NAIC-form-answers.pdf", "Form answers"),
     ("docs/TECHNICAL.md", "TradeVoice-technical-documentation.pdf", "Technical documentation"),
     ("docs/naic/VALIDATION.md", "TradeVoice-validation-writeup.pdf", "Real-world validation"),
     ("docs/naic/TEAM_PROFILE.md", "TradeVoice-team-profile.pdf", "Team profile"),
@@ -31,7 +34,7 @@ table { border-collapse: collapse; width: 100%; margin: 6pt 0; font-size: 9.5pt;
 h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
 th, td { border: 1px solid #e4e2dc; padding: 4pt 6pt; text-align: left; vertical-align: top; } th { background: #f4f3ef; }
 code { font: 9pt Menlo, Consolas, monospace; background: #f4f3ef; padding: 0 2pt; border-radius: 2pt; }
-pre { background: #f4f3ef; padding: 8pt; border-radius: 4pt; font-size: 8pt; white-space: pre; overflow: hidden; page-break-inside: avoid; }
+pre { background: #f4f3ef; padding: 8pt; border-radius: 4pt; font-size: 8pt; white-space: pre-wrap; overflow-wrap: anywhere; page-break-inside: avoid; }
 pre code { background: none; padding: 0; } .brand { color: #5f5f6b; font-size: 9pt; margin-bottom: 10pt; }
 """
 
@@ -93,7 +96,10 @@ def main():
     npm_root = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True).stdout.strip()
     env = dict(os.environ, NODE_PATH=os.environ.get("NODE_PATH") or npm_root)
     made = 0
+    only = [w.lower() for w in sys.argv[1:]]
     for src, name, title in DOCS:
+        if only and not any(w in name.lower() for w in only):
+            continue
         path = os.path.join(ROOT, src)
         if not os.path.exists(path):
             print(f"skipped (not written yet): {src}")
