@@ -99,6 +99,9 @@ class FakeWS:
         self.key = key
 
     async def recv(self):
+        if BUSY["on"]:
+            return json.dumps({"message_type": "RESOURCE_EXHAUSTED",
+                               "message": "Required language not available for this session, please wait 30 seconds"})
         if self.key in (A,):
             return json.dumps({"message_type": "QUOTA_EXCEEDED", "message": "credit exhausted for this access-key"})
         return json.dumps({"message_type": "SESSION_CREATED", "credit_balance": 980 if self.key == B else 450})
@@ -134,6 +137,7 @@ class FakeLib:
 
 
 intron_live._websockets = lambda: FakeLib
+BUSY = {"on": False}
 
 
 def main():
@@ -201,6 +205,24 @@ def main():
         os.environ["INTRON_API_KEY_3"] = A
         pf_warn = preflight.intron_hearing()
         os.environ.pop("INTRON_API_KEY_3")
+        # 8. Intron busy ("language not available, please wait 30 seconds"): not a key problem, no key rests
+        intron_keys.reset()
+        ALERTS.clear()
+        intron_live._DOWN["until"] = 0
+        os.environ.update(INTRON_API_KEY=B, PREFLIGHT_INTRON_WAIT="0")
+        BUSY["on"] = True
+        try:
+            asyncio.run(intron_live._connect("wss://fake/stt", 1024))
+            busy_err = None
+        except RuntimeError as e:
+            busy_err = str(e)
+        settle()
+        busy_rest = [k["state"] for k in intron_keys.states()]
+        busy_alerts = list(ALERTS)
+        busy_live = intron_live.hearing_on()
+        pf_busy = preflight.intron_hearing()
+        BUSY["on"] = False
+        os.environ["INTRON_API_KEY"] = A
     text = out.getvalue()
     print(text)
     check("voice: key 1 refused (no credit), key 2 makes the reply at once", *check_voice[:1], check_voice)
@@ -226,6 +248,11 @@ def main():
           and "key 2: works, credit 980, spare" in pf_all[1] and "key 3: works, credit 450, spare" in pf_all[1], pf_all)
     check("preflight: a refused spare is a WARN that says top up", pf_warn[0] == "WARN" and "key 3: refused" in pf_warn[1],
           pf_warn)
+    check("Intron busy ('please wait 30 seconds'): this turn uses the other hearing, but no key rests and no alert",
+          busy_err and "please wait" in busy_err and not any(s.startswith("resting") for s in busy_rest)
+          and not busy_alerts and busy_live, (busy_err, busy_rest, busy_alerts, busy_live))
+    check("…preflight says it is busy, not a key problem (WARN, not FAIL)", pf_busy[0] == "WARN"
+          and "busy" in pf_busy[1] and "Not a key problem" in pf_busy[1], pf_busy)
     log = [r for r in events.rows(team=True) if r["kind"] == "intron_key"]
     check("/team's log has each switch (key named, no key)", log and all(r["engine"].startswith("key ") for r in log), log)
     every = text + json.dumps(ALERTS + alerts_1 + alerts_all) + json.dumps(log) + json.dumps([pf_all, pf_warn])

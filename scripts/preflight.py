@@ -115,13 +115,35 @@ def nvidia():
     if not os.getenv("NVIDIA_API_KEY"):
         return FAIL, "NVIDIA_API_KEY is not set: the Ask chat's main model and photo reading need it (keys.sh)"
     import llm
-    first = next((m for m in llm.LLM_MODELS if m not in ("natlas", "local")), None)
-    if not first:
+    import requests
+    models = [m for m in llm.LLM_MODELS if m not in ("natlas", "local")][:2]
+    if not models:
         return WARN, "no NVIDIA model in LLM_MODELS"
-    t0 = time.perf_counter()
-    text, used = llm.chat([{"role": "user", "content": "Reply with the single word OK."}], models=[first],
-                          max_tokens=20, timeout=60, deadline=60)
-    return (PASS, f"{used} answered in {_secs(t0)}") if text else (FAIL, f"{first} did not answer: key or credit?")
+    base = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").rstrip("/")
+    why_words = {401: "the key was refused: check NVIDIA_API_KEY at build.nvidia.com (keys.sh NVIDIA_API_KEY)",
+                 403: "the key may not use this model (or the free credits ran out): build.nvidia.com",
+                 402: "out of credits: build.nvidia.com", 404: "this model is not offered any more: change LLM_MODELS",
+                 429: "too many requests or the credits ran out: build.nvidia.com"}
+    results, answered = [], []
+    for m in models:   # each model on its own, with the real reason when it fails
+        t0 = time.perf_counter()
+        try:
+            r = requests.post(f"{base}/chat/completions", timeout=90,
+                              headers={"Authorization": f"Bearer {os.environ['NVIDIA_API_KEY']}"},
+                              json={"model": m, "messages": [{"role": "user", "content": "Reply with the single word OK."}],
+                                    "max_tokens": 20})
+        except requests.RequestException as e:
+            results.append(f"{m}: {plain(type(e).__name__)} (no answer in 90 s: the model is busy)")
+            continue
+        if r.status_code == 200:
+            answered.append(m)
+            results.append(f"{m} answered in {_secs(t0)}")
+        else:
+            results.append(f"{m}: HTTP {r.status_code}, {why_words.get(r.status_code, scrub(r.text[:80]))}")
+    detail = "; ".join(results)
+    if not answered:
+        return FAIL, detail
+    return (PASS if answered[0] == models[0] else WARN), detail
 
 
 def intron_voice():
@@ -156,21 +178,32 @@ def intron_hearing():
             return json.loads(await asyncio.wait_for(ws.recv(), 10))
     t0 = time.perf_counter()
     states = {k["key"]: k["state"] for k in intron_keys.states()}
-    parts, working = [], 0
+    parts, working, busy = [], 0, 0
     for label, value in intron_keys._keys():   # each key on its own (spares included), never printed
         try:
             first = asyncio.run(probe(value))
+            why = str(first.get("message") or first.get("message_type"))
+            if first.get("message_type") != "SESSION_CREATED" and intron_keys.temporary(why):
+                time.sleep(float(os.getenv("PREFLIGHT_INTRON_WAIT", "31")))   # Intron: "please wait 30 seconds"
+                first = asyncio.run(probe(value))
         except Exception as e:  # noqa: BLE001
             parts.append(f"{label}: {scrub(plain(type(e).__name__))}")
             continue
+        why = str(first.get("message") or first.get("message_type"))
         if first.get("message_type") == "SESSION_CREATED":
             working += 1
             credit = first.get("credit_balance", first.get("credits_balance"))
             role = "in use" if states.get(label) == "in use" else "spare"
             parts.append(f"{label}: works" + (f", credit {credit}" if credit is not None else "") + f", {role}")
+        elif intron_keys.temporary(why):
+            busy += 1
+            parts.append(f"{label}: accepted, but Intron's hearing is busy ({scrub(why)})")
         else:
-            parts.append(f"{label}: refused ({scrub(first.get('message') or first.get('message_type'))}; top up?)")
+            parts.append(f"{label}: refused ({scrub(why)}; top up?)")
     detail = f"{'; '.join(parts)} ({_secs(t0)})"
+    if not working and busy:
+        return WARN, (detail + ". Not a key problem: Intron is loading that language. Live talk uses the N-ATLaS "
+                      "hearing meanwhile; run this again in a few minutes")
     if not working:
         return FAIL, detail
     if working < len(parts):

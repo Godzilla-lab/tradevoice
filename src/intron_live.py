@@ -66,8 +66,9 @@ async def _connect(url, max_size):
             return ws, key
         why = str(first.get("message") or first.get("message_type"))
         await ws.close()
-        if not intron_keys.refusal(why) and first.get("message_type") not in ("AUTHENTICATION_ERROR", "QUOTA_EXCEEDED",
-                                                                              "RESOURCE_EXHAUSTED"):
+        keyed = intron_keys.refusal(why) or (first.get("message_type") in ("AUTHENTICATION_ERROR", "QUOTA_EXCEEDED")
+                                             and not intron_keys.temporary(why))
+        if not keyed:   # e.g. "language not available, please wait 30 seconds": the key is fine; this turn only
             break
         key = intron_keys.refused(key[0], why)
     _rest(why)

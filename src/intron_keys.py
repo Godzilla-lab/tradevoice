@@ -15,6 +15,9 @@ import time
 NAMES = ("INTRON_API_KEY", "INTRON_API_KEY_2", "INTRON_API_KEY_3")
 _REFUSAL = re.compile(r"\b(401|402|403)\b|auth|credit|quota|exhaust|insufficient|forbidden|unauthori|balance|"
                       r"permission|access.key|payment", re.I)
+# Intron's "busy" answers (a language model loading: "Required language not available for this session, please wait
+# 30 seconds") are not about the key: the key keeps working, only this turn uses the other hearing
+_TEMPORARY = re.compile(r"please wait|not available|try again|temporar|busy|overload|warming", re.I)
 _lock = threading.Lock()
 _rest = {}            # label -> (until, why)
 _told = {"last": None}   # the last state the team was told about (one alert per change)
@@ -53,9 +56,16 @@ def head(picked):
     return {"Authorization": f"Bearer {picked[1]}"}
 
 
+def temporary(what):
+    """Is this Intron saying "busy, try again soon" (not a refusal of the key)?"""
+    return bool(_TEMPORARY.search(str(what or "")))
+
+
 def refusal(what):
-    """Does this status code or message mean Intron refused the key itself (auth, credit, quota)?"""
-    return bool(_REFUSAL.search(str(what or "")))
+    """Does this status code or message mean Intron refused the key itself (auth, credit, quota)? Never for a
+    temporary "please wait" answer."""
+    text = str(what or "")
+    return bool(_REFUSAL.search(text)) and not temporary(text)
 
 
 def _scrub(text):
