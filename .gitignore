@@ -14,3 +14,10 @@ backups/
 # speech A/B results (the words heard in test voice notes)
 speech_ab*.csv
 training/
+# the film (film/): installed packages, downloaded sounds and voice clips, captures and renders are made, not kept
+film/node_modules/
+film/assets/
+film/voices/
+film/shots/
+film/out/
+web/film-voices/

@@ -1,0 +1,141 @@
+{
+ "record": {
+  "type": "credit_sale",
+  "customer": "Iya Bisi",
+  "item": "rice",
+  "quantity": 2,
+  "unit": "bag",
+  "amount": 60000,
+  "due_date": "2026-10-16"
+ },
+ "note": "Made by film/make_lines.py from src/tts.py. Yoruba, Hausa and Igbo lines need the native-speaker check before the film is published.",
+ "lines": [
+  {
+   "id": "yo_ask",
+   "shot": "speak",
+   "language": "Yoruba",
+   "spitch_language": "yo",
+   "text": "Iya Bisi jẹ ọ́ ní sixty thousand naira, yóò san ní Friday. Ṣé kí n kọ ọ́ sílẹ̀?",
+   "subtitle": "Iya Bisi will pay you ₦60,000 on Friday. Should I save it?",
+   "voices": [
+    "sade",
+    "funmi"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "yo_saved",
+   "shot": "speak",
+   "language": "Yoruba",
+   "spitch_language": "yo",
+   "text": "Ó ti wọ ìwé.",
+   "subtitle": "It's in the book.",
+   "voices": [
+    "sade",
+    "funmi"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "four_en",
+   "shot": "four_voices",
+   "language": "English",
+   "spitch_language": "en",
+   "text": "Iya Bisi will pay you sixty thousand naira, on Friday.",
+   "subtitle": "Iya Bisi will pay you ₦60,000 on Friday.",
+   "voices": [
+    "lucy",
+    "lina"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "four_yo",
+   "shot": "four_voices",
+   "language": "Yoruba",
+   "spitch_language": "yo",
+   "text": "Iya Bisi jẹ ọ́ ní sixty thousand naira, yóò san ní Friday.",
+   "subtitle": "Iya Bisi will pay you ₦60,000 on Friday.",
+   "voices": [
+    "sade",
+    "funmi"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "four_ha",
+   "shot": "four_voices",
+   "language": "Hausa",
+   "spitch_language": "ha",
+   "text": "Iya Bisi ta ci bashin sixty thousand naira, za ta biya ranar Friday.",
+   "subtitle": "Iya Bisi will pay you ₦60,000 on Friday.",
+   "voices": [
+    "amina",
+    "zainab"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "four_ig",
+   "shot": "four_voices",
+   "language": "Igbo",
+   "spitch_language": "ig",
+   "text": "Iya Bisi ji gị ụgwọ sixty thousand naira, ọ ga-akwụ na Friday.",
+   "subtitle": "Iya Bisi will pay you ₦60,000 on Friday.",
+   "voices": [
+    "ngozi",
+    "amara"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "four_pcm",
+   "shot": "four_voices",
+   "language": "Pidgin",
+   "spitch_language": "en",
+   "text": "Iya Bisi go pay you sixty thousand naira, for Friday.",
+   "subtitle": "Iya Bisi will pay you ₦60,000 on Friday.",
+   "voices": [
+    "ufoma"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "tagline",
+   "shot": "end",
+   "language": "English",
+   "spitch_language": "en",
+   "text": "TradeVoice. Records that speak your language.",
+   "subtitle": "",
+   "voices": [
+    "lucy",
+    "lina"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  }
+ ]
+}
