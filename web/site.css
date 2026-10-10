@@ -3,3 +3,6 @@
 
 /* no dashes anywhere: the short line the design draws before each small heading ("—— Get the app") is not shown */
 .k:before{display:none}
+
+/* "Open the app" in the top bar stays on one line on a phone */
+.nav-cta{white-space:nowrap}

@@ -238,7 +238,8 @@ developer.
 | 6 Oct | N-ATLAS and WhatsApp ↔ web live (Modal kept warm); pilot starts |
 | 6–10 Oct | Pilot running: 50+ real interactions |
 | 8 Oct | Benchmark done |
-| 9 Oct | WhatsApp access not granted: web app + Telegram instead; video filmed on the web app |
+| 9 Oct | WhatsApp access not granted: web app + Telegram instead; video filmed on the web app. Sign-up codes by Termii phone call (voice route waiting for Termii; until then sign-up is number + password); Open my book in Telegram logs in at once; the privacy notice opens inside the app; safe without Modal (`NATLAS_MODE`) |
+| 10 Oct | Logo in the brand blue (app, website, icons); code freeze 18:00, tag `naic-submission` |
 | 10 Oct | All PDFs written; video edited |
 | 11 Oct | **Submit** |
 | 15–17 Oct | N-ATLAS integration check: keep everything running |

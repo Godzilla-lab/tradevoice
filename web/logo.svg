@@ -11,8 +11,8 @@
   </style>
   <defs>
     <linearGradient id="tvbg" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-      <stop offset="0" stop-color="#0E7A5A"/>
-      <stop offset="1" stop-color="#064A39"/>
+      <stop offset="0" stop-color="#3B4CE0"/>
+      <stop offset="1" stop-color="#2A36B8"/>
     </linearGradient>
       </defs>
   <!-- speech bubble: one continuous shape, tail included -->
@@ -29,9 +29,9 @@
   <rect x="412" y="246" width="200" height="344" rx="100" fill="#FBF8F1"/>
   <!-- rising bars, equal width, equal steps, shared baseline -->
   <g>
-    <rect class="bar b1" x="444" y="480" width="36" height="60" rx="11" fill="#5CC27A"/>
-    <rect class="bar b2" x="494" y="435" width="36" height="105" rx="11" fill="#26A062"/>
-    <rect class="bar b3" x="544" y="390" width="36" height="150" rx="11" fill="#0B6B4F"/>
+    <rect class="bar b1" x="444" y="480" width="36" height="60" rx="11" fill="#8C9BFF"/>
+    <rect class="bar b2" x="494" y="435" width="36" height="105" rx="11" fill="#5B6BEA"/>
+    <rect class="bar b3" x="544" y="390" width="36" height="150" rx="11" fill="#2A36B8"/>
   </g>
   <!-- stand: symmetric U + stem -->
   <path d="M 362 456 V 500 A 150 150 0 0 0 662 500 V 456" fill="none" stroke="#FBF8F1" stroke-width="40" stroke-linecap="round"/>
