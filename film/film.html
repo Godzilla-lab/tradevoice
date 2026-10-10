@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TradeVoice film</title>
+<!-- The film's stage: 1920x1080. film.js builds one paused GSAP timeline; render.cjs calls seek(t) for every frame.
+     Phone screens are layers cut from real captures of the app (capture.cjs, prep_shots.py). -->
+<link rel="stylesheet" href="node_modules/@fontsource-variable/inter/opsz.css">
+<link rel="stylesheet" href="node_modules/@fontsource/caveat/500.css">
+<link rel="stylesheet" href="node_modules/@fontsource/caveat/600.css">
+<style>
+:root{
+  --canvas:#F7F6F3; --paper:#EFE9DD; --ink:#17171B; --label2:#6B6B73; --accent:#3B4CE0; --accent-d:#8C9BFF;
+  --night:#0B0B0E; --night2:#9A9AA3; --pos:#12795A; --pen:#22306E; --fill:#EFEEEA;
+  --display:"Inter Variable", system-ui, sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--night)}
+body{font-family:var(--display);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--canvas);perspective:2600px}
+.shot{position:absolute;inset:0;visibility:hidden;overflow:hidden}
+.cam{position:absolute;inset:0;transform-origin:50% 50%}
+.dark{background:radial-gradient(1400px 900px at 50% 38%,#191A26 0%,#0E0E13 52%,#0A0A0D 100%);color:#fff}
+.light{background:radial-gradient(1300px 950px at 64% 44%,#FFFFFF 0%,#F8F7F4 48%,#EEEBE4 100%);color:var(--ink)}
+
+/* type */
+.h{font-weight:600;font-variation-settings:"opsz" 32;letter-spacing:-.032em;line-height:1.04}
+.h.xl{font-size:176px}.h.l{font-size:132px}.h.m{font-size:96px}.h.s{font-size:72px}
+.sub2{font-weight:450;font-variation-settings:"opsz" 28;letter-spacing:-.018em;color:var(--label2)}
+.eyebrow{font-weight:600;font-variation-settings:"opsz" 20;font-size:30px;letter-spacing:-.005em;color:var(--accent)}
+.center{position:absolute;left:0;right:0;text-align:center}
+.abs{position:absolute}
+.mask-line{overflow:clip}
+
+/* subtitles: burned in, calm, always readable */
+#subs{position:absolute;left:180px;right:180px;bottom:58px;text-align:center;z-index:50;pointer-events:none}
+#subs span{display:inline-block;max-width:1240px;font-size:38px;font-weight:500;font-variation-settings:"opsz" 22;
+  letter-spacing:-.012em;line-height:1.28;color:#fff;padding:10px 26px 12px;border-radius:18px;
+  background:rgba(14,14,18,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);opacity:0}
+
+/* grain: a whisper, so gradients never band */
+#grain{position:absolute;inset:-64px;z-index:60;pointer-events:none;opacity:.055;mix-blend-mode:overlay;background-repeat:repeat}
+#vignette{position:absolute;inset:0;z-index:59;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 58%,rgba(0,0,0,.10) 100%)}
+
+/* the phone: plain and generic (no brand's device) */
+.phone{position:absolute;width:418px;height:916px;border-radius:72px;background:linear-gradient(145deg,#2a2a30,#0d0d10 45%,#1d1d22);
+  box-shadow:0 0 0 1.5px #3a3a42 inset,0 2px 1px rgba(255,255,255,.08) inset,0 70px 120px -40px rgba(20,20,40,.45),0 30px 60px -30px rgba(20,20,40,.35);
+  transform-style:preserve-3d;transform-origin:50% 50%}
+.phone:before{content:"";position:absolute;inset:3px;border-radius:69px;border:1px solid rgba(255,255,255,.06)}
+.phone .btn-side{position:absolute;right:-3px;top:210px;width:4px;height:96px;border-radius:2px;background:#26262c}
+.phone .btn-side.l1{left:-3px;right:auto;top:180px;height:56px}.phone .btn-side.l2{left:-3px;right:auto;top:250px;height:56px}
+.screen{position:absolute;left:14px;top:14px;width:390px;height:888px;border-radius:58px;overflow:hidden;background:var(--canvas);isolation:isolate}
+.statusbar{position:absolute;left:0;right:0;top:0;height:44px;display:flex;align-items:center;justify-content:space-between;
+  padding:4px 30px 0 34px;font-size:15px;font-weight:600;font-variation-settings:"opsz" 16;letter-spacing:-.01em;color:#111;z-index:5}
+.statusbar svg{display:block}
+.island{position:absolute;top:11px;left:50%;width:104px;height:30px;margin-left:-52px;border-radius:15px;background:#000;z-index:6}
+.app{position:absolute;left:0;top:44px;width:390px;height:844px;overflow:hidden;font-family:"Inter Variable",system-ui,sans-serif;font-variation-settings:"opsz" 14;
+  --accent:#3B4CE0;--canvas:#F7F6F3;--fill:#EFEEEA;--label:#17171B;--label2:#6B6B73;--card:#fff;--pill:999px;--s2:8px;--s3:12px;--s4:16px;--s6:32px;--d1:.15s;--d2:.3s;--d3:.5s}
+.app img{position:absolute;left:0;width:390px;display:block;user-select:none}
+.layer{position:absolute;left:0;top:0;width:390px;height:844px}
+.ripple{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(59,76,224,.28);opacity:0;z-index:20}
+.homebar{position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#111;opacity:.85;z-index:7}
+/* the live-talk parts the film draws itself, with the app's own CSS (ORB_CSS, injected from web/live.js) */
+.app .tvc{position:absolute;inset:0;min-height:0;padding:0;display:block}
+.live .tvc-pill{position:absolute;top:40px;left:50%;transform:translateX(-50%)}
+.live .orbwrap{position:absolute;left:95px;top:156px;width:184px;height:184px;display:grid;place-items:center}
+.live .tvc-say{position:absolute;left:24px;width:326px;top:425px;max-width:none;text-align:center;margin:0}
+.live .tvc-hint{position:absolute;left:24px;width:326px;top:484px;text-align:center}
+
+/* the notebook */
+.page{position:absolute;width:860px;height:1060px;background:#FBF8F1;border-radius:6px;
+  box-shadow:0 40px 80px -30px rgba(60,40,10,.35),0 2px 0 rgba(0,0,0,.04);
+  background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 77px,#C9D3E6 77px,#C9D3E6 79px);background-position:0 140px}
+.page:before{content:"";position:absolute;left:118px;top:0;bottom:0;width:2px;background:#E7A9A4}
+.page .hole{position:absolute;left:44px;width:26px;height:26px;border-radius:50%;background:var(--paper);box-shadow:inset 0 2px 4px rgba(0,0,0,.18)}
+.entry{position:absolute;left:150px;font-family:"Caveat",cursive;font-weight:500;font-size:60px;color:var(--pen);white-space:nowrap;letter-spacing:.005em}
+.entry b{font-weight:600}
+.strike{position:absolute;left:140px;overflow:visible}
+.photoframe{position:absolute;border:3px solid rgba(255,255,255,.9);width:70px;height:70px}
+
+/* the logo, built from web/logo.svg so each part can move */
+.logo{position:absolute;overflow:visible}
+.wordmark{font-weight:650;font-variation-settings:"opsz" 32;letter-spacing:-.045em;color:var(--ink);white-space:nowrap}
+
+/* numbers */
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.odo{display:inline-flex;overflow:clip;height:1.08em;line-height:1.08em;vertical-align:top}
+.odo .col{display:inline-flex;flex-direction:column}
+.bar{position:absolute;height:64px;border-radius:14px}
+</style>
+<script src="node_modules/gsap/dist/gsap.min.js"></script>
+<script src="node_modules/gsap/dist/SplitText.min.js"></script>
+<script src="node_modules/gsap/dist/CustomEase.min.js"></script>
+<script src="node_modules/gsap/dist/MorphSVGPlugin.min.js"></script>
+</head>
+<body>
+<div id="stage">
+  <div id="vignette"></div>
+  <div id="grain"></div>
+  <div id="subs"><span></span></div>
+</div>
+<script src="film.js"></script>
+</body>
+</html>
