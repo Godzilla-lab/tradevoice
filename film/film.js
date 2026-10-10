@@ -482,11 +482,17 @@ let endLogo;
   tl.to(ph.el, { opacity: 1, y: 0, duration: SMOOTH.duration, ease: SMOOTH.ease }, tShot + 0.45);
   tl.to(dim, { opacity: 1, duration: 0.3 }, tShot + 0.9);
   tl.to(sh, { y: 0, duration: 0.55, ease: "sheet" }, tShot + 0.9); cue("sheet", tShot + 0.9);
-  // the rows of "4 lines found" appear one by one (masked), each with a tick
-  const rowY = [SY + 87, SY + 133, SY + 179, SY + 225, SY + 278];
-  const covers = rowY.slice(0, 4).map((y, i) => html(`<div class="abs" style="left:24px;width:342px;top:${y - 2}px;height:${(rowY[i + 1] || y + 50) - y}px;background:#F7F6F3;z-index:4"></div>`, app));
-  covers.forEach((c, i) => { tl.fromTo(c, { opacity: 1 }, { opacity: 0, duration: 0.25, ease: "power1.out" }, tShot + 1.5 + i * 0.22); cue("tick", tShot + 1.5 + i * 0.22, { gain: 0.3, pitch: i }); });
-  tl.set(covers, { opacity: 1 }, t0);
+  // the lines found appear one by one, top to bottom (a cover over the rows steps down), each with a tick
+  const rows = ((G.boxes || {}).scan_rows || []);
+  if (rows.length) {
+    const top0 = rows[0].y - 1, bottom = rows[rows.length - 1].y + rows[rows.length - 1].height + 1;
+    const cover = html(`<div class="abs" style="left:8px;width:374px;top:${top0}px;height:${bottom - top0}px;background:#F7F6F3;z-index:4"></div>`, app);
+    rows.forEach((r, i) => {
+      const tr = tShot + 1.45 + i * 0.24, nextTop = r.y + r.height + 1;
+      tl.to(cover, { top: nextTop, height: Math.max(0, bottom - nextTop), duration: 0.22, ease: "power2.out" }, tr);
+      cue("tick", tr, { gain: 0.3, pitch: i });
+    });
+  }
   const h1 = textBlock(s.cam, "h m abs", "Old pages<br>count too.", "left:150px;top:330px;width:900px");
   const h2 = textBlock(s.cam, "sub2 abs", "You check every line<br>before it is saved.", "left:150px;top:560px;width:900px;font-size:44px");
   gsap.set([h1, h2], { opacity: 0 });

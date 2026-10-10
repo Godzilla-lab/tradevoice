@@ -179,6 +179,7 @@ function wavSilence(sec = 0.4, rate = 16000) {
     await page.setInputFiles(".ov.on #pf", { name: "page.png", mimeType: "image/png", buffer: PNG });
     await page.waitForSelector(".ov.on .ln", { timeout: 10000 }); await sleep(700);
     await shot("scan"); await shot("scan_sheet", ".ov.on .in");
+    boxes.scan_rows = await page.$$eval(".ov.on .ln", els => els.map(e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
     fs.writeFileSync(path.join(OUT, "boxes.json"), JSON.stringify(boxes, null, 1));
     console.log("boxes:", Object.keys(boxes).join(", "));
   } finally {
