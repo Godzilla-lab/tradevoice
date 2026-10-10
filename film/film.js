@@ -355,11 +355,11 @@ let endLogo;
   zoomIn(s.cam, t0);
   const title = textBlock(s.cam, "h l center", "Four voices.<br><span style='color:var(--night2)'>One book.</span>", "top:350px");
   const rt = rise(title, t0 + 0.15, { stagger: 0.06 });
-  sink(rt, t0 + BAR - 0.4);
+  sink(rt, t0 + BAR - 0.62);
   // the orb, in the app's dark colours, speaks each language
   const orbBox = html(`<div class="live filmorb" style="position:absolute;left:0;top:0;width:1920px;height:1080px;--accent:#8C9BFF;--fill:#212127;--label2:#9A9AA3;--d1:.15s;--d3:.5s"><div class="tvc" data-st="speak" style="position:absolute;inset:0"><div class="orbwrap" style="left:868px;top:150px;width:184px;height:184px;transform:scale(1.25)"><span class="tvc-orb"><b><u><i></i><i></i><i></i></u></b></span></div></div></div>`, s.cam);
   const orb = $(".tvc-orb", orbBox); gsap.set(orbBox, { opacity: 0 });
-  tl.to(orbBox, { opacity: 1, duration: 0.6, ease: "power1.out" }, t0 + BAR - 0.3);
+  tl.to(orbBox, { opacity: 1, duration: 0.6, ease: "power1.out" }, t0 + BAR - 0.18);
   let t = t0 + BAR;
   const placed = [];
   use.forEach((v, i) => {
@@ -377,6 +377,13 @@ let endLogo;
     if (i < use.length - 1) { sink(rn, tNext - 0.35, { by: "chars", stagger: 0.012 }); tl.to(words, { opacity: 0, y: -10, duration: 0.3, ease: "power2.in" }, tNext - 0.35); }
     t = tNext;
   });
+  // the bar left over: the last voice steps aside for the full list of what TradeVoice understands
+  if (s.end - t > 1.2) {
+    const lastName = $$(".h.xl.center", s.cam).pop(), lastWords = $$(".center", s.cam).pop();
+    tl.to([lastName, lastWords], { opacity: 0, y: -16, duration: 0.35, ease: "power2.in" }, t - 0.1);
+    const all = textBlock(s.cam, "h s center", "Understands English, Pidgin,<br>Yorùbá, Hausa and Igbo.", "top:470px;color:#fff");
+    rise(all, t + 0.2, { stagger: 0.035 });
+  }
   hooks.push(tt => {
     if (tt < s.start || tt > s.end) return;
     const on = placed.find(([tv, v]) => tt >= tv && tt <= tv + v.dur);

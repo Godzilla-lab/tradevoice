@@ -36,8 +36,17 @@ def download():
     return index
 
 
+def clipped(path):
+    import wave
+    with wave.open(path) as w:
+        x = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2")
+    return int((np.abs(x.astype(np.int32)) >= 32700).sum())
+
+
 def load(path):
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-f", "f32le", "-ac", "1", "-ar", str(SR), "-"],
+    # some takes come from Spitch with clipped peaks (sade: up to 88 samples): ffmpeg's declipper rebuilds them
+    fix = ["-af", "adeclip"] if clipped(path) else []
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, *fix, "-f", "f32le", "-ac", "1", "-ar", str(SR), "-"],
                          capture_output=True, check=True).stdout
     return np.frombuffer(raw, dtype=np.float32).astype(np.float64)
 
@@ -87,6 +96,7 @@ def main():
             f = alts[0]
         x = trim(load(os.path.join(RAW, f)))
         out = os.path.join(VO, lid + ".wav")
+        x = x / max(1.0, np.abs(x).max() / 0.89)     # headroom after the repair (sound.py sets the level)
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "f64le", "-ar", str(SR), "-ac", "1", "-i", "-", out],
                        input=x.astype("<f8").tobytes(), check=True)
         chosen[lid] = {"file": lid + ".wav", "take": f, "dur": round(len(x) / SR, 3), "env": envelope(x)}

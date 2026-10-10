@@ -496,13 +496,27 @@ def write_wav(path, x):
         w.writeframes((y * 32767).astype("<i2").tobytes())
 
 
+def measure(src):
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", src, "-af", "loudnorm=I=-14:TP=-1:LRA=20:print_format=json", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    return json.loads(re.findall(r"\{[^{}]*\}", r.stderr)[-1])
+
+
 def loudnorm(src, dst):
-    a = "loudnorm=I=-14:TP=-1:LRA=11:print_format=json"
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", src, "-af", a, "-f", "null", "-"], capture_output=True, text=True)
-    m = json.loads(re.findall(r"\{[^{}]*\}", r.stderr)[-1])
-    a2 = (f"loudnorm=I=-14:TP=-1:LRA=11:measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}:"
+    """-14 LUFS, -1 dBTP, with one steady gain (linear mode): first a limiter takes the few peaks that would go over
+    once the gain is applied, so ffmpeg never falls back to its pumping dynamic mode."""
+    m = measure(src)
+    gain = -14 - float(m["input_i"])
+    lim = os.path.join(OUT, "mix_lim.wav")
+    ceiling = 10 ** ((-1.8 - gain) / 20)
+    subprocess.run(["ffmpeg", "-hide_banner", "-v", "error", "-y", "-i", src, "-af",
+                    f"aresample=192000,alimiter=limit={min(1.0, ceiling):.5f}:attack=3:release=60:level=false,aresample={SR}",
+                    "-c:a", "pcm_s24le", lim], check=True)
+    m = measure(lim)
+    a2 = (f"loudnorm=I=-14:TP=-1:LRA=20:measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}:"
           f"measured_thresh={m['input_thresh']}:offset={m['target_offset']}:linear=true:print_format=json")
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-y", "-i", src, "-af", a2, "-ar", str(SR), dst], capture_output=True, text=True)
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-y", "-i", lim, "-af", a2, "-ar", str(SR), "-c:a", "pcm_s24le", dst],
+                       capture_output=True, text=True)
     m2 = json.loads(re.findall(r"\{[^{}]*\}", r.stderr)[-1])
     return m2.get("normalization_type"), m2.get("output_i"), m2.get("output_tp")
 
