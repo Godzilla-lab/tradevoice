@@ -108,6 +108,9 @@ def describe(r):
         if k == "natlas_down":
             return "errors", f"{name} stopped answering ({why or 'no answer'}): the backups took over"
         cat, words = "ai", f"{name} answering again"
+    elif k == "intron_key":
+        label, _, why = e.partition(": ")
+        return "errors", f"Intron {label or 'key'} refused ({why or 'credit or the key'}): the next key took over"
     elif k == "llm":
         if not r["ok"] and events.is_natlas(r):
             return "errors", "N-ATLaS didn't answer in time (a backup AI answered)"

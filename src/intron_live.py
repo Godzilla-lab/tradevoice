@@ -40,18 +40,53 @@ def _websockets():
 
 
 def hearing_on():
-    """Live talk hears with Intron when the key is set, LIVE_HEARING isn't "natlas" and Intron isn't resting."""
-    return (bool(os.getenv("INTRON_API_KEY")) and os.getenv("LIVE_HEARING", "intron") == "intron"
+    """Live talk hears with Intron when a key is set and not resting, LIVE_HEARING isn't "natlas" and Intron isn't
+    resting."""
+    import intron_keys
+    return (intron_keys.pick() is not None and os.getenv("LIVE_HEARING", "intron") == "intron"
             and _websockets() is not None and time.time() >= _DOWN["until"])
 
 
 def _head():
-    return {"Authorization": f"Bearer {os.environ['INTRON_API_KEY']}"}
+    import intron_keys
+    key = intron_keys.pick()
+    return intron_keys.head(key) if key else {}
+
+
+async def _connect(url, max_size):
+    """A WebSocket to Intron that has said SESSION_CREATED, and the key it used. A key Intron refuses (auth, credit,
+    quota) rests and the next key is tried at once (intron_keys.py). Raises RuntimeError(why) when none works."""
+    import intron_keys
+    key, why = intron_keys.pick(), "no Intron key left (all refused: credit or the key)"
+    while key:
+        ws = await _websockets().connect(url, additional_headers=intron_keys.head(key), open_timeout=8, max_size=max_size)
+        first = json.loads(await asyncio.wait_for(ws.recv(), 8))
+        if first.get("message_type") == "SESSION_CREATED":
+            intron_keys.ok(key[0])
+            return ws, key
+        why = str(first.get("message") or first.get("message_type"))
+        await ws.close()
+        if not intron_keys.refusal(why) and first.get("message_type") not in ("AUTHENTICATION_ERROR", "QUOTA_EXCEEDED",
+                                                                              "RESOURCE_EXHAUSTED"):
+            break
+        key = intron_keys.refused(key[0], why)
+    _rest(why)
+    raise RuntimeError(why)
 
 
 def _rest(why):
-    if any(w in why.lower() for w in ("auth", "credit", "quota", "permission", "access-key")):
+    """Every key refused: live talk rests 10 minutes (the old hearing is used meanwhile)."""
+    import intron_keys
+    if intron_keys.refusal(why) and not intron_keys.pick():
         _DOWN["until"], _DOWN["why"] = time.time() + 600, why[:200]
+
+
+def _refused_now(key, why):
+    """A refusal in the middle of a session: that key rests, the next turn uses the next key."""
+    import intron_keys
+    if key and intron_keys.refusal(why):
+        intron_keys.refused(key[0], why)
+    _rest(why)
 
 
 def _log(kind, ok, lang, ms=None, engine="intron-stream"):
@@ -74,19 +109,16 @@ async def relay_hearing(browser, lang, collect=False, on_commit=None):
     code = STT_LANG.get(lang, STT_LANG["English"])
     url = f"{STT_WS}?sample_rate=16000&bit_rate=16&num_channels=1&use_language_asr_input={code}"
     try:
-        intron = await ws_lib.connect(url, additional_headers=_head(), open_timeout=8, max_size=2 ** 22)
+        intron, key = await _connect(url, 2 ** 22)
+    except RuntimeError as e:   # Intron answered, but no key was accepted
+        await _send(browser, {"type": "error", "message": str(e)})
+        _log("hear", False, lang)
+        return got
     except Exception as e:  # noqa: BLE001
         await _send(browser, {"type": "error", "message": f"connect: {type(e).__name__}"})
         _log("hear", False, lang)
         return got
     try:
-        first = json.loads(await asyncio.wait_for(intron.recv(), 8))
-        if first.get("message_type") != "SESSION_CREATED":
-            why = str(first.get("message") or first.get("message_type"))
-            _rest(why)
-            await _send(browser, {"type": "error", "message": why})
-            _log("hear", False, lang)
-            return got
         state = {"buf": bytearray(), "committed_at": None, "done": False, "partial": ""}
 
         async def from_browser():
@@ -140,7 +172,7 @@ async def relay_hearing(browser, lang, collect=False, on_commit=None):
                     if "no data received" in why:          # nothing was said
                         await _send(browser, {"type": "final", "text": ""})
                         return
-                    _rest(why)
+                    _refused_now(key, why)
                     _log("hear", False, lang)
                     await _send(browser, {"type": "error", "message": why})
                     return
@@ -215,7 +247,9 @@ def _voice_lang(lang):
 
 
 def stream_ok():
-    return tts.backend() == "intron" and _websockets() is not None and time.time() >= _DOWN["until"]
+    import intron_keys
+    return (tts.backend() == "intron" and intron_keys.pick() is not None and _websockets() is not None
+            and time.time() >= _DOWN["until"])
 
 
 async def _open_voice(lang):
@@ -225,13 +259,7 @@ async def _open_voice(lang):
     accent = os.getenv(f"INTRON_ACCENT_{name.upper()}") or tts._GOOD_ACCENT.get(name) or accent
     url = (f"{TTS_WS}?voice_accent={accent}&voice_gender={os.getenv('INTRON_GENDER', 'female')}"
            f"&voice_language={code}&output_audio_format=wav")
-    ws = await _websockets().connect(url, additional_headers=_head(), open_timeout=8, max_size=2 ** 24)
-    first = json.loads(await asyncio.wait_for(ws.recv(), 8))
-    if first.get("message_type") != "SESSION_CREATED":
-        why = str(first.get("message") or first.get("message_type"))
-        _rest(why)
-        await ws.close()
-        raise RuntimeError(why)
+    ws, _ = await _connect(url, 2 ** 24)
     return ws
 
 

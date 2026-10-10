@@ -172,18 +172,27 @@ def _intron_transcribe(path, language, vocab=None):
     Bearer key, files <= 120 s, transcript in data.audio_transcript."""
     import requests
 
+    import intron_keys
+
     wav = to_wav16k(path, max_seconds=119) if shutil.which("ffmpeg") else None
     try:
-        with open(wav or path, "rb") as f:
-            name = os.path.basename(wav or path)
-            r = requests.post(INTRON_URL, headers={"Authorization": f"Bearer {os.environ['INTRON_API_KEY']}"},
-                              # general, not Intron's default telehealth (medical) post-processing, and no
-                              # Intron AI rewriting: a market note must never come back as a medical sentence
-                              data={"audio_file_name": name, "use_language_asr_input": INTRON_LANG.get(language, "pcm"),
-                                    "use_category": "file_category_general", "use_disable_llm_corrections": "TRUE"},
-                              files={"audio_file_blob": (name, f, "audio/wav")}, timeout=60)
-        if r.status_code in (401, 403):
-            raise RuntimeError("Intron: key rejected (check INTRON_API_KEY)")
+        key = intron_keys.pick()
+        while True:   # a key Intron refuses (credit, quota, auth) rests: the next key is tried at once
+            if not key:
+                raise RuntimeError("Intron: every key was refused (credit or the key: keys.sh INTRON_API_KEY_2)")
+            with open(wav or path, "rb") as f:
+                name = os.path.basename(wav or path)
+                r = requests.post(INTRON_URL, headers=intron_keys.head(key),
+                                  # general, not Intron's default telehealth (medical) post-processing, and no
+                                  # Intron AI rewriting: a market note must never come back as a medical sentence
+                                  data={"audio_file_name": name, "use_language_asr_input": INTRON_LANG.get(language, "pcm"),
+                                        "use_category": "file_category_general", "use_disable_llm_corrections": "TRUE"},
+                                  files={"audio_file_blob": (name, f, "audio/wav")}, timeout=60)
+            if r.status_code in (401, 402, 403) or (r.status_code == 429 and intron_keys.refusal(r.text[:200])):
+                key = intron_keys.refused(key[0], f"HTTP {r.status_code} {r.text[:120]}")
+                continue
+            intron_keys.ok(key[0])
+            break
         r.raise_for_status()
         text = (r.json().get("data") or {}).get("audio_transcript")
         if not isinstance(text, str):
@@ -216,7 +225,10 @@ class Down(RuntimeError):
 def down_backup_name():
     """Who hears voice notes while the N-ATLaS hearing server is down (None = nobody)."""
     name = (os.getenv("ASR_DOWN_BACKUP") or "intron").strip().lower()
-    key = {"intron": "INTRON_API_KEY", "spitch": "SPITCH_API_KEY"}.get(name)
+    if name == "intron":
+        import intron_keys
+        return name if intron_keys.available() else None
+    key = {"spitch": "SPITCH_API_KEY"}.get(name)
     return name if key and os.getenv(key) else None
 
 
@@ -340,14 +352,15 @@ def transcribe(path, language=None, vocab=None):
         import llm
 
         natlas = llm.natlas_hearing_on()
+        import intron_keys
         mode = (os.getenv("ASR_ENGINE") or ("natlas" if natlas else
-                                            "intron" if os.getenv("INTRON_API_KEY") else "local")).lower()
+                                            "intron" if intron_keys.available() else "local")).lower()
         clouds = {"natlas": (_natlas_transcribe, "NATLAS_ASR_URL"),
                   "spitch": (_spitch_transcribe, "SPITCH_API_KEY"), "intron": (_intron_transcribe, "INTRON_API_KEY")}
         chosen = mode.replace("-local", "")
         cloud_first = chosen in clouds and (not mode.endswith("-local") or engine == "omni")
         ready = [name for name, (_, key) in clouds.items()   # cloud engines with a key (N-ATLaS: unless switched off)
-                 if os.getenv(key) and (name != "natlas" or natlas)]
+                 if (os.getenv(key) or (name == "intron" and intron_keys.available())) and (name != "natlas" or natlas)]
         order = ([clouds[chosen][0]] if cloud_first and chosen in ready else []) + [_local_transcribe]
         if os.getenv("ASR_ONLY"):   # benchmarks: this engine alone, no fallback hiding its failures
             order = order[:1]

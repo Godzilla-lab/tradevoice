@@ -38,7 +38,9 @@ TEAM_WHATSAPP|no|Team numbers for alerts, digits, comma between them
 TEAM_PHONES|no|Team phone numbers (digits, comma between): their own testing is left out of the NAIC numbers
 ADMIN_TOKEN|yes|Password for the team dashboard (/team); press Enter on an empty one to make one for you
 PRIVACY_CONTACT|no|Email for privacy requests, shown on the privacy notice (/privacy): a team address, never a personal phone
-INTRON_API_KEY|yes|Intron key (voice replies)
+INTRON_API_KEY|yes|Intron key (voice replies, live talk)
+INTRON_API_KEY_2|yes|A second Intron key, a spare: used by itself when the first is refused or out of credit
+INTRON_API_KEY_3|yes|A third Intron key, a spare (optional)
 PAYSTACK_SECRET_KEY|yes|Paystack secret key (starts sk_test_ or sk_live_)
 PAYSTACK_EMAIL|no|Email Paystack puts on payments
 BACKUP_SUPABASE_URL|no|Supabase project link for backups (https://....supabase.co)
@@ -134,6 +136,9 @@ if s.get("natlas_mode") == "off":
 print("  WhatsApp:                   ", mark(s.get("whatsapp")))
 print("  sign-up codes:              ", "none: number + password" if not s.get("signup_code") else "on")
 print("  voice replies:              ", voice)
+n, ok = s.get("intron_keys") or 0, s.get("intron_keys_working") or 0
+if n:
+    print("  Intron keys:                ", f"{n} ({ok} working)", mark(ok > 0), "(a refused key rests; the next one is used)")
 print("  N-ATLaS kept awake 7am-8pm: ", "yes" if s.get("keep_awake") else "no (it sleeps after an hour; first voice note then waits 1-2 min)")
 '
 curl -sf http://127.0.0.1:8000/api/status | "$PY" -c "$STATUS_PY" || echo " ❌ the app did not come back: sudo journalctl -u tradevoice -n 30"

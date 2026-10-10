@@ -125,7 +125,8 @@ def nvidia():
 
 
 def intron_voice():
-    if not os.getenv("INTRON_API_KEY"):
+    import intron_keys
+    if not intron_keys.available():
         return FAIL, "INTRON_API_KEY is not set: no spoken replies (keys.sh INTRON_API_KEY)"
     import tts
     t0 = time.perf_counter()
@@ -141,23 +142,40 @@ def intron_voice():
 
 
 def intron_hearing():
+    import intron_keys
     import intron_live
-    if not os.getenv("INTRON_API_KEY"):
+    if not intron_keys.available():
         return FAIL, "INTRON_API_KEY is not set: live talk can't hear"
     ws_lib = intron_live._websockets()
     if not ws_lib:
         return FAIL, "the websockets package is missing: sudo bash .../update.sh installs it"
 
-    async def probe():
+    async def probe(value):
         url = f"{intron_live.STT_WS}?sample_rate=16000&bit_rate=16&num_channels=1&use_language_asr_input=pcm"
-        async with ws_lib.connect(url, additional_headers=intron_live._head(), open_timeout=10) as ws:
+        async with ws_lib.connect(url, additional_headers={"Authorization": f"Bearer {value}"}, open_timeout=10) as ws:
             return json.loads(await asyncio.wait_for(ws.recv(), 10))
     t0 = time.perf_counter()
-    first = asyncio.run(probe())
-    if first.get("message_type") == "SESSION_CREATED":
-        credit = first.get("credit_balance", first.get("credits_balance"))
-        return PASS, f"live hearing opens in {_secs(t0)}" + (f", credit left: {credit}" if credit is not None else "")
-    return FAIL, scrub(first.get("message") or first.get("message_type")) + " (top up the Intron credit?)"
+    states = {k["key"]: k["state"] for k in intron_keys.states()}
+    parts, working = [], 0
+    for label, value in intron_keys._keys():   # each key on its own (spares included), never printed
+        try:
+            first = asyncio.run(probe(value))
+        except Exception as e:  # noqa: BLE001
+            parts.append(f"{label}: {scrub(plain(type(e).__name__))}")
+            continue
+        if first.get("message_type") == "SESSION_CREATED":
+            working += 1
+            credit = first.get("credit_balance", first.get("credits_balance"))
+            role = "in use" if states.get(label) == "in use" else "spare"
+            parts.append(f"{label}: works" + (f", credit {credit}" if credit is not None else "") + f", {role}")
+        else:
+            parts.append(f"{label}: refused ({scrub(first.get('message') or first.get('message_type'))}; top up?)")
+    detail = f"{'; '.join(parts)} ({_secs(t0)})"
+    if not working:
+        return FAIL, detail
+    if working < len(parts):
+        return WARN, detail
+    return PASS, detail + ("" if len(parts) > 1 else ". Add a spare so voice never stops: keys.sh INTRON_API_KEY_2")
 
 
 def whatsapp():

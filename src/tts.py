@@ -285,7 +285,8 @@ def backend():
     forced = os.getenv("TTS_BACKEND", "").lower()
     if forced in ("off", "none", "0"):
         return None
-    return "intron" if os.getenv("INTRON_API_KEY") else None
+    import intron_keys
+    return "intron" if intron_keys.available() else None
 
 
 def _tmp(suffix):
@@ -444,18 +445,30 @@ def _intron_one(text, language):
 def _intron_try(text, language, lang, accent):
     import requests
 
+    import intron_keys
+
     body = {"text": text, "voice_language": lang, "voice_gender": os.getenv("INTRON_GENDER", "female"),
             "voice_accent": accent}
-    head = {"Authorization": f"Bearer {os.environ['INTRON_API_KEY']}"}
-    for _ in range(2):
-        r = requests.post(f"{INTRON_URL}/tts/v1/generate", json=body, headers=head, timeout=60)
-        if r.status_code != 429:
-            break
-        time.sleep(min(float(r.headers.get("retry-after") or 2), 10))
-    try:
-        j = r.json()
-    except ValueError:
-        j = {}
+    key = intron_keys.pick()
+    while True:   # a key Intron refuses (credit, quota, auth) rests: the next key is tried at once
+        if not key:
+            raise RuntimeError("Intron voice HTTP 402: every Intron key is resting (refused for credit or the key)")
+        head = intron_keys.head(key)
+        for _ in range(2):
+            r = requests.post(f"{INTRON_URL}/tts/v1/generate", json=body, headers=head, timeout=60)
+            if r.status_code != 429:
+                break
+            time.sleep(min(float(r.headers.get("retry-after") or 2), 10))
+        try:
+            j = r.json()
+        except ValueError:
+            j = {}
+        msg = str(j.get("message") or r.text)[:200] if r.status_code not in (200, 503) else ""
+        if r.status_code in (401, 402, 403) or (r.status_code == 429 and intron_keys.refusal(msg)):
+            key = intron_keys.refused(key[0], f"HTTP {r.status_code} {msg}")
+            continue
+        intron_keys.ok(key[0])
+        break
     data = j.get("data") or {}
     if r.status_code == 503 and (data.get("text_id") or j.get("text_id")):
         tid, end = data.get("text_id") or j.get("text_id"), time.time() + 40
@@ -603,7 +616,8 @@ def keep(text, language, audio, ext=".wav"):
 def speak(text, language="English", fmt="wav", voice=None, speed=None):
     """Return {path, engine} for an Intron audio file of `text`, or None (voice off, no key, or Intron failed:
     the caller then sends text only). The path is a fresh copy the caller may delete.
-    An Intron refusal for credit/key reasons rests it for 10 minutes. voice/speed/fmt are kept for old callers."""
+    A refused key (credit, quota, auth) rests and the next Intron key is used (intron_keys.py); only when every key
+    is refused does the voice rest for 10 minutes. voice/speed/fmt are kept for old callers."""
     import hashlib
     import shutil
 
@@ -625,7 +639,8 @@ def speak(text, language="English", fmt="wav", voice=None, speed=None):
         print(f"Intron voice failed ({language}): {type(e).__name__}: {e}")
         _event("intron", False, language)
         LAST_ERROR["intron"] = f"{language}: {type(e).__name__}: {e}"[:300]
-        if any(w in str(e).lower() for w in ("401", "402", "403", "credit", "quota", "unauthori", "forbidden")):
+        import intron_keys
+        if intron_keys.refusal(e) and not intron_keys.pick():   # rests only when no key is left
             _INTRON_DOWN["until"], _INTRON_DOWN["why"] = time.time() + 600, str(e)[:200]
         return None
 
@@ -636,8 +651,11 @@ LAST_ERROR = {}   # engine -> last failure, shown by /api/voice_check and check_
 
 def why_not_intron():
     """Plain reason the voice is not Intron right now (None if it should be)."""
-    if not os.getenv("INTRON_API_KEY"):
+    import intron_keys
+    if not intron_keys.available():
         return "INTRON_API_KEY is not in .env (or the app was not restarted after adding it)"
+    if not intron_keys.pick():
+        return "every Intron key is resting: " + "; ".join(f"{k['key']} {k['state']}" for k in intron_keys.states())
     forced = os.getenv("TTS_BACKEND", "").lower()
     if forced not in ("", "intron"):
         return f"TTS_BACKEND={forced} in .env forces another voice: delete that line (or set TTS_BACKEND=intron)"

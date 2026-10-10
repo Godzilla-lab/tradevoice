@@ -321,6 +321,13 @@ $10 a day. To spend credits only on the days that matter (a demo, the judges' ch
   lists "N-ATLaS stopped answering: the backups took over" and "N-ATLaS answering again". The team alert says
   which part is down and what traders get meanwhile. `preflight.sh` has an "If Modal stops" row.
 
+**When Intron credit runs out.** Add a spare key before it happens: `sudo bash deploy/server/keys.sh
+INTRON_API_KEY_2`. When Intron refuses a key for credit, quota or the key itself, that key rests for
+`INTRON_KEY_REST` minutes (60) and the next key takes over at once: voice replies, live talk and the backup hearing
+all switch. The team is told once per change (Telegram, WhatsApp), `/team` lists "Intron key 1 refused: the next key
+took over", and `preflight.sh` shows each key's credit. Only when every key is refused do replies become text and live
+talk use the N-ATLaS hearing, as before. Keys are never printed or logged: they are "key 1", "key 2", "key 3".
+
 **Running with no Modal at all.** `sudo bash deploy/server/keys.sh NATLAS_MODE`, then type `off`. N-ATLaS is never
 called, woken or checked. NVIDIA answers and Intron hears. Type `auto` to use N-ATLaS again. Keep the links in
 `.env`; `off` only stops the app using them.
@@ -608,6 +615,8 @@ repository. On the server, use `keys.sh`. Defaults are what the code uses when a
 | Setting | Default | What it does |
 |---|---|---|
 | `INTRON_API_KEY` | (none) | Secret. Voice replies and live talk; also the hearing comparison tests |
+| `INTRON_API_KEY_2`, `INTRON_API_KEY_3` | (none) | Secret. Spare Intron keys: when Intron refuses a key (credit, quota, auth), the next one is used at once, for voice replies, live talk and the backup hearing (`src/intron_keys.py`) |
+| `INTRON_KEY_REST` | `60` | Minutes a refused key rests before it is tried first again |
 | `TTS_BACKEND` | `intron` when the key is set | `off` turns voice replies off |
 | `INTRON_GENDER` | `female` | `female` or `male` |
 | `INTRON_ACCENT_YORUBA` (also `_HAUSA`, `_IGBO`, `_ENGLISH`, `_PIDGIN`) | built in | Overrides an accent if Intron rejects one |

@@ -135,6 +135,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from fastapi.testclient import TestClient  # noqa: E402
 from starlette.websockets import WebSocketDisconnect  # noqa: E402
 
+import intron_keys  # noqa: E402
 import intron_live  # noqa: E402
 import tts  # noqa: E402
 import web  # noqa: E402
@@ -327,6 +328,7 @@ parts = web.VOICES[d["speak"]].parts
 check("Intron's voice stream refused: every piece still made (the old way, or the cache)", got == [200] * d["parts"]
       and made and set(made) <= set(parts), (got, made, parts))
 intron_live._DOWN["until"] = 0
+intron_keys.reset()   # the refused voice stream above rested the only key: a top-up, as it were
 MODE["stt"] = "quota"
 with c.websocket_connect("/api/live/hear?lang=Hausa&consent=yes") as ws:
     m = ws.receive_json()
@@ -335,6 +337,7 @@ check("hearing: no credit -> an error to the page (it hears its recording the ol
 check("…and live hearing rests 10 minutes (the page uses the old hearing meanwhile)",
       c.post("/api/warm", json={}).json().get("live") is False)
 intron_live._DOWN["until"] = 0
+intron_keys.reset()
 os.environ["LIVE_HEARING"] = "natlas"
 check("LIVE_HEARING=natlas switches it off", c.post("/api/warm", json={}).json().get("live") is False)
 os.environ.pop("LIVE_HEARING")

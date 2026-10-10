@@ -1140,10 +1140,11 @@ def status():
     import llm
 
     import asr
+    import intron_keys
     import natlas_watch
 
     hearing = os.getenv("ASR_ENGINE") or ("natlas" if llm.natlas_hearing_on() else
-                                          "intron" if os.getenv("INTRON_API_KEY") else "local")
+                                          "intron" if intron_keys.available() else "local")
     brain = ("natlas" if llm.natlas_on() else "brev" if os.getenv("LOCAL_LLM_URL") else
              "nvidia" if os.getenv("NVIDIA_API_KEY") else "offline")
     # counts only: no error text or tokens on this public page (details are on /team)
@@ -1155,7 +1156,9 @@ def status():
             "keep_awake": llm.natlas_on() and os.getenv("NATLAS_WATCH", "1") == "1" and natlas_watch._watch_day(),
             "photos": "brev" if os.getenv("LOCAL_VISION_URL") else ("nvidia" if llm.available("vision") else "off"),
             "shop": SHOP_NAME, "whatsapp": v2.whatsapp_on(), "telegram": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
-            "signup_code": not v2.channels()["nocode"]}
+            "signup_code": not v2.channels()["nocode"],
+            "intron_keys": intron_keys.count(), "intron_keys_working": sum(
+                1 for k in intron_keys.states() if not k["state"].startswith("resting"))}
 
 
 # ---------------------------------------------------------------- log in with your phone number
