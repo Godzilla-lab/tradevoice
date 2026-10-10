@@ -26,6 +26,8 @@ function filmData() {
   const data = { orbCss: m[1], lines, layers: read(path.join(HERE, "shots", "layers.json")) || {} };
   const chosen = read(path.join(HERE, "voices", "chosen.json"));
   if (chosen) data.voices = chosen;
+  const web = path.join(HERE, "assets", "web");   // real photos (prep_media.py)
+  if (fs.existsSync(web)) { data.photos = {}; for (const f of fs.readdirSync(web)) { const m = f.match(/^photo_(\d+)_/); if (m) data.photos[m[1]] = "assets/web/" + f; } }
   const open = path.join(HERE, "assets", "frames", "open");
   if (fs.existsSync(open)) { const n = fs.readdirSync(open).filter(f => f.endsWith(".jpg")).length; if (n) data.openFrames = { dir: "assets/frames/open", count: n, fps: 60 }; }
   return data;

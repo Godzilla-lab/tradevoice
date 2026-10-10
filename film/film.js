@@ -184,7 +184,18 @@ const textBlock = (parent, cls, txt, style) => html(`<div class="${cls}" style="
     const v = html(`<img class="abs" style="left:0;top:0;width:1920px;height:1080px;object-fit:cover;filter:brightness(.42) saturate(.9)">`, s.cam);
     hooks.push(t => { if (t < s.start || t > s.end) return; const f = Math.min(D.openFrames.count - 1, Math.floor((t - s.start) * D.openFrames.fps)); const src = `${D.openFrames.dir}/${String(f + 1).padStart(5, "0")}.jpg`; if (v.getAttribute("src") !== src) v.setAttribute("src", src); });
   }
-  if (!D.openFrames) {
+  const P = D.photos || {};
+  if (P[3] && P[4] && P[1] && P[5]) {   // real Nigerian markets, cut on the half bars: the aerial, the traders, the trader, the sale
+    const cuts = [[P[3], "50% 50%", 1.0, 1.1, 0, -30], [P[4], "50% 62%", 1.1, 1.04, -40, 10], [P[1], "38% 35%", 1.04, 1.12, 30, 0], [P[5], "35% 50%", 1.12, 1.05, 0, -20]];
+    cuts.forEach(([src, pos, s0, s1, dx, dy], i) => {
+      const a0 = t0 + i * BAR / 2, a1 = i === 3 ? s.end : a0 + BAR / 2;
+      const im = html(`<img class="abs" src="${src}" style="left:0;top:0;width:1920px;height:1080px;object-fit:cover;object-position:${pos};filter:brightness(.5) saturate(.85) contrast(1.06);visibility:hidden">`, s.cam);
+      show(im, a0, a1 + 0.001);
+      tl.fromTo(im, { scale: s0, x: 0, y: 0 }, { scale: s1, x: dx, y: dy, duration: a1 - a0 + 0.2, ease: "none" }, a0);
+      if (i) cue("cut", a0);
+    });
+    html(`<div class="abs" style="inset:0;background:radial-gradient(ellipse 70% 60% at 50% 50%,rgba(8,8,12,.45),rgba(8,8,12,.2) 70%,rgba(8,8,12,.55))"></div>`, s.cam);
+  } else if (!D.openFrames) {
     const r = rng(42), cols = ["#F2A93B", "#E8743B", "#F6D27A", "#C9653A", "#FFE3A3"];
     for (let i = 0; i < 16; i++) {
       const sz = 120 + r() * 300, x = r() * 1920, y = 240 + r() * 700, c = cols[i % cols.length];
@@ -209,7 +220,7 @@ let notebookDot;
   const page = makePage(s.cam, 120, 70, -3.2);
   const h1 = textBlock(s.cam, "h m abs", "Debts live<br>in a notebook.", "left:1060px;top:360px;width:780px");
   const h2 = textBlock(s.cam, "h m abs", "Some are<br>forgotten<span class='dot'>.</span>", "left:1060px;top:360px;width:780px");
-  zoomIn(s.cam, t0); drift(page, t0, s.end, 1.04);
+  zoomIn(s.cam, t0); drift(page, t0, s.end, 1.04); cue("page", t0 + 0.02);
   writeEntries(page, t0 + 0.15, 0.32, 0.5);
   const s1 = rise(h1, t0 + 0.55, { stagger: 0.05 });
   // two debts settled and crossed out; one fades, forgotten
@@ -417,7 +428,7 @@ let endLogo;
   const totEl = $(".tot", tot), tc0 = t0 + 2.9, tc1 = tc0 + 1.3;
   hooks.push(t => { if (t < tc0 - 0.1 || t > s.end) return; const p = clamp((t - tc0) / (tc1 - tc0)), e = 1 - Math.pow(1 - p, 4); totEl.textContent = "₦" + (Math.round(116000 * e / 500) * 500).toLocaleString("en-NG"); });
   for (let i = 0; i < 9; i++) cue("tick", tc0 + i * 0.13 * (1 + i * 0.08), { gain: 0.16, pitch: 2 + (i % 3) });
-  cue("hit", tc1, { gain: 0.5 });
+  cue("hit", tc1, { gain: 0.5 }); cue("cash", tc0 - 0.05, { dur: tc1 - tc0 + 0.25 });
   ripple(ph.app, 195, 482, s.end - 0.95);
   tl.to([h1, h2, box], { opacity: 0, x: -30, duration: 0.4, ease: "power2.in" }, s.end - 0.7);
   tl.to(ph.el, { x: 1310 - 560, y: -10, duration: 0.75, ease: "power3.inOut" }, s.end - 0.75);
@@ -455,7 +466,7 @@ let endLogo;
   gsap.set($(".e4", page), { opacity: 1 });
   const corners = [[460, 40, "border-right:0;border-bottom:0"], [1400, 40, "border-left:0;border-bottom:0"], [460, 970, "border-right:0;border-top:0"], [1400, 970, "border-left:0;border-top:0"]]
     .map(([x, y, st]) => html(`<i class="photoframe" style="left:${x}px;top:${y}px;${st}"></i>`, holder));
-  zoomIn(s.cam, t0);
+  zoomIn(s.cam, t0); cue("page", t0 + 0.02);
   const flash = html(`<div class="abs" style="inset:0;background:#fff;opacity:0;z-index:30"></div>`, s.el);
   const tShot = t0 + 0.55;
   tl.to(flash, { opacity: 0.85, duration: 0.05 }, tShot); tl.to(flash, { opacity: 0, duration: 0.4, ease: "power2.out" }, tShot + 0.05);

@@ -313,12 +313,39 @@ def music():
 
 
 # ================================================================ product sounds and foley
+FOLEY = {"pen": "sfx_pen_writing.mp3", "page": "sfx_page_turn.mp3", "shutter": "sfx_phone_camera_shutter.mp3",
+         "tap": "sfx_phone_tap.mp3", "whoosh": "sfx_whoosh_soft.mp3", "cash": "sfx_cash_count.mp3"}   # all CC0, see CREDITS.md
+
+
 def foley(name):
-    for f in sorted(os.listdir(ASSETS)) if os.path.isdir(ASSETS) else []:
-        if f.startswith("sfx_" + name) and f.endswith((".mp3", ".wav", ".ogg", ".flac")):
-            x = read_audio(os.path.join(ASSETS, f))
-            return x
-    return None
+    """A real recording (film/assets, Freesound CC0), mono, levelled; None when it isn't there."""
+    f = os.path.join(ASSETS, FOLEY.get(name, ""))
+    if not FOLEY.get(name) or not os.path.exists(f):
+        return None
+    x = filt(read_audio(f).mean(axis=1), "highpass", 60)
+    return x / max(1e-9, np.percentile(np.abs(x), 99.9))
+
+
+def onsets(x, n=6, min_gap=0.25):
+    """The n strongest separate hits in a recording (for single taps cut from a take of many)."""
+    hop = int(0.005 * SR)
+    e = np.array([np.sqrt(np.mean(x[i:i + hop] ** 2)) for i in range(0, len(x) - hop, hop)])
+    d = np.maximum(0, np.diff(e, prepend=e[0]))
+    order = np.argsort(d)[::-1]
+    picked = []
+    for i in order:
+        t = i * hop
+        if all(abs(t - p) > min_gap * SR for p in picked):
+            picked.append(t)
+        if len(picked) >= n:
+            break
+    return sorted(picked)
+
+
+def peak_at(x):
+    hop = int(0.01 * SR)
+    e = [np.sqrt(np.mean(x[i:i + hop] ** 2)) for i in range(0, len(x) - hop, hop)]
+    return int(np.argmax(e)) * hop
 
 
 def whoosh(length=0.5, up=False, gain=1.0):
@@ -386,32 +413,58 @@ def hit():
 
 def effects():
     fx = buf()
-    real = {k: foley(k) for k in ("pen", "page", "shutter", "tap", "whoosh")}
+    real = {k: foley(k) for k in FOLEY}
+    taps = []
+    if real["tap"] is not None:
+        for o in onsets(real["tap"]):
+            seg = real["tap"][max(0, o - int(0.004 * SR)):o + int(0.14 * SR)].copy()
+            seg *= np.clip((len(seg) - np.arange(len(seg))) / (0.05 * SR), 0, 1)
+            taps.append(seg / max(1e-9, np.abs(seg).max()))
+    n_tap = 0
     for c in film["cues"]:
         k, t = c["kind"], c["t"]
         g = c.get("gain", 1.0)
         if k == "whoosh":
-            if real["whoosh"] is not None:
-                add(fx, real["whoosh"][: int(0.8 * SR)] * 0.5, t, g)
+            if real["whoosh"] is not None:   # the recording's loudest moment lands on the cut
+                w = real["whoosh"]
+                pk = peak_at(w)
+                add(fx, w * 0.32, t + 0.3 - pk / SR, g)
             else:
                 add(fx, whoosh(0.5, c.get("up", False)), t, g)
         elif k == "sheet":
-            add(fx, whoosh(0.32, True, 0.5), t, 0.6)
+            add(fx, whoosh(0.32, True, 0.5), t, 0.5)
         elif k == "tap":
-            add(fx, real["tap"][: int(0.15 * SR)] if real["tap"] is not None else tap(), t, 0.7)
+            if taps:
+                add(fx, taps[n_tap % len(taps)] * 0.5, t)
+                n_tap += 1
+            else:
+                add(fx, tap(), t, 0.7)
         elif k == "tick":
             add(fx, tick(c.get("pitch", 0) * 2), t, g * 1.2, pan=0.1)
         elif k == "chime":
             add(fx, chime(), t, 0.8)
         elif k == "shutter":
-            add(fx, real["shutter"][: int(0.6 * SR)] if real["shutter"] is not None else shutter(), t, 0.9)
+            if real["shutter"] is not None:
+                add(fx, real["shutter"][: int(0.7 * SR)] * 0.5, t - 0.02)
+            else:
+                add(fx, shutter(), t, 0.9)
+        elif k == "page":
+            if real["page"] is not None:
+                add(fx, real["page"] * 0.22, t, pan=-0.15)
+        elif k == "cash" and real["cash"] is not None:
+            src = real["cash"]
+            seg = src[int(2 * SR):int(2 * SR) + int(c["dur"] * SR)].copy()
+            seg *= np.clip(np.minimum(np.arange(len(seg)), np.arange(len(seg))[::-1]) / (0.06 * SR), 0, 1)
+            add(fx, seg * 0.16, t, pan=0.2)
+        elif k == "cut":
+            add(fx, filt(noise(0.08), "lowpass", 400) * np.exp(-tsec(0.08) / 0.02) * 0.25, t)
         elif k == "pen":
             if real["pen"] is not None and not c.get("strike"):
                 src = real["pen"]
                 off = int(RNG.uniform(0, max(1, len(src) / SR - c["dur"] - 0.1)) * SR)
-                seg = src[off:off + int(c["dur"] * SR)]
-                fade = np.clip(np.minimum(np.arange(len(seg)), np.arange(len(seg))[::-1]) / (0.02 * SR), 0, 1)
-                add(fx, seg * fade[:, None], t, 0.8)
+                seg = src[off:off + int(c["dur"] * SR)].copy()
+                seg *= np.clip(np.minimum(np.arange(len(seg)), np.arange(len(seg))[::-1]) / (0.02 * SR), 0, 1)
+                add(fx, seg * 0.5, t, pan=-0.2)
             else:
                 add(fx, pen(c["dur"], c.get("strike", False)), t, 1.0, pan=-0.2)
         elif k == "hit":
