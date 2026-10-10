@@ -122,6 +122,70 @@
    ]
   },
   {
+   "id": "saved_en",
+   "shot": "four_voices",
+   "language": "English",
+   "spitch_language": "en",
+   "text": "Okay, written down.",
+   "subtitle": "Okay, written down.",
+   "voices": [
+    "lucy",
+    "lina"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "saved_yo",
+   "shot": "four_voices",
+   "language": "Yoruba",
+   "spitch_language": "yo",
+   "text": "Mo ti kọ ọ́ sílẹ̀.",
+   "subtitle": "I've written it down.",
+   "voices": [
+    "sade",
+    "funmi"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "saved_ha",
+   "shot": "four_voices",
+   "language": "Hausa",
+   "spitch_language": "ha",
+   "text": "Shikenan, na rubuta.",
+   "subtitle": "That's it, I've written it down.",
+   "voices": [
+    "amina",
+    "zainab"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
+   "id": "saved_ig",
+   "shot": "four_voices",
+   "language": "Igbo",
+   "spitch_language": "ig",
+   "text": "Edeela m ya.",
+   "subtitle": "I've written it down.",
+   "voices": [
+    "ngozi",
+    "amara"
+   ],
+   "speeds": [
+    1.0,
+    0.92
+   ]
+  },
+  {
    "id": "tagline",
    "shot": "end",
    "language": "English",

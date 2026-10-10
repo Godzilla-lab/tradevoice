@@ -52,6 +52,16 @@ add("yo_saved", "Yoruba", first, {"Ó ti wọ ìwé.": "It's in the book.", "Mo 
 for lang in ("English", "Yoruba", "Hausa", "Igbo", "Pidgin"):
     add(f"four_{LANG[lang]}", lang, tts.entry_sentence(REC, lang), en_entry, "four_voices")
 
+# shot 5 option for a tighter cut: the first words of the saved reply in each voice (live talk says these first)
+SAVED_EN = {"Done.": "Done.", "Okay, written down.": "Okay, written down.", "Got it.": "Got it.",
+            "Mo ti kọ ọ́ sílẹ̀.": "I've written it down.", "Ó ti wọ ìwé.": "It's in the book.",
+            "To, na rubuta.": "Okay, I've written it down.", "Shikenan, na rubuta.": "That's it, I've written it down.",
+            "Edeela m ya.": "I've written it down.", "O banyela n'akwụkwọ.": "It's in the book."}
+for lang, pick in (("English", "Okay, written down. "), ("Yoruba", "Mo ti kọ ọ́ sílẹ̀. "),
+                   ("Hausa", "Shikenan, na rubuta. "), ("Igbo", "Edeela m ya. ")):
+    assert pick in tts.PREFIX[lang]["saved"], (lang, pick)   # only words the app really says
+    add(f"saved_{LANG[lang]}", lang, pick.strip(), SAVED_EN[pick.strip()], "four_voices")
+
 # end card
 add("tagline", "English", "TradeVoice. Records that speak your language.", "", "end")
 
